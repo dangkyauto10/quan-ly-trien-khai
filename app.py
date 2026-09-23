@@ -7,6 +7,5 @@ st.title("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Đọc dữ liệu từ đúng link Google Sheet của anh
-data = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9jvUXKf3euh7KGieGwzREBFibOoC4/edit?resourcekey=&gid=470200251#gid=470200251")
-
+data = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9jvUXKf3euh7KGieGwzREBFibOoC4/edit")
 st.dataframe(data)
