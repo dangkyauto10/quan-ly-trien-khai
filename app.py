@@ -1,17 +1,10 @@
 import streamlit as st
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from streamlit_gsheets import GSheetsConnection
 
-# Lấy trực tiếp thông tin từ Secrets của Streamlit
-creds_dict = dict(st.secrets["gcp_service_account"])
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+st.title("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
 
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-gc = gspread.authorize(creds)
+# Kết nối trực tiếp với Google Sheets (chỉ cần link công khai hoặc chia sẻ quyền là đọc được)
+conn = st.connection("gsheets", type=GSheetsConnection)
+data = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit") # Thay link sheet của anh vào đây
 
-sh = gc.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-data = sh.get_worksheet(0).get_all_records()
-
-st.title("Quản lý triển khai")
-st.success("Đã kết nối thành công tới Google Sheet!")
 st.dataframe(data)
