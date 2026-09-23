@@ -1,5 +1,6 @@
 streamlit
+numpy<2.0.0
+pandas<2.2.0
 gspread
 oauth2client
 st-gsheets-connection
-pandas
