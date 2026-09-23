@@ -3,9 +3,10 @@ from streamlit_gsheets import GSheetsConnection
 
 st.title("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
 
-# Kết nối đúng chuẩn với GSheetsConnection
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Sử dụng link xuất dữ liệu trực tiếp dưới dạng CSV để chống lỗi 404
+url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9jvUXKf3euh7KGieGwzREBFibOoC4/export?format=csv"
 
-# Đọc dữ liệu từ đúng link Google Sheet của anh
-data = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9jvUXKf3euh7KGieGwzREBFibOoC4/edit")
+conn = st.connection("gsheets", type=GSheetsConnection)
+data = conn.read(spreadsheet=url)
+
 st.dataframe(data)
