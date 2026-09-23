@@ -1,10 +1,10 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
+import pandas as pd
 
 st.title("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
 
-# Kết nối trực tiếp bằng đường link gốc chuẩn của Google Sheet
-conn = st.connection("gsheets", type=GSheetsConnection)
-data = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9jvUXKf3euh7KGieGwzREBFibOoC4/edit")
+# Link xuất trực tiếp CSV chuẩn xác từ Google Sheet công khai
+sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9jvUXKf3euh7KGieGwzREBFibOoC4/export?format=csv"
 
+data = pd.read_csv(sheet_url)
 st.dataframe(data)
