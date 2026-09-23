@@ -16,7 +16,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gc = gspread.authorize(creds)
 
 # 4. Mở file Google Sheet (Bạn hãy thay "quan-ly-trien-khai" bằng tên chính xác file Google Sheet của bạn)
-sheet_name = "quan-ly-trien-khai" 
+sheet_name = "QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH"
 try:
     sh = gc.open(sheet_name)
     worksheet = sh.get_worksheet(0) # Lấy sheet đầu tiên
