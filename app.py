@@ -22,15 +22,11 @@ try:
     spreadsheet = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
     sheet = spreadsheet.worksheet("TRANG_CHU")
     
-    # Lấy toàn bộ giá trị thô từ dòng 5 trở đi, giới hạn đúng 4 cột A, B, C, D
-    rows = sheet.get_values("A5:D")
+    # Lấy tiêu đề ở hàng 5 và đúng một dòng số liệu ở hàng 6
+    headers = sheet.row_values(5)[:4]
+    values = sheet.row_values(6)[:4]
     
-    if len(rows) > 1:
-        headers = rows[0] # Dòng 5 làm tiêu đề
-        data = rows[1:]   # Các dòng từ dòng 6 trở đi là dữ liệu
-        df = pd.DataFrame(data, columns=headers)
-    else:
-        df = pd.DataFrame()
+    df = pd.DataFrame([values], columns=headers)
 
     st.success("Kết nối Google Sheet thành công tuyệt đối!")
     st.dataframe(df, use_container_width=True)
