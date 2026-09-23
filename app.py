@@ -4,6 +4,9 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 # 1. Lấy thông tin xác thực từ Streamlit Secrets (đã cấu hình [gcp_service_account])
 creds_dict = dict(st.secrets["gcp_service_account"])
+# Tự động chuẩn hóa ký tự xuống dòng cho private_key
+if "private_key" in creds_dict:
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 
 # 2. Định nghĩa quyền truy cập (Scope) cho Google Sheets và Google Drive
 scope = [
