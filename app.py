@@ -1,21 +1,36 @@
 import streamlit as st
 import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
 
 st.title("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
 
-# Đưa trực tiếp dữ liệu dạng bảng vào đây để chạy offline trên Cloud, loại bỏ hoàn toàn lỗi mạng
-data = {
-    "STT": [1, 2, 3],
-    "Nội dung công việc": [
-        "Khởi tạo hệ thống điều hành",
-        "Triển khai ứng dụng di động",
-        "Hoàn thiện báo cáo dự án"
-    ],
-    "Trạng thái": ["Đang thực hiện", "Hoàn thành", "Chờ duyệt"],
-    "Ghi chú": ["Ổn định", "Đã xong", "Bản nháp"]
-}
+# Cấu hình quyền truy cập Google Sheets thông qua Service Account
+scope = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
-df = pd.DataFrame(data)
+@st.cache_resource
+def init_connection():
+    # Đọc thông tin xác thực từ file credentials.json có sẵn trong kho
+    creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
+    client = gspread.authorize(creds)
+    return client
 
-st.success("Đã kết nối và hiển thị hệ thống thành công!")
-st.dataframe(df, use_container_width=True)
+try:
+    client = init_connection()
+    
+    # Mở Google Sheet trực tiếp bằng tên hoặc link
+    # (Cách an toàn nhất là mở theo tên file chính xác trên Drive)
+    sheet = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH").sheet1
+    
+    # Lấy toàn bộ dữ liệu chuyển thành DataFrame của pandas
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    
+    st.success("Đã kết nối thành công với Google Sheet qua Service Account!")
+    st.dataframe(df, use_container_width=True)
+
+except Exception as e:
+    st.error(f"Lỗi kết nối Service Account: {e}")
