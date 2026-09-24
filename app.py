@@ -21,7 +21,7 @@ SCOPES = [
 @st.cache_resource
 def ket_noi_sheets():
     try:
-        # Nếu chạy trên Streamlit Cloud (đọc cấu hình từ st.secrets)
+        # Nếu chạy trên Streamlit Cloud (đọc từ st.secrets)
         if "gcp_service_account" in st.secrets:
             creds_info = dict(st.secrets["gcp_service_account"])
             creds = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
@@ -30,7 +30,6 @@ def ket_noi_sheets():
             creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
         
         client = gspread.authorize(creds)
-        # Mở bảng tính Google Sheets của dự án
         sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
         return sh
     except Exception as e:
@@ -57,7 +56,6 @@ if sh:
     except Exception:
         pass
 
-# Dữ liệu mặc định nếu chưa nạp được sheet
 if not danh_sach_diem:
     danh_sach_diem = {
         "Phường Minh Xuân": 5,
@@ -102,7 +100,6 @@ sl_thuc_te = st.number_input(
 st.markdown("---")
 st.subheader("2. Định vị Địa điểm (Google Maps)")
 
-# Mã HTML/JavaScript kích hoạt cảm biến GPS của thiết bị di động
 gps_component_html = """
 <div style="text-align: center; margin-bottom: 12px;">
     <button onclick="layToaDoGPS()" style="
@@ -134,7 +131,6 @@ function layToaDoGPS() {
             var lon = position.coords.longitude;
             var linkMaps = "https://www.google.com/maps?q=" + lat + "," + lon;
             
-            // Sao chép trực tiếp vào bộ nhớ tạm
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(linkMaps).then(function() {
                     status.innerHTML = "✅ Đã sao chép link GPS! Dán (Paste) vào ô bên dưới.";
@@ -168,7 +164,7 @@ link_gps = st.text_input(
 )
 
 # -------------------------------------------------------------
-# 5. GHI NHẬN TIẾN ĐỘ VỀ GOOGLE SHEETS
+# 5. GHI NHẬN TIẾN ĐỘ VỀ GOOGLE SHEETS (ĐÃ KHỚP ĐÚNG THỨ TỰ CỘT)
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("3. Xác nhận hoàn thành công việc")
@@ -185,13 +181,14 @@ def ghi_du_lieu_bao_cao(loai_hinh):
             ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
             thoi_gian_hien_tai = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
+            # Khớp chính xác với cột A, B, C, D, E, F trên Sheet
             dong_moi = [
-                thoi_gian_hien_tai,
-                can_bo_chon,
-                diem_chon,
-                sl_thuc_te,
-                loai_hinh,
-                link_gps
+                thoi_gian_hien_tai,  # Cột A: Dấu thời gian
+                can_bo_chon,         # Cột B: Tên đội thực hiện
+                diem_chon,           # Cột C: Điểm lắp đặt
+                sl_thuc_te,          # Cột D: Số lượng thiết bị thực tế
+                link_gps,            # Cột E: Link Google Maps
+                loai_hinh            # Cột F: Trạng thái thực hiện
             ]
             ws_bc.append_row(dong_moi)
             st.success(f"✅ Ghi nhận thành công: {loai_hinh} tại {diem_chon}!")
