@@ -1,150 +1,207 @@
-from datetime import datetime
+import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
-import streamlit as st
+from datetime import datetime
 
-# Cấu hình kết nối Google Sheets (Hỗ trợ chuẩn Streamlit Secrets và file cục bộ)
+# Cấu hình giao diện ứng dụng
+st.set_page_config(
+    page_title="Báo Cáo Triển Khai Dự Án",
+    page_icon="📱",
+    layout="centered"
+)
+
+# -------------------------------------------------------------
+# 1. KẾT NỐI GOOGLE SHEETS (HỖ TRỢ CẢ CLOUD SECRETS & LOCAL FILE)
+# -------------------------------------------------------------
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/drive"
 ]
 
 @st.cache_resource
 def ket_noi_sheets():
     try:
-        # Nếu chạy trên Streamlit Cloud (đọc từ st.secrets)
+        # Nếu chạy trên Streamlit Cloud (đọc cấu hình từ st.secrets)
         if "gcp_service_account" in st.secrets:
             creds_info = dict(st.secrets["gcp_service_account"])
             creds = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
         else:
             # Nếu chạy trên máy tính cá nhân (đọc file credentials.json)
             creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
+        
         client = gspread.authorize(creds)
-        return client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+        # Mở bảng tính Google Sheets của dự án
+        sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+        return sh
     except Exception as e:
-        st.error(f"Lỗi kết nối Google Sheets: {e}")
+        st.error(f"Lỗi kết nối cơ sở dữ liệu Google Sheets: {e}")
         return None
 
-try:
-    spreadsheet = ket_noi_sheets()
+sh = ket_noi_sheets()
 
-    if spreadsheet:
-        # 1. Đọc sheet QUAN_LY_DOI (Quét động theo tiêu đề cột, chống lệch cột)
-        doi_sheet = spreadsheet.worksheet("QUAN_LY_DOI")
-        doi_data = doi_sheet.get_all_values()
+# -------------------------------------------------------------
+# 2. ĐỌC DỮ LIỆU DANH MỤC TỪ GOOGLE SHEETS
+# -------------------------------------------------------------
+danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
+danh_sach_diem = {}
 
-        doi_to_khu_vuc = {}
-        danh_sach_nguoi_phu_trach = []
+if sh:
+    try:
+        ws_diem = sh.worksheet("DANH_SACH_DIEM")
+        records = ws_diem.get_all_records()
+        for row in records:
+            ten_diem = str(row.get("TEN_DIEM", "")).strip()
+            sl_thau = row.get("SO_LUONG_THIET_BI", 0)
+            if ten_diem:
+                danh_sach_diem[ten_diem] = sl_thau
+    except Exception:
+        pass
 
-        if len(doi_data) > 2:
-            header_doi = doi_data[1]  # Dòng 2 chứa tiêu đề
-            try:
-                idx_ma_doi = header_doi.index("Mã Đội") if "Mã Đội" in header_doi else 1
-                idx_ten = header_doi.index("Họ và Tên") if "Họ và Tên" in header_doi else 2
-                idx_khu_vuc = header_doi.index("Khu Vực Phụ Trách") if "Khu Vực Phụ Trách" in header_doi else 4
-            except:
-                idx_ma_doi, idx_ten, idx_khu_vuc = 1, 2, 4
+# Dữ liệu mặc định nếu chưa nạp được sheet
+if not danh_sach_diem:
+    danh_sach_diem = {
+        "Phường Minh Xuân": 5,
+        "Phường Phan Thiết": 4,
+        "Xã Kim Phú": 6,
+        "Xã Tràng Đà": 3
+    }
 
-            for row in doi_data[2:]:
-                if len(row) > idx_ten and row[idx_ten].strip():
-                    ten_doi_truong = row[idx_ten].strip()
-                    ma_doi = row[idx_ma_doi].strip() if len(row) > idx_ma_doi and row[idx_ma_doi].strip() else ""
-                    hien_thi = f"{ten_doi_truong} ({ma_doi})" if ma_doi else ten_doi_truong
-
-                    danh_sach_nguoi_phu_trach.append(hien_thi)
-                    khu_vuc = row[idx_khu_vuc].strip() if len(row) > idx_khu_vuc else ""
-                    doi_to_khu_vuc[hien_thi] = khu_vuc
-
-        # 2. Đọc sheet DANH_SACH_DIEM (Quét động theo tiêu đề cột)
-        diem_sheet = spreadsheet.worksheet("DANH_SACH_DIEM")
-        diem_data = diem_sheet.get_all_values()
-
-        diem_info = {}
-        if len(diem_data) > 2:
-            header_diem = diem_data[1]
-            try:
-                idx_ten_diem = header_diem.index("Tên Điểm") if "Tên Điểm" in header_diem else 3
-                idx_so_luong = header_diem.index("Số Lượng Thiết Bị") if "Số Lượng Thiết Bị" in header_diem else 7
-            except:
-                idx_ten_diem, idx_so_luong = 3, 7
-
-            for row in diem_data[2:]:
-                if len(row) > idx_ten_diem and row[idx_ten_diem].strip():
-                    ten_diem = row[idx_ten_diem].strip()
-                    so_luong = row[idx_so_luong].strip() if len(row) > idx_so_luong and row[idx_so_luong].strip() else "0"
-                    diem_info[ten_diem] = so_luong
-
-        tat_ca_diem = list(diem_info.keys())
-    else:
-        danh_sach_nguoi_phu_trach, doi_to_khu_vuc, tat_ca_diem, diem_info = [], {}, [], {}
-
-except Exception as e:
-    st.error(f"Lỗi đọc dữ liệu Google Sheets: {e}")
-    danh_sach_nguoi_phu_trach = []
-    doi_to_khu_vuc = {}
-    tat_ca_diem = []
-    diem_info = {}
-
-# --- GIAO DIỆN APP DI ĐỘNG ---
+# -------------------------------------------------------------
+# 3. GIAO DIỆN BÁO CÁO HIỆN TRƯỜNG DỰ ÁN
+# -------------------------------------------------------------
 st.title("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
-st.write("Hệ thống điều hành phân bổ tự động")
+st.caption("Hệ thống điều hành phân bổ tự động & ghi nhận hiện trường")
 
-with st.form("form_bao_cao"):
-    st.subheader("1. Xác nhận thông tin thực hiện")
+st.markdown("---")
+st.subheader("1. Xác nhận thông tin thực hiện")
 
-    if danh_sach_nguoi_phu_trach:
-        selected_nguoi = st.selectbox("Cán bộ / Đội trưởng thực hiện:", danh_sach_nguoi_phu_trach)
-    else:
-        selected_nguoi = ""
-        st.warning("Chưa tải được danh sách nhân sự từ Google Sheets.")
+can_bo_chon = st.selectbox(
+    "Cán bộ / Đội trưởng thực hiện:",
+    options=danh_sach_ktv
+)
 
-    khu_vuc_duoc_giao = doi_to_khu_vuc.get(selected_nguoi, "")
+diem_chon = st.selectbox(
+    "Chọn Điểm lắp đặt thuộc phân công:",
+    options=list(danh_sach_diem.keys())
+)
 
-    danh_sach_diem_hien_thi = [
-        d for d in tat_ca_diem
-        if khu_vuc_duoc_giao
-        and (khu_vuc_duoc_giao.lower() in d.lower() or d.lower() in khu_vuc_duoc_giao.lower())
-    ]
-    if not danh_sach_diem_hien_thi:
-        danh_sach_diem_hien_thi = tat_ca_diem
+sl_dinh_muc = danh_sach_diem.get(diem_chon, 0)
+st.info(f"📦 **Số lượng thiết bị được phân bổ cho điểm này:** {sl_dinh_muc} thiết bị")
 
-    if danh_sach_diem_hien_thi:
-        selected_diem = st.selectbox("Chọn Điểm lắp đặt thuộc phân công:", danh_sach_diem_hien_thi)
-    else:
-        selected_diem = ""
-        st.warning("Không tìm thấy điểm lắp đặt phù hợp.")
+sl_thuc_te = st.number_input(
+    "Số lượng thiết bị thực tế:",
+    min_value=1,
+    max_value=1000,
+    value=int(sl_dinh_muc) if sl_dinh_muc else 1,
+    step=1
+)
 
-    sl_phan_bo = diem_info.get(selected_diem, "0") if selected_diem else "0"
-    st.info(f"📦 **Số lượng thiết bị được phân bổ cho điểm này:** {sl_phan_bo} thiết bị")
+# -------------------------------------------------------------
+# 4. ĐỊNH VỊ VỊ TRÍ HIỆN TRƯỜNG (GPS) 1 CHẠM
+# -------------------------------------------------------------
+st.markdown("---")
+st.subheader("2. Định vị Địa điểm (Google Maps)")
 
-    so_luong_thuc_te = st.number_input(
-        "Số lượng thiết bị thực tế lắp đặt:",
-        min_value=0,
-        value=int(sl_phan_bo) if sl_phan_bo.isdigit() else 0,
-    )
+# Mã HTML/JavaScript kích hoạt cảm biến GPS của thiết bị di động
+gps_component_html = """
+<div style="text-align: center; margin-bottom: 12px;">
+    <button onclick="layToaDoGPS()" style="
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 14px 20px;
+        font-size: 16px;
+        font-weight: bold;
+        border-radius: 8px;
+        cursor: pointer;
+        width: 100%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    ">📍 BẤM ĐỂ LẤY VỊ TRÍ GPS HIỆN TẠI</button>
+    <div id="gps-status" style="margin-top: 8px; font-size: 14px; font-weight: 500; color: #333;"></div>
+</div>
 
-    st.subheader("2. Định vị Địa điểm (Google Maps)")
-    maps_link = st.text_input(
-        "Link Google Maps / Tọa độ GPS:",
-        placeholder="Dán link Google Maps hoặc bấm lấy tọa độ thực tế",
-    )
+<script>
+function layToaDoGPS() {
+    var status = document.getElementById("gps-status");
+    if (!navigator.geolocation) {
+        status.innerHTML = "❌ Thiết bị hoặc trình duyệt không hỗ trợ định vị GPS.";
+        return;
+    }
+    status.innerHTML = "⏳ Đang quét tọa độ vệ tinh...";
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            var lat = position.coords.latitude;
+            var lon = position.coords.longitude;
+            var linkMaps = "https://www.google.com/maps?q=" + lat + "," + lon;
+            
+            // Sao chép trực tiếp vào bộ nhớ tạm
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(linkMaps).then(function() {
+                    status.innerHTML = "✅ Đã sao chép link GPS! Dán (Paste) vào ô bên dưới.";
+                }).catch(function() {
+                    status.innerHTML = "✅ Tọa độ: " + lat + ", " + lon + " (Hãy copy link Maps)";
+                });
+            } else {
+                status.innerHTML = "✅ Tọa độ: " + lat + ", " + lon;
+            }
+        },
+        function(error) {
+            if (error.code == error.PERMISSION_DENIED) {
+                status.innerHTML = "⚠️ Vui lòng cấp quyền truy cập Vị trí (GPS) trên trình duyệt.";
+            } else if (error.code == error.TIMEOUT) {
+                status.innerHTML = "⚠️ Quá thời gian quét vị trí GPS.";
+            } else {
+                status.innerHTML = "⚠️ Không thể định vị được vị trí hiện tại.";
+            }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+}
+</script>
+"""
 
-    submitted = st.form_submit_button("🚀 GỬI BÁO CÁO HOÀN THÀNH")
+st.components.v1.html(gps_component_html, height=105)
 
-    if submitted:
+link_gps = st.text_input(
+    "Dán Link GPS vừa lấy (hoặc nhập tọa độ):",
+    placeholder="https://www.google.com/maps?q=..."
+)
+
+# -------------------------------------------------------------
+# 5. GHI NHẬN TIẾN ĐỘ VỀ GOOGLE SHEETS
+# -------------------------------------------------------------
+st.markdown("---")
+st.subheader("3. Xác nhận hoàn thành công việc")
+
+col1, col2 = st.columns(2)
+
+def ghi_du_lieu_bao_cao(loai_hinh):
+    if not sh:
+        st.error("Không có kết nối với Google Sheets.")
+        return
+    
+    with st.spinner("Đang lưu dữ liệu về hệ thống..."):
         try:
-            bao_cao_sheet = spreadsheet.worksheet("BAO_CAO_TRIEN_KHAI")
-            thoi_gian = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-
-            row_data = [
-                thoi_gian,
-                selected_nguoi,
-                selected_diem,
-                str(so_luong_thuc_te),
-                maps_link,
+            ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
+            thoi_gian_hien_tai = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            dong_moi = [
+                thoi_gian_hien_tai,
+                can_bo_chon,
+                diem_chon,
+                sl_thuc_te,
+                loai_hinh,
+                link_gps
             ]
-            bao_cao_sheet.append_row(row_data)
-
-            st.success("🎉 Gửi báo cáo thành công! Dữ liệu đã tự động cập nhật về hệ thống.")
+            ws_bc.append_row(dong_moi)
+            st.success(f"✅ Ghi nhận thành công: {loai_hinh} tại {diem_chon}!")
         except Exception as e:
-            st.error(f"Lỗi khi gửi báo cáo: {e}")
+            st.error(f"Lỗi khi gửi dữ liệu lên Google Sheets: {e}")
+
+with col1:
+    if st.button("📦 ĐÃ GIAO HÀNG", use_container_width=True, type="primary"):
+        ghi_du_lieu_bao_cao("Đã giao hàng")
+
+with col2:
+    if st.button("🔧 ĐÃ LẮP ĐẶT XONG", use_container_width=True):
+        ghi_du_lieu_bao_cao("Đã lắp đặt xong")
