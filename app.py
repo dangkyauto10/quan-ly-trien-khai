@@ -38,18 +38,54 @@ def ket_noi_sheets():
 sh = ket_noi_sheets()
 
 # -------------------------------------------------------------
-# 2. ĐỌC DANH MỤC ĐIỂM & ĐỌC PHÂN BỔ THIẾT BỊ TỪ KHO_PHAN_BO
+# 2. TỰ ĐỘNG KHỞI TẠO SHEET NHAP_KHO (NẾU CHƯA CÓ TRÊN GOOGLE SHEETS)
+# -------------------------------------------------------------
+def khoi_tao_sheet_nhap_kho(spreadsheet):
+    if not spreadsheet:
+        return
+    try:
+        # Kiểm tra xem sheet NHAP_KHO đã có chưa
+        danh_sach_sheet = [ws.title for ws in spreadsheet.worksheets()]
+        if "NHAP_KHO" not in danh_sach_sheet:
+            ws_nk = spreadsheet.add_worksheet(title="NHAP_KHO", rows=100, cols=10)
+            
+            # Tiêu đề dòng 2
+            tieu_de = [
+                "Mã thiết bị / SKU",
+                "Tên thiết bị / Hàng hóa",
+                "Đơn vị tính",
+                "Tổng nhập thầu",
+                "Đã phân bổ",
+                "Tồn kho dự án"
+            ]
+            ws_nk.update(range_name="A2:F2", values=[tieu_de])
+            
+            # Danh mục thiết bị mẫu kèm công thức tự động liên kết với KHO_PHAN_BO
+            du_lieu_mau = [
+                ["TB-01", "Camera ngoài trời IP 4MP", "Chiếc", 50, "=SUMIF(KHO_PHAN_BO!D:D, B3, KHO_PHAN_BO!E:E)", '=IF(B3="","",D3-E3)'],
+                ["TB-02", "Đầu ghi hình 16 kênh", "Chiếc", 15, "=SUMIF(KHO_PHAN_BO!D:D, B4, KHO_PHAN_BO!E:E)", '=IF(B4="","",D4-E4)'],
+                ["TB-03", "Switch PoE 8 cổng", "Chiếc", 25, "=SUMIF(KHO_PHAN_BO!D:D, B5, KHO_PHAN_BO!E:E)", '=IF(B5="","",D5-E5)'],
+                ["TB-04", "Ổ cứng chuyên dụng 4TB", "Chiếc", 15, "=SUMIF(KHO_PHAN_BO!D:D, B6, KHO_PHAN_BO!E:E)", '=IF(B6="","",D6-E6)'],
+            ]
+            ws_nk.update(range_name="A3:F6", values=du_lieu_mau, raw=False)
+    except Exception:
+        pass
+
+if sh:
+    khoi_tao_sheet_nhap_kho(sh)
+
+# -------------------------------------------------------------
+# 3. ĐỌC DANH MỤC ĐIỂM & ĐỌC PHÂN BỔ TỪ KHO_PHAN_BO
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_diem = []
-phan_bo_kho = {}  # { 'Điểm lắp': [{'thiet_bi': '...', 'so_luong': 2, 'dvt': 'Bộ'}, ...] }
+phan_bo_kho = {}
 
 if sh:
-    # 2.1 Đọc danh sách điểm từ DANH_SACH_DIEM
+    # 3.1 Đọc danh sách địa điểm từ DANH_SACH_DIEM
     try:
         ws_diem = sh.worksheet("DANH_SACH_DIEM")
         data_diem = ws_diem.get_all_values()
-        # Tìm cột "Địa điểm giao hàng và lắp đặt" (thường ở cột D / index 3)
         if len(data_diem) >= 2:
             headers = [h.strip() for h in data_diem[1]]
             col_idx = 3
@@ -65,12 +101,11 @@ if sh:
     except Exception:
         pass
 
-    # 2.2 Đọc danh mục thiết bị từ sheet KHO_PHAN_BO
+    # 3.2 Đọc danh mục thiết bị được gán cho từng điểm từ KHO_PHAN_BO
     try:
         ws_kho = sh.worksheet("KHO_PHAN_BO")
         data_kho = ws_kho.get_all_values()
         if len(data_kho) >= 2:
-            # Dòng tiêu đề là dòng 1 hoặc 2
             header_row_idx = 0
             for r_idx in range(min(3, len(data_kho))):
                 if any("Tên thiết bị" in str(x) for x in data_kho[r_idx]):
@@ -78,12 +113,10 @@ if sh:
                     break
             
             headers_kho = [str(x).strip() for x in data_kho[header_row_idx]]
-            
-            # Xác định các cột tương ứng theo ảnh KHO_PHAN_BO
-            col_tb = 3    # Cột D: Tên thiết bị / Hàng hóa
-            col_sl = 4    # Cột E: Số lượng
-            col_dvt = 5   # Cột F: Đơn vị tính
-            col_diem = 7  # Cột H: Địa điểm vận chuyển lắp đặt
+            col_tb = 3
+            col_sl = 4
+            col_dvt = 5
+            col_diem = 7
 
             for i, h in enumerate(headers_kho):
                 if "Tên thiết bị" in h: col_tb = i
@@ -105,7 +138,7 @@ if sh:
                         except:
                             sl = 1
                     
-                    dvt = row[col_dvt].strip() if len(row) > col_dvt else "Thiết bị"
+                    dvt = row[col_dvt].strip() if len(row) > col_dvt else "Chiếc"
                     
                     if diem not in phan_bo_kho:
                         phan_bo_kho[diem] = []
@@ -117,12 +150,11 @@ if sh:
     except Exception:
         pass
 
-# Danh sách điểm dự phòng nếu chưa đọc được
 if not danh_sach_diem:
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm"]
 
 # -------------------------------------------------------------
-# 3. GIAO DIỆN BÁO CÁO TRÊN ĐIỆN THOẠI
+# 4. GIAO DIỆN BÁO CÁO HIỆN TRƯỜNG TRÊN ĐIỆN THOẠI
 # -------------------------------------------------------------
 st.title("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
 st.caption("Hệ thống điều hành phân bổ tự động & ghi nhận hiện trường")
@@ -131,14 +163,12 @@ st.markdown("---")
 st.subheader("1. Xác nhận thông tin thực hiện")
 
 can_bo_chon = st.selectbox("Cán bộ / Đội trưởng thực hiện:", options=danh_sach_ktv)
-diem_chon = st.selectbox("Chọn Địa điểm lắp đặt:", options=danh_sach_diem)
-
-# Lấy danh sách thiết bị phân bổ từ KHO_PHAN_BO cho điểm đã chọn
-danh_sach_tb = phan_bo_kho.get(diem_chon, [])
+diem_chon = st.selectbox("Chọn Địa điểm thực hiện:", options=danh_sach_diem)
 
 st.markdown("#### 📦 Danh mục thiết bị được phân bổ:")
-ket_qua_nhap = []
+danh_sach_tb = phan_bo_kho.get(diem_chon, [])
 
+ket_qua_nhap = []
 if danh_sach_tb:
     for idx, item in enumerate(danh_sach_tb):
         tb_name = item["thiet_bi"]
@@ -164,17 +194,16 @@ if danh_sach_tb:
             "dvt": dvt
         })
 else:
-    # Nếu ADMIN chưa phân bổ thiết bị cho điểm này ở KHO_PHAN_BO
-    st.info("Điểm này chưa có danh mục thiết bị cụ thể trong 'KHO_PHAN_BO'. Mặc định ghi nhận 1 thiết bị:")
-    sl_mac_dinh = st.number_input("Số lượng thiết bị thực tế:", min_value=1, max_value=500, value=1, step=1)
+    st.info("Điểm này đang dùng định mức chuẩn mặc định (5 thiết bị):")
+    sl_mac_dinh = st.number_input("Số lượng thiết bị thực tế:", min_value=1, max_value=500, value=5, step=1)
     ket_qua_nhap.append({
-        "thiet_bi": "Thiết bị tổng hợp",
+        "thiet_bi": "Gói thiết bị chuẩn theo điểm",
         "so_luong": sl_mac_dinh,
-        "dvt": "Bộ"
+        "dvt": "Thiết bị"
     })
 
 # -------------------------------------------------------------
-# 4. TỰ ĐỘNG BẮT TỌA ĐỘ GPS
+# 5. TỰ ĐỘNG BẮT TỌA ĐỘ GPS
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("2. Định vị Hiện trường (GPS)")
@@ -197,7 +226,7 @@ link_gps_cuoi = st.text_input(
 )
 
 # -------------------------------------------------------------
-# 5. GHI DỮ LIỆU TỰ ĐỘNG VÀO CÁC SHEET CHUYÊN TRÁCH
+# 6. GHI DỮ LIỆU TỰ ĐỘNG VÀO TỪNG SHEET CHUYÊN TRÁCH
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("3. Xác nhận hoàn thành công việc")
@@ -209,7 +238,7 @@ def xu_ly_ghi_nhan(loai_hinh):
         st.error("Không có kết nối với Google Sheets.")
         return
     
-    with st.spinner("Đang lưu dữ liệu từng thiết bị về hệ thống..."):
+    with st.spinner("Đang tự động lưu dữ liệu..."):
         try:
             tz_vn = pytz.timezone('Asia/Ho_Chi_Minh')
             thoi_gian_vn = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
@@ -235,21 +264,21 @@ def xu_ly_ghi_nhan(loai_hinh):
                 
                 ma_cv = f"CV-{datetime.now(tz_vn).strftime('%H%M%S')}-{idx_tb+1}"
                 
-                # Ghi vào sheet LAP_DAT
+                # Ghi sheet LAP_DAT
                 if ws_ld:
                     ws_ld.append_row([
-                        ma_cv,              # Cột A: Mã công việc
-                        ma_da,              # Cột B: Mã dự án
-                        can_bo_chon,        # Cột C: Đội trưởng KTV
-                        ten_tb,             # Cột D: Tên thiết bị
-                        sl,                 # Cột E: Số lượng thiết bị lắp
-                        diem_chon,          # Cột F: Địa điểm lắp
-                        "Đã hoàn thành",    # Cột G: Tình trạng thực hiện
-                        thoi_gian_vn,       # Cột H: Thời gian hoàn thành
-                        link_gps_cuoi       # Cột I: Link Google Maps
+                        ma_cv,
+                        ma_da,
+                        can_bo_chon,
+                        ten_tb,
+                        sl,
+                        diem_chon,
+                        "Đã hoàn thành",
+                        thoi_gian_vn,
+                        link_gps_cuoi
                     ])
 
-                # Ghi vào sheet VAN_CHUYEN nếu là giao hàng
+                # Ghi sheet VAN_CHUYEN
                 if ws_vc:
                     ws_vc.append_row([
                         thoi_gian_vn,
@@ -260,7 +289,7 @@ def xu_ly_ghi_nhan(loai_hinh):
                         link_gps_cuoi
                     ])
 
-                # Ghi nhật ký chung BAO_CAO_TRIEN_KHAI
+                # Ghi sheet nhật ký chung BAO_CAO_TRIEN_KHAI
                 if ws_bc:
                     ws_bc.append_row([
                         thoi_gian_vn,
@@ -271,7 +300,7 @@ def xu_ly_ghi_nhan(loai_hinh):
                         loai_hinh
                     ])
             
-            st.success(f"✅ Đã ghi nhận thành công cho {diem_chon}!")
+            st.success(f"✅ Ghi nhận thành công cho {diem_chon}!")
         except Exception as e:
             st.error(f"Lỗi khi gửi dữ liệu lên Google Sheets: {e}")
 
