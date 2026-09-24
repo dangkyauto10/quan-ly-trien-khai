@@ -110,7 +110,7 @@ link_gps_cuoi = st.text_input(
 )
 
 # -------------------------------------------------------------
-# 5. TỰ ĐỘNG PHÂN LUỒNG DỮ LIỆU SANG CÁC SHEET NGHIỆP VỤ
+# 5. TỰ ĐỘNG ĐIỀN KHỚP CHÍNH XÁC CÁC CỘT TRÊN GOOGLE SHEETS
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("3. Xác nhận hoàn thành công việc")
@@ -127,36 +127,54 @@ def xu_ly_ghi_nhan(loai_hinh):
             # Lấy chuẩn giờ Việt Nam (GMT+7)
             tz_vn = pytz.timezone('Asia/Ho_Chi_Minh')
             thoi_gian_vn = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
+            ma_cv = "CV-" + datetime.now(tz_vn).strftime("%H%M%S")
+            ma_da = "DA-TDV"
             
-            # 1. Ghi vào Sheet tổng hợp BAO_CAO_TRIEN_KHAI
-            ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
-            dong_tong_hop = [
-                thoi_gian_vn,        # Cột A: Dấu thời gian
-                can_bo_chon,         # Cột B: Tên đội thực hiện
-                diem_chon,           # Cột C: Điểm lắp đặt
-                sl_thuc_te,          # Cột D: Số lượng thiết bị thực tế
-                link_gps_cuoi,       # Cột E: Link Google Maps
-                loai_hinh            # Cột F: Trạng thái thực hiện
-            ]
-            ws_bc.append_row(dong_tong_hop)
+            # 1. Ghi vào Sheet tổng hợp BAO_CAO_TRIEN_KHAI (lưu nhật ký chung)
+            try:
+                ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
+                ws_bc.append_row([
+                    thoi_gian_vn,
+                    can_bo_chon,
+                    diem_chon,
+                    sl_thuc_te,
+                    link_gps_cuoi,
+                    loai_hinh
+                ])
+            except Exception:
+                pass
 
-            # 2. Tự động bóc tách sang Sheet chuyên trách tương ứng
-            dong_chuyen_trach = [
-                thoi_gian_vn,
-                can_bo_chon,
-                diem_chon,
-                sl_thuc_te,
-                link_gps_cuoi
-            ]
-            
-            if loai_hinh == "Đã giao hàng":
-                ws_vc = sh.worksheet("VAN_CHUYEN")
-                ws_vc.append_row(dong_chuyen_trach)
-            elif loai_hinh == "Đã lắp đặt xong":
+            # 2. Khớp đúng từng cột với sheet nghiệp vụ:
+            if loai_hinh == "Đã lắp đặt xong":
                 ws_ld = sh.worksheet("LAP_DAT")
-                ws_ld.append_row(dong_chuyen_trach)
+                # Khớp đúng 7 cột của sheet LAP_DAT:
+                # [Mã công việc, Mã dự án, Đội trưởng KTV, Số lượng thiết bị lắp, Địa điểm lắp, Trạng thái duyệt, Thời gian hoàn thành]
+                dong_lap_dat = [
+                    ma_cv,              # Cột A: Mã công việc
+                    ma_da,              # Cột B: Mã dự án
+                    can_bo_chon,        # Cột C: Đội trưởng KTV
+                    sl_thuc_te,         # Cột D: Số lượng thiết bị lắp
+                    diem_chon,          # Cột E: Địa điểm lắp
+                    "Chờ duyệt",        # Cột F: Trạng thái duyệt
+                    thoi_gian_vn        # Cột G: Thời gian hoàn thành
+                ]
+                ws_ld.append_row(dong_lap_dat)
+                
+            elif loai_hinh == "Đã giao hàng":
+                try:
+                    ws_vc = sh.worksheet("VAN_CHUYEN")
+                    # Ghi nhận vào sheet vận chuyển
+                    ws_vc.append_row([
+                        thoi_gian_vn,
+                        can_bo_chon,
+                        diem_chon,
+                        sl_thuc_te,
+                        link_gps_cuoi
+                    ])
+                except Exception:
+                    pass
             
-            st.success(f"✅ Đã ghi nhận và phân luồng thành công: {loai_hinh} tại {diem_chon}!")
+            st.success(f"✅ Đã ghi nhận thành công: {loai_hinh} tại {diem_chon}!")
         except Exception as e:
             st.error(f"Lỗi khi gửi dữ liệu lên Google Sheets: {e}")
 
