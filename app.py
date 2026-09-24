@@ -38,7 +38,7 @@ def ket_noi_sheets():
 sh = ket_noi_sheets()
 
 # -------------------------------------------------------------
-# 2. ĐỌC DANH MỤC ĐIỂM
+# 2. ĐỌC DANH MỤC ĐIỂM TỰ ĐỘNG
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_diem = {}
@@ -64,7 +64,7 @@ if not danh_sach_diem:
     }
 
 # -------------------------------------------------------------
-# 3. GIAO DIỆN BÁO CÁO
+# 3. GIAO DIỆN BÁO CÁO HIỆN TRƯỜNG
 # -------------------------------------------------------------
 st.title("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
 st.caption("Hệ thống điều hành phân bổ tự động & ghi nhận hiện trường")
@@ -87,7 +87,7 @@ sl_thuc_te = st.number_input(
 )
 
 # -------------------------------------------------------------
-# 4. TỰ ĐỘNG BẮT TỌA ĐỘ GPS (KHÔNG CẦN DÁN THỦ CÔNG)
+# 4. TỰ ĐỘNG LẤY TỌA ĐỘ GPS
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("2. Định vị Hiện trường (GPS)")
@@ -110,42 +110,60 @@ link_gps_cuoi = st.text_input(
 )
 
 # -------------------------------------------------------------
-# 5. GHI DỮ LIỆU CHUẨN GIỜ VIỆT NAM (GMT+7)
+# 5. TỰ ĐỘNG PHÂN LUỒNG DỮ LIỆU SANG CÁC SHEET NGHIỆP VỤ
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("3. Xác nhận hoàn thành công việc")
 
 col1, col2 = st.columns(2)
 
-def ghi_du_lieu_bao_cao(loai_hinh):
+def xu_ly_ghi_nhan(loai_hinh):
     if not sh:
         st.error("Không có kết nối với Google Sheets.")
         return
     
-    with st.spinner("Đang lưu dữ liệu về hệ thống..."):
+    with st.spinner("Đang tự động phân luồng dữ liệu..."):
         try:
-            ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
-            # Chuẩn hóa giờ Việt Nam (GMT+7)
+            # Lấy chuẩn giờ Việt Nam (GMT+7)
             tz_vn = pytz.timezone('Asia/Ho_Chi_Minh')
             thoi_gian_vn = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
             
-            dong_moi = [
-                thoi_gian_vn,        # Cột A: Dấu thời gian chuẩn giờ VN
+            # 1. Ghi vào Sheet tổng hợp BAO_CAO_TRIEN_KHAI
+            ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
+            dong_tong_hop = [
+                thoi_gian_vn,        # Cột A: Dấu thời gian
                 can_bo_chon,         # Cột B: Tên đội thực hiện
                 diem_chon,           # Cột C: Điểm lắp đặt
                 sl_thuc_te,          # Cột D: Số lượng thiết bị thực tế
                 link_gps_cuoi,       # Cột E: Link Google Maps
                 loai_hinh            # Cột F: Trạng thái thực hiện
             ]
-            ws_bc.append_row(dong_moi)
-            st.success(f"✅ Ghi nhận thành công: {loai_hinh} tại {diem_chon}!")
+            ws_bc.append_row(dong_tong_hop)
+
+            # 2. Tự động bóc tách sang Sheet chuyên trách tương ứng
+            dong_chuyen_trach = [
+                thoi_gian_vn,
+                can_bo_chon,
+                diem_chon,
+                sl_thuc_te,
+                link_gps_cuoi
+            ]
+            
+            if loai_hinh == "Đã giao hàng":
+                ws_vc = sh.worksheet("VAN_CHUYEN")
+                ws_vc.append_row(dong_chuyen_trach)
+            elif loai_hinh == "Đã lắp đặt xong":
+                ws_ld = sh.worksheet("LAP_DAT")
+                ws_ld.append_row(dong_chuyen_trach)
+            
+            st.success(f"✅ Đã ghi nhận và phân luồng thành công: {loai_hinh} tại {diem_chon}!")
         except Exception as e:
-            st.error(f"Lỗi khi gửi dữ liệu: {e}")
+            st.error(f"Lỗi khi gửi dữ liệu lên Google Sheets: {e}")
 
 with col1:
     if st.button("📦 ĐÃ GIAO HÀNG", use_container_width=True, type="primary"):
-        ghi_du_lieu_bao_cao("Đã giao hàng")
+        xu_ly_ghi_nhan("Đã giao hàng")
 
 with col2:
     if st.button("🔧 ĐÃ LẮP ĐẶT XONG", use_container_width=True):
-        ghi_du_lieu_bao_cao("Đã lắp đặt xong")
+        xu_ly_ghi_nhan("Đã lắp đặt xong")
