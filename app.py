@@ -38,10 +38,10 @@ def ket_noi_sheets():
 sh = ket_noi_sheets()
 
 # -------------------------------------------------------------
-# 2. ĐỌC DANH MỤC ĐIỂM TỰ ĐỘNG
+# 2. ĐỌC DANH MỤC ĐA THIẾT BỊ THEO TỪNG ĐIỂM
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
-danh_sach_diem = {}
+phan_bo_diem = {}  # Cấu trúc: { 'Tên điểm': [{'thiet_bi': '...', 'dinh_muc': 5}, ...] }
 
 if sh:
     try:
@@ -49,18 +49,36 @@ if sh:
         records = ws_diem.get_all_records()
         for row in records:
             ten_diem = str(row.get("TEN_DIEM", "")).strip()
-            sl_thau = row.get("SO_LUONG_THIET_BI", 0)
+            ten_tb = str(row.get("TEN_THIET_BI", "Thiết bị chung")).strip()
+            sl_thau = row.get("SO_LUONG_THIET_BI", 1)
+            
+            try:
+                sl_thau = int(sl_thau)
+            except:
+                sl_thau = 1
+                
             if ten_diem:
-                danh_sach_diem[ten_diem] = sl_thau
+                if ten_diem not in phan_bo_diem:
+                    phan_bo_diem[ten_diem] = []
+                phan_bo_diem[ten_diem].append({
+                    "thiet_bi": ten_tb,
+                    "dinh_muc": sl_thau
+                })
     except Exception:
         pass
 
-if not danh_sach_diem:
-    danh_sach_diem = {
-        "Phường Minh Xuân": 5,
-        "Phường Phan Thiết": 4,
-        "Xã Kim Phú": 6,
-        "Xã Tràng Đà": 3
+# Dữ liệu dự phòng mẫu
+if not phan_bo_diem:
+    phan_bo_diem = {
+        "Phường Minh Xuân": [
+            {"thiet_bi": "Camera ngoài trời IP 4MP", "dinh_muc": 3},
+            {"thiet_bi": "Đầu ghi hình 8 kênh", "dinh_muc": 1},
+            {"thiet_bi": "Switch PoE 8 cổng", "dinh_muc": 1}
+        ],
+        "Phường Phan Thiết": [
+            {"thiet_bi": "Camera ngoài trời IP 4MP", "dinh_muc": 4},
+            {"thiet_bi": "Switch PoE 8 cổng", "dinh_muc": 1}
+        ]
     }
 
 # -------------------------------------------------------------
@@ -73,21 +91,37 @@ st.markdown("---")
 st.subheader("1. Xác nhận thông tin thực hiện")
 
 can_bo_chon = st.selectbox("Cán bộ / Đội trưởng thực hiện:", options=danh_sach_ktv)
-diem_chon = st.selectbox("Chọn Điểm lắp đặt thuộc phân công:", options=list(danh_sach_diem.keys()))
+diem_chon = st.selectbox("Chọn Điểm lắp đặt:", options=list(phan_bo_diem.keys()))
 
-sl_dinh_muc = danh_sach_diem.get(diem_chon, 0)
-st.info(f"📦 **Số lượng thiết bị phân bổ theo thầu:** {sl_dinh_muc} thiết bị")
+st.markdown("#### Danh mục thiết bị phân bổ theo thầu:")
+danh_sach_tb = phan_bo_diem.get(diem_chon, [])
 
-sl_thuc_te = st.number_input(
-    "Số lượng thiết bị thực tế:",
-    min_value=1,
-    max_value=1000,
-    value=int(sl_dinh_muc) if sl_dinh_muc else 1,
-    step=1
-)
+# Tự động tạo ô nhập số lượng thực tế cho từng thiết bị
+ket_qua_nhap = []
+for idx, item in enumerate(danh_sach_tb):
+    tb_name = item["thiet_bi"]
+    tb_dinh_muc = item["dinh_muc"]
+    
+    col_a, col_b = st.columns([3, 2])
+    with col_a:
+        st.markdown(f"📦 **{tb_name}** *(Định mức: {tb_dinh_muc})*")
+    with col_b:
+        sl_thuc_te = st.number_input(
+            f"SL {tb_name}",
+            min_value=0,
+            max_value=1000,
+            value=int(tb_dinh_muc),
+            step=1,
+            key=f"tb_{idx}",
+            label_visibility="collapsed"
+        )
+    ket_qua_nhap.append({
+        "thiet_bi": tb_name,
+        "so_luong": sl_thuc_te
+    })
 
 # -------------------------------------------------------------
-# 4. TỰ ĐỘNG LẤY TỌA ĐỘ GPS
+# 4. TỰ ĐỘNG BẮT TỌA ĐỘ GPS
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("2. Định vị Hiện trường (GPS)")
@@ -101,16 +135,16 @@ if location and "coords" in location:
     link_maps_tu_dong = f"https://www.google.com/maps?q={lat},{lon}"
     st.success(f"📍 Đã nhận diện vị trí vệ tinh: {lat:.5f}, {lon:.5f}")
 else:
-    st.warning("⚠️ Nếu điện thoại hỏi quyền truy cập vị trí, hãy chọn 'Cho phép' (Allow).")
+    st.warning("⚠️ Nếu điện thoại hỏi quyền vị trí, hãy chọn 'Cho phép' (Allow).")
 
 link_gps_cuoi = st.text_input(
-    "Link Google Maps (Tự động điền khi nhận GPS):",
+    "Link Google Maps:",
     value=link_maps_tu_dong,
     placeholder="https://www.google.com/maps?q=..."
 )
 
 # -------------------------------------------------------------
-# 5. TỰ ĐỘNG GHI NHẬN TÌNH TRẠNG "ĐÃ HOÀN THÀNH" VÀO SHEET
+# 5. GHI DỮ LIỆU ĐA THIẾT BỊ VÀO SHEETS
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("3. Xác nhận hoàn thành công việc")
@@ -122,58 +156,78 @@ def xu_ly_ghi_nhan(loai_hinh):
         st.error("Không có kết nối với Google Sheets.")
         return
     
-    with st.spinner("Đang tự động phân luồng dữ liệu..."):
+    with st.spinner("Đang lưu từng thiết bị về hệ thống..."):
         try:
-            # Lấy chuẩn giờ Việt Nam (GMT+7)
             tz_vn = pytz.timezone('Asia/Ho_Chi_Minh')
             thoi_gian_vn = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
-            ma_cv = "CV-" + datetime.now(tz_vn).strftime("%H%M%S")
             ma_da = "DA-TDV"
             
-            # 1. Ghi vào Sheet tổng hợp BAO_CAO_TRIEN_KHAI
+            # Mở sẵn các worksheet
+            ws_bc = None
+            ws_ld = None
+            ws_vc = None
             try:
                 ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
-                ws_bc.append_row([
-                    thoi_gian_vn,
-                    can_bo_chon,
-                    diem_chon,
-                    sl_thuc_te,
-                    link_gps_cuoi,
-                    loai_hinh
-                ])
-            except Exception:
+            except:
                 pass
 
-            # 2. Ghi vào Sheet LAP_DAT:
-            # Cột F sẽ ghi rõ "Đã hoàn thành", Cột H sẽ có link bản đồ
             if loai_hinh == "Đã lắp đặt xong":
                 ws_ld = sh.worksheet("LAP_DAT")
-                dong_lap_dat = [
-                    ma_cv,              # Cột A: Mã công việc
-                    ma_da,              # Cột B: Mã dự án
-                    can_bo_chon,        # Cột C: Đội trưởng KTV
-                    sl_thuc_te,         # Cột D: Số lượng thiết bị lắp
-                    diem_chon,          # Cột E: Địa điểm lắp
-                    "Đã hoàn thành",    # Cột F: Tình trạng thực hiện
-                    thoi_gian_vn,       # Cột G: Thời gian hoàn thành
-                    link_gps_cuoi       # Cột H: Link Google Maps
-                ]
-                ws_ld.append_row(dong_lap_dat)
-                
             elif loai_hinh == "Đã giao hàng":
                 try:
                     ws_vc = sh.worksheet("VAN_CHUYEN")
-                    ws_vc.append_row([
+                except:
+                    pass
+
+            # Lặp qua từng thiết bị để ghi đúng từng dòng
+            for idx_tb, item in enumerate(ket_qua_nhap):
+                ten_tb = item["thiet_bi"]
+                sl = item["so_luong"]
+                if sl <= 0:
+                    continue  # Bỏ qua nếu không lắp loại này
+                
+                ma_cv = f"CV-{datetime.now(tz_vn).strftime('%H%M%S')}-{idx_tb+1}"
+                
+                # 1. Ghi vào Sheet LAP_DAT
+                if ws_ld:
+                    # Thứ tự 9 cột: Mã CV, Mã DA, KTV, Tên TB, SL Lắp, Địa điểm, Tình trạng, Giờ hoàn thành, Link Maps
+                    dong_ld = [
+                        ma_cv,
+                        ma_da,
+                        can_bo_chon,
+                        ten_tb,
+                        sl,
+                        diem_chon,
+                        "Đã hoàn thành",
+                        thoi_gian_vn,
+                        link_gps_cuoi
+                    ]
+                    ws_ld.append_row(dong_ld)
+
+                # 2. Ghi vào Sheet VAN_CHUYEN nếu là giao hàng
+                if ws_vc:
+                    dong_vc = [
                         thoi_gian_vn,
                         can_bo_chon,
+                        ten_tb,
+                        sl,
                         diem_chon,
-                        sl_thuc_te,
                         link_gps_cuoi
+                    ]
+                    ws_vc.append_row(dong_vc)
+
+                # 3. Ghi vào Sheet nhật ký chung
+                if ws_bc:
+                    ws_bc.append_row([
+                        thoi_gian_vn,
+                        can_bo_chon,
+                        f"{diem_chon} ({ten_tb})",
+                        sl,
+                        link_gps_cuoi,
+                        loai_hinh
                     ])
-                except Exception:
-                    pass
             
-            st.success(f"✅ Đã ghi nhận thành công: {loai_hinh} tại {diem_chon}!")
+            st.success(f"✅ Đã ghi nhận toàn bộ thiết bị cho {diem_chon}!")
         except Exception as e:
             st.error(f"Lỗi khi gửi dữ liệu lên Google Sheets: {e}")
 
