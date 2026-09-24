@@ -27,7 +27,6 @@ def ket_noi_sheets():
             creds = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
         else:
             creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
-        
         client = gspread.authorize(creds)
         return client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
     except Exception as e:
@@ -37,7 +36,75 @@ def ket_noi_sheets():
 sh = ket_noi_sheets()
 
 # -------------------------------------------------------------
-# 2. ĐỌC DỮ LIỆU ĐA DỰ ÁN & PHÂN BỔ THIẾT BỊ
+# 2. TỰ ĐỘNG CẤU HÌNH SHEET VAN_CHUYEN KHI CẦN
+# -------------------------------------------------------------
+with st.sidebar:
+    st.subheader("⚙️ Quản Trị Hệ Thống")
+    if st.button("🔄 ĐỒNG BỘ DROPDOWN VẬN CHUYỂN"):
+        if sh:
+            try:
+                ws_vc = sh.worksheet("VAN_CHUYEN")
+                id_vc = ws_vc.id
+                
+                # Thiết lập Data Validation chuẩn cho các cột của VAN_CHUYEN
+                reqs = [
+                    # Cột A: Mã dự án -> DANH_SACH_DU_AN!A2:A20
+                    {
+                        "setDataValidation": {
+                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 0, "endColumnIndex": 1},
+                            "rule": {"condition": {"type": "ONE_OF_RANGE", "values": [{"userEnteredValue": "='DANH_SACH_DU_AN'!$A$2:$A$20"}]}, "showCustomUi": True, "strict": False}
+                        }
+                    },
+                    # Cột B: Đội nhận TB -> QUAN_LY_DOI!B3:B30 (Tên đội)
+                    {
+                        "setDataValidation": {
+                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 1, "endColumnIndex": 2},
+                            "rule": {"condition": {"type": "ONE_OF_RANGE", "values": [{"userEnteredValue": "='QUAN_LY_DOI'!$B$3:$B$30"}]}, "showCustomUi": True, "strict": False}
+                        }
+                    },
+                    # Cột C: Tên thiết bị -> NHAP_KHO!C3:C50
+                    {
+                        "setDataValidation": {
+                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 2, "endColumnIndex": 3},
+                            "rule": {"condition": {"type": "ONE_OF_RANGE", "values": [{"userEnteredValue": "='NHAP_KHO'!$C$3:$C$50"}]}, "showCustomUi": True, "strict": False}
+                        }
+                    },
+                    # Cột E: Đơn vị vận chuyển -> Cho phép nhập tự do hoặc danh mục chuẩn
+                    {
+                        "setDataValidation": {
+                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 4, "endColumnIndex": 5},
+                            "rule": {"condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Xe nội bộ"}, {"userEnteredValue": "Xe thuê ngoài"}, {"userEnteredValue": "Đơn vị vận chuyển A"}]}, "showCustomUi": True, "strict": False}
+                        }
+                    },
+                    # Cột F: Cán bộ giao -> Cho phép nhập theo KTV thực tế
+                    {
+                        "setDataValidation": {
+                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 5, "endColumnIndex": 6},
+                            "rule": {"condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Vỹ - Hạnh - Hiền (Nguyễn Văn A)"}, {"userEnteredValue": "Nguyễn Văn A"}, {"userEnteredValue": "Nguyễn Văn B"}, {"userEnteredValue": "KTV-01"}, {"userEnteredValue": "KTV-02"}]}, "showCustomUi": True, "strict": False}
+                        }
+                    },
+                    # Cột G: Điểm giao -> DANH_SACH_DIEM!D3:D130
+                    {
+                        "setDataValidation": {
+                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 6, "endColumnIndex": 7},
+                            "rule": {"condition": {"type": "ONE_OF_RANGE", "values": [{"userEnteredValue": "='DANH_SACH_DIEM'!$D$3:$D$130"}]}, "showCustomUi": True, "strict": False}
+                        }
+                    },
+                    # Cột H: Trạng thái -> Chuẩn 3 trạng thái
+                    {
+                        "setDataValidation": {
+                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 7, "endColumnIndex": 8},
+                            "rule": {"condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Đang chuẩn bị"}, {"userEnteredValue": "Đang vận chuyển"}, {"userEnteredValue": "Đã giao hàng"}]}, "showCustomUi": True, "strict": False}
+                        }
+                    }
+                ]
+                sh.batch_update({"requests": reqs})
+                st.sidebar.success("✅ Đã đồng bộ Dropdown toàn bộ cột A->H của sheet VAN_CHUYEN!")
+            except Exception as e:
+                st.sidebar.error(f"Lỗi: {e}")
+
+# -------------------------------------------------------------
+# 3. ĐỌC DỮ LIỆU ĐA DỰ ÁN & PHÂN BỔ THIẾT BỊ
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_du_an = []
@@ -46,7 +113,6 @@ kho_phan_bo_map = {}
 diem_theo_du_an = {}
 
 if sh:
-    # 2.1 Đọc danh mục Dự án
     try:
         ws_da = sh.worksheet("DANH_SACH_DU_AN")
         for r in ws_da.get_all_records():
@@ -58,7 +124,6 @@ if sh:
     except Exception:
         pass
 
-    # 2.2 Đọc danh mục toàn bộ điểm thi công
     try:
         ws_diem = sh.worksheet("DANH_SACH_DIEM")
         data_diem = ws_diem.get_all_values()
@@ -77,7 +142,6 @@ if sh:
     except Exception:
         pass
 
-    # 2.3 Đọc phân bổ từ KHO_PHAN_BO
     try:
         ws_kho = sh.worksheet("KHO_PHAN_BO")
         data_kho = ws_kho.get_all_values()
@@ -128,7 +192,7 @@ if not danh_sach_du_an:
     danh_sach_du_an = [{"ma": "DA880", "hien_thi": "DA880 - Viettel Tuyên Quang"}, {"ma": "Dự án 76", "hien_thi": "Dự án 76"}]
 
 # -------------------------------------------------------------
-# 3. GIAO DIỆN BÁO CÁO THÔNG MINH
+# 4. GIAO DIỆN BÁO CÁO THÔNG MINH
 # -------------------------------------------------------------
 st.title("📱 HỆ THỐNG ĐIỀU HÀNH DỰ ÁN")
 st.caption("Quản trị đa dự án song song & cập nhật hiện trường tự động")
@@ -195,7 +259,7 @@ else:
     })
 
 # -------------------------------------------------------------
-# 4. GPS VỆ TINH
+# 5. GPS VỆ TINH
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("2. Định vị Hiện trường (GPS)")
@@ -217,7 +281,7 @@ link_gps_cuoi = st.text_input(
 )
 
 # -------------------------------------------------------------
-# 5. GHI DỮ LIỆU ĐÚNG 100% THỨ TỰ CỘT TRÊN SHEETS
+# 6. GHI DỮ LIỆU ĐÚNG CHUẨN DANH MỤC
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("3. Xác nhận hoàn thành công việc")
@@ -255,35 +319,35 @@ def xu_ly_ghi_nhan(loai_hinh):
                 
                 ma_cv = f"CV-{datetime.now(tz_vn).strftime('%H%M%S')}-{idx_tb+1}"
                 
-                # 1. Ghi đúng chuẩn Sheet LAP_DAT
+                # Ghi LAP_DAT
                 if ws_ld:
                     ws_ld.append_row([
-                        ma_cv,              # A: Mã công việc
-                        ma_da_chon,         # B: Mã dự án
-                        can_bo_chon,        # C: Đội trưởng KTV
-                        ten_tb,             # D: Tên thiết bị / Hàng hóa
-                        sl,                 # E: Số lượng thiết bị lắp
-                        diem_chon,          # F: Địa điểm lắp
-                        "Đã hoàn thành",    # G: Tình trạng
-                        thoi_gian_vn,       # H: Thời gian
-                        link_gps_cuoi       # I: Link GPS
+                        ma_cv,
+                        ma_da_chon,
+                        can_bo_chon,
+                        ten_tb,
+                        sl,
+                        diem_chon,
+                        "Đã hoàn thành",
+                        thoi_gian_vn,
+                        link_gps_cuoi
                     ])
 
-                # 2. Ghi đúng chuẩn Sheet VAN_CHUYEN (9 Cột theo thứ tự A -> I)
+                # Ghi VAN_CHUYEN chuẩn khớp 100% Dropdown (dùng đúng chữ "Đã giao hàng")
                 if ws_vc:
                     ws_vc.append_row([
-                        ma_da_chon,         # A: Mã dự án (VD: DA880)
-                        doi_nhan,           # B: Đội nhận TB (VD: VHH)
-                        ten_tb,             # C: Tên thiết bị / Hàng hóa
-                        sl,                 # D: Số lượng vận chuyển
-                        "Xe nội bộ",        # E: Đơn vị vận chuyển / Xe
+                        ma_da_chon,         # A: Mã DA
+                        doi_nhan,           # B: Đội nhận TB (khớp QUAN_LY_DOI)
+                        ten_tb,             # C: Tên thiết bị
+                        sl,                 # D: SL
+                        "Xe nội bộ",        # E: Đơn vị vận chuyển
                         can_bo_chon,        # F: Cán bộ phụ trách giao
                         diem_chon,          # G: Điểm giao
-                        "Đã Giao",          # H: Trạng thái vận chuyển
+                        "Đã giao hàng",     # H: Khớp đúng giá trị Dropdown
                         thoi_gian_vn        # I: Thời gian cập nhật
                     ])
 
-                # 3. Ghi sheet tổng hợp BAO_CAO_TRIEN_KHAI
+                # Ghi BAO_CAO_TRIEN_KHAI
                 if ws_bc:
                     ws_bc.append_row([
                         thoi_gian_vn,
