@@ -5,9 +5,10 @@ from datetime import datetime
 import pytz
 import pandas as pd
 from streamlit_js_eval import get_geolocation
+import urllib.parse
 
 # -------------------------------------------------------------
-# 1. KIỂM TRA PHÂN QUYỀN ĐƯỜNG DẪN (URL QUERY PARAMETER)
+# 1. KIỂM TRA PHÂN QUYỀN ĐƯỜNG DẪN
 # -------------------------------------------------------------
 che_do_xem = st.query_params.get("view", "")
 
@@ -19,7 +20,7 @@ if che_do_xem == "lanhdao":
     )
 else:
     st.set_page_config(
-        page_title="Báo Cáo Hiện Trường",
+        page_title="Điều Hành Dự Án Hiện Trường",
         page_icon="📱",
         layout="centered"
     )
@@ -49,7 +50,7 @@ def ket_noi_sheets():
 sh = ket_noi_sheets()
 
 # -------------------------------------------------------------
-# 3. ĐỌC DỮ LIỆU CHUNG
+# 3. ĐỌC DỮ LIỆU ĐA DỰ ÁN & PHÂN BỔ
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_du_an = []
@@ -140,10 +141,10 @@ if not danh_sach_du_an:
     danh_sach_du_an = [{"ma": "DA880", "hien_thi": "DA880 - Viettel Tuyên Quang"}, {"ma": "Dự án 76", "hien_thi": "Dự án 76"}]
 
 # =============================================================
-# TRƯỜNG HỢP 1: LINK LÃNH ĐẠO (?view=lanhdao)
+# TRƯỜNG HỢP 1: BÁO CÁO CHO LÃNH ĐẠO (?view=lanhdao)
 # =============================================================
 if che_do_xem == "lanhdao":
-    st.title("📈 BÁO CÁO TIẾN ĐỘ DỰ ÁN THỜI GIAN THỰC")
+    st.title("📈 BÁO CÁO TIẾN ĐỘ THỜI GIAN THỰC")
     st.caption("Dành riêng cho Ban Lãnh đạo & Quản lý điều hành")
 
     df_bc = pd.DataFrame()
@@ -222,7 +223,7 @@ if che_do_xem == "lanhdao":
                 st.warning(f"⚡ Tỷ lệ hoàn thiện lắp đặt / giao nhận: **{tl}%**")
 
         st.markdown("---")
-        st.subheader("📋 Nhật Ký Hiện Trường Chi Tiết (Kèm GPS)")
+        st.subheader("📋 Nhật Ký Hiện Trường Chi Tiết (Kèm GPS & Ảnh)")
         df_view = df_hien_thi.tail(25).iloc[::-1]
         cfg = {}
         if col_gps_ten in df_view.columns:
@@ -238,11 +239,11 @@ if che_do_xem == "lanhdao":
         st.info("Chưa có dữ liệu báo cáo nào được ghi nhận.")
 
 # =============================================================
-# TRƯỜNG HỢP 2: LINK CHO THỢ / KỸ THUẬT HIỆN TRƯỜNG (Mặc định)
+# TRƯỜNG HỢP 2: BÁO CÁO HIỆN TRƯỜNG (KÈM NÚT CHIA SẺ ZALO)
 # =============================================================
 else:
-    st.title("📱 HỆ THỐNG ĐIỀU HÀNH DỰ ÁN")
-    st.caption("Ghi nhận kết quả triển khai hiện trường tự động")
+    st.title("📱 HỆ THỐNG ĐIỀU HÀNH HIỆN TRƯỜNG")
+    st.caption("Ghi nhận kết quả triển khai & báo cáo nhanh")
 
     st.markdown("---")
     st.subheader("1. Thông tin Dự án & Hiện trường")
@@ -306,9 +307,23 @@ else:
             "doi_nhan": "VHH"
         })
 
+    # TÍNH NĂNG ẢNH
     st.markdown("---")
-    st.subheader("2. Định vị Hiện trường (GPS)")
+    st.subheader("2. Ảnh Nghiệm thu / Biên bản")
+    tab_cam, tab_file = st.tabs(["📷 Chụp trực tiếp", "📁 Chọn từ thư viện"])
+    file_anh = None
+    with tab_cam:
+        anh_chup = st.camera_input("Chụp ảnh nghiệm thu:")
+        if anh_chup: file_anh = anh_chup
+    with tab_file:
+        anh_tai_len = st.file_uploader("Hoặc tải ảnh từ máy:", type=["jpg", "jpeg", "png"])
+        if anh_tai_len: file_anh = anh_tai_len
 
+    ghi_chu_anh = "Đã đính kèm ảnh" if file_anh else "Không có ảnh"
+
+    # GPS
+    st.markdown("---")
+    st.subheader("3. Định vị Hiện trường (GPS)")
     location = get_geolocation()
     link_maps_tu_dong = ""
     if location and "coords" in location:
@@ -326,8 +341,9 @@ else:
         key="inp_gps_tech"
     )
 
+    # XÁC NHẬN BÁO CÁO
     st.markdown("---")
-    st.subheader("3. Xác nhận hoàn thành công việc")
+    st.subheader("4. Xác nhận hoàn thành công việc")
 
     col_b1, col_b2 = st.columns(2)
 
@@ -353,6 +369,7 @@ else:
                     try: ws_vc = sh.worksheet("VAN_CHUYEN")
                     except: pass
 
+                ds_tb_text = []
                 for idx_tb, item in enumerate(ket_qua_nhap):
                     ten_tb = item["thiet_bi"]
                     sl = item["so_luong"]
@@ -360,45 +377,53 @@ else:
                     if sl <= 0:
                         continue
                     
+                    ds_tb_text.append(f"{ten_tb} (SL: {sl})")
                     ma_cv = f"CV-{datetime.now(tz_vn).strftime('%H%M%S')}-{idx_tb+1}"
                     
                     if ws_ld:
                         ws_ld.append_row([
-                            ma_cv,
-                            ma_da_chon,
-                            can_bo_chon,
-                            ten_tb,
-                            sl,
-                            diem_chon,
-                            "Đã hoàn thành",
-                            thoi_gian_vn,
-                            link_gps_cuoi
+                            ma_cv, ma_da_chon, can_bo_chon, ten_tb, sl,
+                            diem_chon, "Đã hoàn thành", thoi_gian_vn, link_gps_cuoi
                         ])
 
                     if ws_vc:
                         ws_vc.append_row([
-                            ma_da_chon,
-                            doi_nhan,
-                            ten_tb,
-                            sl,
-                            "Xe nội bộ",
-                            can_bo_chon,
-                            diem_chon,
-                            "Đã giao hàng",
-                            thoi_gian_vn
+                            ma_da_chon, doi_nhan, ten_tb, sl, "Xe nội bộ",
+                            can_bo_chon, diem_chon, "Đã giao hàng", thoi_gian_vn
                         ])
 
                     if ws_bc:
                         ws_bc.append_row([
-                            thoi_gian_vn,
-                            f"[{ma_da_chon}] {can_bo_chon}",
-                            f"{diem_chon} ({ten_tb})",
-                            sl,
-                            link_gps_cuoi,
-                            loai_hinh
+                            thoi_gian_vn, f"[{ma_da_chon}] {can_bo_chon}",
+                            f"{diem_chon} ({ten_tb})", sl, link_gps_cuoi,
+                            f"{loai_hinh} - {ghi_chu_anh}"
                         ])
 
                 st.success(f"✅ Ghi nhận thành công cho [{ma_da_chon}] tại {diem_chon}!")
+                
+                # Soạn sẵn nội dung chia sẻ Zalo
+                text_tb_str = ", ".join(ds_tb_text)
+                noi_dung_zalo = (
+                    f"📢 [BÁO CÁO TIẾN ĐỘ]\n"
+                    f"▪ Dự án: {lua_chon_da}\n"
+                    f"▪ Cán bộ: {can_bo_chon}\n"
+                    f"▪ Điểm: {diem_chon}\n"
+                    f"▪ Hạng mục: {loai_hinh}\n"
+                    f"▪ Thiết bị: {text_tb_str}\n"
+                    f"▪ Thời gian: {thoi_gian_vn}\n"
+                    f"📍 Vị trí GPS: {link_gps_cuoi if link_gps_cuoi else 'Chưa có'}"
+                )
+                
+                # Nút bấm mở Zalo gửi ngay
+                zalo_url = f"https://zalo.me/share?text={urllib.parse.quote(noi_dung_zalo)}"
+                st.markdown(f"""
+                    <a href="{zalo_url}" target="_blank" style="text-decoration:none;">
+                        <button style="width:100%; background-color:#0068FF; color:white; padding:12px; border:none; border-radius:8px; font-weight:bold; font-size:16px; margin-top:10px; cursor:pointer;">
+                            📲 GỬI BÁO CÁO NÀY QUA ZALO NGAY
+                        </button>
+                    </a>
+                """, unsafe_allow_html=True)
+                
             except Exception as e:
                 st.error(f"Lỗi khi gửi dữ liệu: {e}")
 
