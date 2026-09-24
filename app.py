@@ -37,7 +37,7 @@ def ket_noi_sheets():
 sh = ket_noi_sheets()
 
 # -------------------------------------------------------------
-# 2. ĐỌC DỮ LIỆU TỔNG QUAN
+# 2. ĐỌC DỮ LIỆU ĐA DỰ ÁN & PHÂN BỔ THIẾT BỊ
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_du_an = []
@@ -46,17 +46,22 @@ kho_phan_bo_map = {}
 diem_theo_du_an = {}
 
 if sh:
+    # 2.1 Đọc Dự án
     try:
         ws_da = sh.worksheet("DANH_SACH_DU_AN")
-        for r in ws_da.get_all_records():
-            ma = str(r.get("Mã dự án", "")).strip()
-            ten = str(r.get("Tên dự án", "")).strip()
-            if ma and ma != "nan":
-                nhan = f"{ma} - {ten}" if ten and ten != "nan" else ma
-                danh_sach_du_an.append({"ma": ma, "hien_thi": nhan})
+        data_da = ws_da.get_all_values()
+        if len(data_da) >= 2:
+            for row in data_da[1:]:
+                if len(row) >= 2:
+                    ma = row[0].strip()
+                    ten = row[1].strip()
+                    if ma and ma.lower() != "nan" and ma != "Mã dự án":
+                        nhan = f"{ma} - {ten}" if ten and ten.lower() != "nan" else ma
+                        danh_sach_du_an.append({"ma": ma, "hien_thi": nhan})
     except Exception:
         pass
 
+    # 2.2 Đọc Điểm
     try:
         ws_diem = sh.worksheet("DANH_SACH_DIEM")
         data_diem = ws_diem.get_all_values()
@@ -75,6 +80,7 @@ if sh:
     except Exception:
         pass
 
+    # 2.3 Đọc KHO_PHAN_BO
     try:
         ws_kho = sh.worksheet("KHO_PHAN_BO")
         data_kho = ws_kho.get_all_values()
@@ -125,62 +131,87 @@ if not danh_sach_du_an:
     danh_sach_du_an = [{"ma": "DA880", "hien_thi": "DA880 - Viettel Tuyên Quang"}, {"ma": "Dự án 76", "hien_thi": "Dự án 76"}]
 
 # -------------------------------------------------------------
-# PHÂN CHIA GIAO DIỆN BẰNG 2 TAB
+# 3. GIAO DIỆN PHÂN CHIA TAB
 # -------------------------------------------------------------
 tab_dashboard, tab_baocao = st.tabs(["📊 BÁO CÁO TIẾN ĐỘ (DÀNH CHO LÃNH ĐẠO)", "📱 BÁO CÁO HIỆN TRƯỜNG"])
 
 # =============================================================
-# TAB 1: BÁO CÁO DÀNH CHO LÃNH ĐẠO
+# TAB 1: BÁO CÁO TIẾN ĐỘ CHO LÃNH ĐẠO
 # =============================================================
 with tab_dashboard:
     st.header("📈 Báo Cáo Tiến Độ Dự Án Thời Gian Thực")
     st.caption("Cập nhật tự động từ kết quả triển khai thực địa")
 
-    # Đọc dữ liệu từ BAO_CAO_TRIEN_KHAI
+    # Đọc dữ liệu an toàn, xử lý triệt để tiêu đề trống
     df_bc = pd.DataFrame()
     if sh:
         try:
             ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
-            data_all = ws_bc.get_all_records()
-            df_bc = pd.DataFrame(data_all)
+            raw_vals = ws_bc.get_all_values()
+            if len(raw_vals) >= 2:
+                # Tìm dòng tiêu đề chuẩn chứa chữ "Dấu thời gian" hoặc "Thời gian"
+                header_idx = 0
+                for r_idx, r in enumerate(raw_vals[:3]):
+                    if any("thời gian" in str(c).lower() for c in r):
+                        header_idx = r_idx
+                        break
+                
+                headers = [str(c).strip() for c in raw_vals[header_idx]]
+                # Chuẩn hóa tên cột nếu có ô rỗng
+                headers = [h if h else f"Cột_{i+1}" for i, h in enumerate(headers)]
+                
+                rows_data = raw_vals[header_idx + 1:]
+                # Đảm bảo mỗi dòng đủ số cột
+                clean_rows = []
+                for r in rows_data:
+                    if any(str(x).strip() for x in r): # Bỏ dòng trống hoàn toàn
+                        padded = r + [""] * (len(headers) - len(r))
+                        clean_rows.append(padded[:len(headers)])
+                
+                df_bc = pd.DataFrame(clean_rows, columns=headers)
         except Exception as e:
-            st.error(f"Chưa lấy được dữ liệu báo cáo: {e}")
+            st.error(f"Lỗi đọc dữ liệu: {e}")
 
     if not df_bc.empty:
-        # Bộ lọc dự án cho Lãnh đạo
+        # Bộ lọc dự án
         ds_loc_da = ["Tất cả dự án"] + [item["hien_thi"] for item in danh_sach_du_an]
         da_duoc_chon = st.selectbox("🔍 Xem tiến độ theo Dự án:", options=ds_loc_da, key="filter_da_boss")
         
+        # Nhận diện tên cột linh hoạt
+        col_doi_ten = next((c for c in df_bc.columns if "đội" in c.lower() or "cán bộ" in c.lower()), "Tên đội thực hiện")
+        col_tt_ten = next((c for c in df_bc.columns if "tình trạng" in c.lower() or "trạng thái" in c.lower()), "Tình trạng thực hiện")
+        col_sl_ten = next((c for c in df_bc.columns if "số lượng" in c.lower()), "Số lượng thiết bị thực tế")
+        col_gps_ten = next((c for c in df_bc.columns if "maps" in c.lower() or "link" in c.lower() or "gps" in c.lower()), "Link Google Maps")
+
         df_hien_thi = df_bc.copy()
         if da_duoc_chon != "Tất cả dự án":
             ma_da_loc = next(item["ma"] for item in danh_sach_du_an if item["hien_thi"] == da_duoc_chon)
-            # Lọc theo tiền tố [Mã dự án]
-            df_hien_thi = df_hien_thi[df_hien_thi["Tên đội thực hiện"].astype(str).str.contains(ma_da_loc, na=False)]
+            if col_doi_ten in df_hien_thi.columns:
+                df_hien_thi = df_hien_thi[df_hien_thi[col_doi_ten].astype(str).str.contains(ma_da_loc, na=False)]
 
-        # Tính toán các chỉ số KPI
+        # Tính toán KPI
         tong_luot = len(df_hien_thi)
-        so_giao_hang = len(df_hien_thi[df_hien_thi["Tình trạng thực hiện"] == "Đã giao hàng"])
-        so_lap_dat = len(df_hien_thi[df_hien_thi["Tình trạng thực hiện"] == "Đã lắp đặt xong"])
+        so_giao_hang = len(df_hien_thi[df_hien_thi[col_tt_ten].astype(str).str.contains("giao", case=False, na=False)]) if col_tt_ten in df_hien_thi.columns else 0
+        so_lap_dat = len(df_hien_thi[df_hien_thi[col_tt_ten].astype(str).str.contains("lắp", case=False, na=False)]) if col_tt_ten in df_hien_thi.columns else 0
         tong_tb = 0
-        if "Số lượng thiết bị thực tế" in df_hien_thi.columns:
+        if col_sl_ten in df_hien_thi.columns:
             try:
-                tong_tb = int(pd.to_numeric(df_hien_thi["Số lượng thiết bị thực tế"], errors="coerce").fillna(0).sum())
+                tong_tb = int(pd.to_numeric(df_hien_thi[col_sl_ten], errors="coerce").fillna(0).sum())
             except:
                 pass
 
-        # 4 Thẻ KPI nổi bật trên điện thoại
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
         kpi1.metric("📦 Đã Giao Hàng", f"{so_giao_hang} lượt")
-        kpi2.metric("🔧 Đã Lắp Đặt", f"{so_lap_dat} lượt")
+        kpi2.metric("🔧 Đã Lắp Đặt Xong", f"{so_lap_dat} lượt")
         kpi3.metric("🎯 Tổng Thiết Bị", f"{tong_tb} chiếc")
-        kpi4.metric("📝 Tổng Lần Ghi Nhận", f"{tong_luot} lượt")
+        kpi4.metric("📝 Tổng Nhật Ký", f"{tong_luot} lượt")
 
         st.markdown("---")
         
-        # Biểu đồ cột tổng hợp
+        # Biểu đồ cột
         col_c1, col_c2 = st.columns([1, 1])
         with col_c1:
-            st.subheader("📊 Tỷ Lệ Hoàn Thành Công Việc")
+            st.subheader("📊 Tỷ Lệ Thực Hiện")
             df_chart = pd.DataFrame({
                 "Hạng mục": ["Giao hàng", "Lắp đặt xong"],
                 "Số lượng": [so_giao_hang, so_lap_dat]
@@ -189,30 +220,31 @@ with tab_dashboard:
 
         with col_c2:
             st.subheader("📌 Tóm Tắt Tình Hình")
-            st.success(f"✔️ Tiến độ lắp đặt hiện trường: **{so_lap_dat}** điểm đã hoàn thành.")
-            st.info(f"✔️ Tổng thiết bị đã triển khai đến các điểm: **{tong_tb}** thiết bị.")
+            st.success(f"✔️ Lắp đặt hoàn thành: **{so_lap_dat}** điểm.")
+            st.info(f"✔️ Tổng thiết bị cấp phát thực địa: **{tong_tb}** chiếc.")
             if so_giao_hang > 0:
-                tl = round((so_lap_dat / so_giao_hang) * 100, 1) if so_giao_hang else 0
-                st.warning(f"⚡ Tỷ lệ lắp đặt / giao hàng: **{tl}%**")
+                tl = round((so_lap_dat / so_giao_hang) * 100, 1)
+                st.warning(f"⚡ Tỷ lệ hoàn thiện lắp đặt / giao nhận: **{tl}%**")
 
         st.markdown("---")
-        st.subheader("📋 Danh Sách Nhật Ký Hiện Trường Mới Nhất")
+        st.subheader("📋 Nhật Ký Triển Khai Thực Địa Mới Nhất")
         
-        # Hiển thị bảng chi tiết, cho phép xem link Maps trực tiếp
-        df_view = df_hien_thi.tail(15).iloc[::-1]  # Lấy 15 dòng mới nhất lên đầu
+        df_view = df_hien_thi.tail(20).iloc[::-1]
+        cfg = {}
+        if col_gps_ten in df_view.columns:
+            cfg[col_gps_ten] = st.column_config.LinkColumn("Vị trí GPS", display_text="📍 Xem bản đồ")
+            
         st.dataframe(
             df_view,
             use_container_width=True,
-            column_config={
-                "Link Google Maps": st.column_config.LinkColumn("Vị trí GPS", display_text="📍 Xem bản đồ")
-            },
+            column_config=cfg,
             hide_index=True
         )
     else:
-        st.info("Chưa có dữ liệu báo cáo nào được gửi từ hiện trường.")
+        st.info("Chưa có dữ liệu báo cáo nào được ghi nhận.")
 
 # =============================================================
-# TAB 2: GIAO DIỆN BÁO CÁO CHO ANH EM HIỆN TRƯỜNG
+# TAB 2: BÁO CÁO CHO ANH EM HIỆN TRƯỜNG
 # =============================================================
 with tab_baocao:
     st.header("📱 Ghi Nhận Kết Quả Hiện Trường")
