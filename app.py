@@ -110,7 +110,7 @@ link_gps_cuoi = st.text_input(
 )
 
 # -------------------------------------------------------------
-# 5. TỰ ĐỘNG ĐIỀN KHỚP CHÍNH XÁC CÁC CỘT TRÊN GOOGLE SHEETS
+# 5. TỰ ĐỘNG GHI NHẬN TÌNH TRẠNG "ĐÃ HOÀN THÀNH" VÀO SHEET
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("3. Xác nhận hoàn thành công việc")
@@ -130,7 +130,7 @@ def xu_ly_ghi_nhan(loai_hinh):
             ma_cv = "CV-" + datetime.now(tz_vn).strftime("%H%M%S")
             ma_da = "DA-TDV"
             
-            # 1. Ghi vào Sheet tổng hợp BAO_CAO_TRIEN_KHAI (lưu nhật ký chung)
+            # 1. Ghi vào Sheet tổng hợp BAO_CAO_TRIEN_KHAI
             try:
                 ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
                 ws_bc.append_row([
@@ -144,26 +144,25 @@ def xu_ly_ghi_nhan(loai_hinh):
             except Exception:
                 pass
 
-            # 2. Khớp đúng từng cột với sheet nghiệp vụ:
+            # 2. Ghi vào Sheet LAP_DAT:
+            # Cột F sẽ ghi rõ "Đã hoàn thành", Cột H sẽ có link bản đồ
             if loai_hinh == "Đã lắp đặt xong":
                 ws_ld = sh.worksheet("LAP_DAT")
-                # Khớp đúng 7 cột của sheet LAP_DAT:
-                # [Mã công việc, Mã dự án, Đội trưởng KTV, Số lượng thiết bị lắp, Địa điểm lắp, Trạng thái duyệt, Thời gian hoàn thành]
                 dong_lap_dat = [
                     ma_cv,              # Cột A: Mã công việc
                     ma_da,              # Cột B: Mã dự án
                     can_bo_chon,        # Cột C: Đội trưởng KTV
                     sl_thuc_te,         # Cột D: Số lượng thiết bị lắp
                     diem_chon,          # Cột E: Địa điểm lắp
-                    "Chờ duyệt",        # Cột F: Trạng thái duyệt
-                    thoi_gian_vn        # Cột G: Thời gian hoàn thành
+                    "Đã hoàn thành",    # Cột F: Tình trạng thực hiện
+                    thoi_gian_vn,       # Cột G: Thời gian hoàn thành
+                    link_gps_cuoi       # Cột H: Link Google Maps
                 ]
                 ws_ld.append_row(dong_lap_dat)
                 
             elif loai_hinh == "Đã giao hàng":
                 try:
                     ws_vc = sh.worksheet("VAN_CHUYEN")
-                    # Ghi nhận vào sheet vận chuyển
                     ws_vc.append_row([
                         thoi_gian_vn,
                         can_bo_chon,
