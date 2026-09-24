@@ -2,6 +2,8 @@ import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
+import pytz
+from streamlit_js_eval import get_geolocation
 
 # Cấu hình giao diện ứng dụng
 st.set_page_config(
@@ -11,7 +13,7 @@ st.set_page_config(
 )
 
 # -------------------------------------------------------------
-# 1. KẾT NỐI GOOGLE SHEETS (HỖ TRỢ CẢ CLOUD SECRETS & LOCAL FILE)
+# 1. KẾT NỐI GOOGLE SHEETS
 # -------------------------------------------------------------
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -21,25 +23,22 @@ SCOPES = [
 @st.cache_resource
 def ket_noi_sheets():
     try:
-        # Nếu chạy trên Streamlit Cloud (đọc từ st.secrets)
         if "gcp_service_account" in st.secrets:
             creds_info = dict(st.secrets["gcp_service_account"])
             creds = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
         else:
-            # Nếu chạy trên máy tính cá nhân (đọc file credentials.json)
             creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
         
         client = gspread.authorize(creds)
-        sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-        return sh
+        return client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
     except Exception as e:
-        st.error(f"Lỗi kết nối cơ sở dữ liệu Google Sheets: {e}")
+        st.error(f"Lỗi kết nối cơ sở dữ liệu: {e}")
         return None
 
 sh = ket_noi_sheets()
 
 # -------------------------------------------------------------
-# 2. ĐỌC DỮ LIỆU DANH MỤC TỪ GOOGLE SHEETS
+# 2. ĐỌC DANH MỤC ĐIỂM
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_diem = {}
@@ -65,7 +64,7 @@ if not danh_sach_diem:
     }
 
 # -------------------------------------------------------------
-# 3. GIAO DIỆN BÁO CÁO HIỆN TRƯỜNG DỰ ÁN
+# 3. GIAO DIỆN BÁO CÁO
 # -------------------------------------------------------------
 st.title("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
 st.caption("Hệ thống điều hành phân bổ tự động & ghi nhận hiện trường")
@@ -73,18 +72,11 @@ st.caption("Hệ thống điều hành phân bổ tự động & ghi nhận hi�
 st.markdown("---")
 st.subheader("1. Xác nhận thông tin thực hiện")
 
-can_bo_chon = st.selectbox(
-    "Cán bộ / Đội trưởng thực hiện:",
-    options=danh_sach_ktv
-)
-
-diem_chon = st.selectbox(
-    "Chọn Điểm lắp đặt thuộc phân công:",
-    options=list(danh_sach_diem.keys())
-)
+can_bo_chon = st.selectbox("Cán bộ / Đội trưởng thực hiện:", options=danh_sach_ktv)
+diem_chon = st.selectbox("Chọn Điểm lắp đặt thuộc phân công:", options=list(danh_sach_diem.keys()))
 
 sl_dinh_muc = danh_sach_diem.get(diem_chon, 0)
-st.info(f"📦 **Số lượng thiết bị được phân bổ cho điểm này:** {sl_dinh_muc} thiết bị")
+st.info(f"📦 **Số lượng thiết bị phân bổ theo thầu:** {sl_dinh_muc} thiết bị")
 
 sl_thuc_te = st.number_input(
     "Số lượng thiết bị thực tế:",
@@ -95,76 +87,30 @@ sl_thuc_te = st.number_input(
 )
 
 # -------------------------------------------------------------
-# 4. ĐỊNH VỊ VỊ TRÍ HIỆN TRƯỜNG (GPS) 1 CHẠM
+# 4. TỰ ĐỘNG BẮT TỌA ĐỘ GPS (KHÔNG CẦN DÁN THỦ CÔNG)
 # -------------------------------------------------------------
 st.markdown("---")
-st.subheader("2. Định vị Địa điểm (Google Maps)")
+st.subheader("2. Định vị Hiện trường (GPS)")
 
-gps_component_html = """
-<div style="text-align: center; margin-bottom: 12px;">
-    <button onclick="layToaDoGPS()" style="
-        background-color: #007bff;
-        color: white;
-        border: none;
-        padding: 14px 20px;
-        font-size: 16px;
-        font-weight: bold;
-        border-radius: 8px;
-        cursor: pointer;
-        width: 100%;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-    ">📍 BẤM ĐỂ LẤY VỊ TRÍ GPS HIỆN TẠI</button>
-    <div id="gps-status" style="margin-top: 8px; font-size: 14px; font-weight: 500; color: #333;"></div>
-</div>
+location = get_geolocation()
 
-<script>
-function layToaDoGPS() {
-    var status = document.getElementById("gps-status");
-    if (!navigator.geolocation) {
-        status.innerHTML = "❌ Thiết bị hoặc trình duyệt không hỗ trợ định vị GPS.";
-        return;
-    }
-    status.innerHTML = "⏳ Đang quét tọa độ vệ tinh...";
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            var lat = position.coords.latitude;
-            var lon = position.coords.longitude;
-            var linkMaps = "https://www.google.com/maps?q=" + lat + "," + lon;
-            
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(linkMaps).then(function() {
-                    status.innerHTML = "✅ Đã sao chép link GPS! Dán (Paste) vào ô bên dưới.";
-                }).catch(function() {
-                    status.innerHTML = "✅ Tọa độ: " + lat + ", " + lon + " (Hãy copy link Maps)";
-                });
-            } else {
-                status.innerHTML = "✅ Tọa độ: " + lat + ", " + lon;
-            }
-        },
-        function(error) {
-            if (error.code == error.PERMISSION_DENIED) {
-                status.innerHTML = "⚠️ Vui lòng cấp quyền truy cập Vị trí (GPS) trên trình duyệt.";
-            } else if (error.code == error.TIMEOUT) {
-                status.innerHTML = "⚠️ Quá thời gian quét vị trí GPS.";
-            } else {
-                status.innerHTML = "⚠️ Không thể định vị được vị trí hiện tại.";
-            }
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-}
-</script>
-"""
+link_maps_tu_dong = ""
+if location and "coords" in location:
+    lat = location["coords"]["latitude"]
+    lon = location["coords"]["longitude"]
+    link_maps_tu_dong = f"https://www.google.com/maps?q={lat},{lon}"
+    st.success(f"📍 Đã nhận diện vị trí vệ tinh: {lat:.5f}, {lon:.5f}")
+else:
+    st.warning("⚠️ Nếu điện thoại hỏi quyền truy cập vị trí, hãy chọn 'Cho phép' (Allow).")
 
-st.components.v1.html(gps_component_html, height=105)
-
-link_gps = st.text_input(
-    "Dán Link GPS vừa lấy (hoặc nhập tọa độ):",
+link_gps_cuoi = st.text_input(
+    "Link Google Maps (Tự động điền khi nhận GPS):",
+    value=link_maps_tu_dong,
     placeholder="https://www.google.com/maps?q=..."
 )
 
 # -------------------------------------------------------------
-# 5. GHI NHẬN TIẾN ĐỘ VỀ GOOGLE SHEETS (ĐÃ KHỚP ĐÚNG THỨ TỰ CỘT)
+# 5. GHI DỮ LIỆU CHUẨN GIỜ VIỆT NAM (GMT+7)
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("3. Xác nhận hoàn thành công việc")
@@ -179,21 +125,22 @@ def ghi_du_lieu_bao_cao(loai_hinh):
     with st.spinner("Đang lưu dữ liệu về hệ thống..."):
         try:
             ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
-            thoi_gian_hien_tai = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Chuẩn hóa giờ Việt Nam (GMT+7)
+            tz_vn = pytz.timezone('Asia/Ho_Chi_Minh')
+            thoi_gian_vn = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
             
-            # Khớp chính xác với cột A, B, C, D, E, F trên Sheet
             dong_moi = [
-                thoi_gian_hien_tai,  # Cột A: Dấu thời gian
+                thoi_gian_vn,        # Cột A: Dấu thời gian chuẩn giờ VN
                 can_bo_chon,         # Cột B: Tên đội thực hiện
                 diem_chon,           # Cột C: Điểm lắp đặt
                 sl_thuc_te,          # Cột D: Số lượng thiết bị thực tế
-                link_gps,            # Cột E: Link Google Maps
+                link_gps_cuoi,       # Cột E: Link Google Maps
                 loai_hinh            # Cột F: Trạng thái thực hiện
             ]
             ws_bc.append_row(dong_moi)
             st.success(f"✅ Ghi nhận thành công: {loai_hinh} tại {diem_chon}!")
         except Exception as e:
-            st.error(f"Lỗi khi gửi dữ liệu lên Google Sheets: {e}")
+            st.error(f"Lỗi khi gửi dữ liệu: {e}")
 
 with col1:
     if st.button("📦 ĐÃ GIAO HÀNG", use_container_width=True, type="primary"):
