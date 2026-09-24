@@ -41,15 +41,15 @@ sh = ket_noi_sheets()
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_du_an = []
-danh_sach_diem = []
+toan_bo_diem_goc = []
 kho_phan_bo_map = {}
+diem_theo_du_an = {} # {ma_da: [danh_sach_diem]}
 
 if sh:
-    # Đọc danh sách Dự án từ sheet DANH_SACH_DU_AN
+    # 2.1 Đọc danh mục Dự án
     try:
         ws_da = sh.worksheet("DANH_SACH_DU_AN")
-        records_da = ws_da.get_all_records()
-        for r in records_da:
+        for r in ws_da.get_all_records():
             ma = str(r.get("Mã dự án", "")).strip()
             ten = str(r.get("Tên dự án", "")).strip()
             if ma and ma != "nan":
@@ -58,7 +58,7 @@ if sh:
     except Exception:
         pass
 
-    # Đọc danh sách Địa điểm từ sheet DANH_SACH_DIEM
+    # 2.2 Đọc danh mục toàn bộ điểm thi công
     try:
         ws_diem = sh.worksheet("DANH_SACH_DIEM")
         data_diem = ws_diem.get_all_values()
@@ -72,17 +72,17 @@ if sh:
             for row in data_diem[2:]:
                 if len(row) > col_diem_idx:
                     val = row[col_diem_idx].strip()
-                    if val and val not in danh_sach_diem:
-                        danh_sach_diem.append(val)
+                    if val and val not in toan_bo_diem_goc:
+                        toan_bo_diem_goc.append(val)
     except Exception:
         pass
 
-    # Đọc thiết bị phân bổ từ KHO_PHAN_BO
+    # 2.3 Đọc phân bổ từ KHO_PHAN_BO
     try:
         ws_kho = sh.worksheet("KHO_PHAN_BO")
         data_kho = ws_kho.get_all_values()
         if len(data_kho) >= 2:
-            headers_k = [str(x).strip() for x in data_kho[0]]
+            headers_k = [str(x).strip() for x in data_kho[1]] if len(data_kho) > 1 and "Mã dự án" in data_kho[1] else [str(x).strip() for x in data_kho[0]]
             col_da, col_tb, col_sl, col_dvt, col_diem = 0, 3, 4, 5, 7
             for i, h in enumerate(headers_k):
                 if "Mã dự án" in h: col_da = i
@@ -91,7 +91,8 @@ if sh:
                 elif "Đơn vị" in h: col_dvt = i
                 elif "Địa điểm" in h: col_diem = i
 
-            for row in data_kho[1:]:
+            start_idx = 2 if "Mã dự án" in data_kho[1] else 1
+            for row in data_kho[start_idx:]:
                 if len(row) > max(col_da, col_tb, col_diem):
                     m_da = row[col_da].strip()
                     d_diem = row[col_diem].strip()
@@ -108,16 +109,20 @@ if sh:
                     if key not in kho_phan_bo_map:
                         kho_phan_bo_map[key] = []
                     kho_phan_bo_map[key].append({"thiet_bi": t_tb, "so_luong": sl, "dvt": dvt})
+                    
+                    # Gom nhóm điểm theo dự án
+                    if m_da not in diem_theo_du_an:
+                        diem_theo_du_an[m_da] = []
+                    if d_diem not in diem_theo_du_an[m_da]:
+                        diem_theo_du_an[m_da].append(d_diem)
     except Exception:
         pass
 
 if not danh_sach_du_an:
     danh_sach_du_an = [{"ma": "DA880", "hien_thi": "DA880 - Viettel Tuyên Quang"}, {"ma": "Dự án 76", "hien_thi": "Dự án 76"}]
-if not danh_sach_diem:
-    danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường"]
 
 # -------------------------------------------------------------
-# 3. GIAO DIỆN BÁO CÁO HIỆN TRƯỜNG ĐA DỰ ÁN
+# 3. GIAO DIỆN BÁO CÁO THÔNG MINH
 # -------------------------------------------------------------
 st.title("📱 HỆ THỐNG ĐIỀU HÀNH DỰ ÁN")
 st.caption("Quản trị đa dự án song song & cập nhật hiện trường tự động")
@@ -131,13 +136,18 @@ lua_chon_da = st.selectbox(
 )
 ma_da_chon = next(item["ma"] for item in danh_sach_du_an if item["hien_thi"] == lua_chon_da)
 
+# Danh sách điểm thông minh: Ưu tiên điểm đã phân bổ của dự án này
+ds_diem_kha_dung = diem_theo_du_an.get(ma_da_chon, [])
+if not ds_diem_kha_dung:
+    ds_diem_kha_dung = toan_bo_diem_goc if toan_bo_diem_goc else ["Phường Minh Xuân", "Phường Nông Tiến"]
+
 col_kb1, col_kb2 = st.columns(2)
 with col_kb1:
     can_bo_chon = st.selectbox("Cán bộ / Đội trưởng:", options=danh_sach_ktv)
 with col_kb2:
-    diem_chon = st.selectbox("Địa điểm lắp đặt:", options=danh_sach_diem)
+    diem_chon = st.selectbox("Địa điểm lắp đặt:", options=ds_diem_kha_dung)
 
-# Lấy danh mục thiết bị từ KHO_PHAN_BO theo Dự án và Địa điểm
+# Lấy danh mục thiết bị từ KHO_PHAN_BO
 key_tra_cuu = (ma_da_chon, diem_chon)
 danh_sach_tb = kho_phan_bo_map.get(key_tra_cuu, [])
 
