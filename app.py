@@ -6,14 +6,26 @@ import pytz
 import pandas as pd
 from streamlit_js_eval import get_geolocation
 
-st.set_page_config(
-    page_title="Hệ Thống Quản Trị & Báo Cáo Tiến Độ",
-    page_icon="📊",
-    layout="wide"
-)
+# -------------------------------------------------------------
+# 1. KIỂM TRA PHÂN QUYỀN ĐƯỜNG DẪN (URL QUERY PARAMETER)
+# -------------------------------------------------------------
+che_do_xem = st.query_params.get("view", "")
+
+if che_do_xem == "lanhdao":
+    st.set_page_config(
+        page_title="Báo Cáo Tiến Độ - Lãnh Đạo",
+        page_icon="📈",
+        layout="wide"
+    )
+else:
+    st.set_page_config(
+        page_title="Báo Cáo Hiện Trường",
+        page_icon="📱",
+        layout="centered"
+    )
 
 # -------------------------------------------------------------
-# 1. KẾT NỐI GOOGLE SHEETS
+# 2. KẾT NỐI GOOGLE SHEETS
 # -------------------------------------------------------------
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -37,7 +49,7 @@ def ket_noi_sheets():
 sh = ket_noi_sheets()
 
 # -------------------------------------------------------------
-# 2. ĐỌC DỮ LIỆU ĐA DỰ ÁN & PHÂN BỔ THIẾT BỊ
+# 3. ĐỌC DỮ LIỆU CHUNG
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_du_an = []
@@ -46,7 +58,6 @@ kho_phan_bo_map = {}
 diem_theo_du_an = {}
 
 if sh:
-    # 2.1 Đọc Dự án
     try:
         ws_da = sh.worksheet("DANH_SACH_DU_AN")
         data_da = ws_da.get_all_values()
@@ -61,7 +72,6 @@ if sh:
     except Exception:
         pass
 
-    # 2.2 Đọc Điểm
     try:
         ws_diem = sh.worksheet("DANH_SACH_DIEM")
         data_diem = ws_diem.get_all_values()
@@ -80,7 +90,6 @@ if sh:
     except Exception:
         pass
 
-    # 2.3 Đọc KHO_PHAN_BO
     try:
         ws_kho = sh.worksheet("KHO_PHAN_BO")
         data_kho = ws_kho.get_all_values()
@@ -130,26 +139,19 @@ if sh:
 if not danh_sach_du_an:
     danh_sach_du_an = [{"ma": "DA880", "hien_thi": "DA880 - Viettel Tuyên Quang"}, {"ma": "Dự án 76", "hien_thi": "Dự án 76"}]
 
-# -------------------------------------------------------------
-# 3. GIAO DIỆN PHÂN CHIA TAB
-# -------------------------------------------------------------
-tab_dashboard, tab_baocao = st.tabs(["📊 BÁO CÁO TIẾN ĐỘ (DÀNH CHO LÃNH ĐẠO)", "📱 BÁO CÁO HIỆN TRƯỜNG"])
-
 # =============================================================
-# TAB 1: BÁO CÁO TIẾN ĐỘ CHO LÃNH ĐẠO
+# TRƯỜNG HỢP 1: LINK LÃNH ĐẠO (?view=lanhdao)
 # =============================================================
-with tab_dashboard:
-    st.header("📈 Báo Cáo Tiến Độ Dự Án Thời Gian Thực")
-    st.caption("Cập nhật tự động từ kết quả triển khai thực địa")
+if che_do_xem == "lanhdao":
+    st.title("📈 BÁO CÁO TIẾN ĐỘ DỰ ÁN THỜI GIAN THỰC")
+    st.caption("Dành riêng cho Ban Lãnh đạo & Quản lý điều hành")
 
-    # Đọc dữ liệu an toàn, xử lý triệt để tiêu đề trống
     df_bc = pd.DataFrame()
     if sh:
         try:
             ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
             raw_vals = ws_bc.get_all_values()
             if len(raw_vals) >= 2:
-                # Tìm dòng tiêu đề chuẩn chứa chữ "Dấu thời gian" hoặc "Thời gian"
                 header_idx = 0
                 for r_idx, r in enumerate(raw_vals[:3]):
                     if any("thời gian" in str(c).lower() for c in r):
@@ -157,27 +159,23 @@ with tab_dashboard:
                         break
                 
                 headers = [str(c).strip() for c in raw_vals[header_idx]]
-                # Chuẩn hóa tên cột nếu có ô rỗng
                 headers = [h if h else f"Cột_{i+1}" for i, h in enumerate(headers)]
                 
                 rows_data = raw_vals[header_idx + 1:]
-                # Đảm bảo mỗi dòng đủ số cột
                 clean_rows = []
                 for r in rows_data:
-                    if any(str(x).strip() for x in r): # Bỏ dòng trống hoàn toàn
+                    if any(str(x).strip() for x in r):
                         padded = r + [""] * (len(headers) - len(r))
                         clean_rows.append(padded[:len(headers)])
                 
                 df_bc = pd.DataFrame(clean_rows, columns=headers)
         except Exception as e:
-            st.error(f"Lỗi đọc dữ liệu: {e}")
+            st.error(f"Lỗi nạp báo cáo: {e}")
 
     if not df_bc.empty:
-        # Bộ lọc dự án
         ds_loc_da = ["Tất cả dự án"] + [item["hien_thi"] for item in danh_sach_du_an]
-        da_duoc_chon = st.selectbox("🔍 Xem tiến độ theo Dự án:", options=ds_loc_da, key="filter_da_boss")
+        da_duoc_chon = st.selectbox("🔍 Lọc xem theo Dự án:", options=ds_loc_da)
         
-        # Nhận diện tên cột linh hoạt
         col_doi_ten = next((c for c in df_bc.columns if "đội" in c.lower() or "cán bộ" in c.lower()), "Tên đội thực hiện")
         col_tt_ten = next((c for c in df_bc.columns if "tình trạng" in c.lower() or "trạng thái" in c.lower()), "Tình trạng thực hiện")
         col_sl_ten = next((c for c in df_bc.columns if "số lượng" in c.lower()), "Số lượng thiết bị thực tế")
@@ -189,7 +187,6 @@ with tab_dashboard:
             if col_doi_ten in df_hien_thi.columns:
                 df_hien_thi = df_hien_thi[df_hien_thi[col_doi_ten].astype(str).str.contains(ma_da_loc, na=False)]
 
-        # Tính toán KPI
         tong_luot = len(df_hien_thi)
         so_giao_hang = len(df_hien_thi[df_hien_thi[col_tt_ten].astype(str).str.contains("giao", case=False, na=False)]) if col_tt_ten in df_hien_thi.columns else 0
         so_lap_dat = len(df_hien_thi[df_hien_thi[col_tt_ten].astype(str).str.contains("lắp", case=False, na=False)]) if col_tt_ten in df_hien_thi.columns else 0
@@ -207,8 +204,6 @@ with tab_dashboard:
         kpi4.metric("📝 Tổng Nhật Ký", f"{tong_luot} lượt")
 
         st.markdown("---")
-        
-        # Biểu đồ cột
         col_c1, col_c2 = st.columns([1, 1])
         with col_c1:
             st.subheader("📊 Tỷ Lệ Thực Hiện")
@@ -220,16 +215,15 @@ with tab_dashboard:
 
         with col_c2:
             st.subheader("📌 Tóm Tắt Tình Hình")
-            st.success(f"✔️ Lắp đặt hoàn thành: **{so_lap_dat}** điểm.")
+            st.success(f"✔️ Điểm lắp đặt hoàn thành: **{so_lap_dat}** điểm.")
             st.info(f"✔️ Tổng thiết bị cấp phát thực địa: **{tong_tb}** chiếc.")
             if so_giao_hang > 0:
                 tl = round((so_lap_dat / so_giao_hang) * 100, 1)
                 st.warning(f"⚡ Tỷ lệ hoàn thiện lắp đặt / giao nhận: **{tl}%**")
 
         st.markdown("---")
-        st.subheader("📋 Nhật Ký Triển Khai Thực Địa Mới Nhất")
-        
-        df_view = df_hien_thi.tail(20).iloc[::-1]
+        st.subheader("📋 Nhật Ký Hiện Trường Chi Tiết (Kèm GPS)")
+        df_view = df_hien_thi.tail(25).iloc[::-1]
         cfg = {}
         if col_gps_ten in df_view.columns:
             cfg[col_gps_ten] = st.column_config.LinkColumn("Vị trí GPS", display_text="📍 Xem bản đồ")
@@ -244,11 +238,14 @@ with tab_dashboard:
         st.info("Chưa có dữ liệu báo cáo nào được ghi nhận.")
 
 # =============================================================
-# TAB 2: BÁO CÁO CHO ANH EM HIỆN TRƯỜNG
+# TRƯỜNG HỢP 2: LINK CHO THỢ / KỸ THUẬT HIỆN TRƯỜNG (Mặc định)
 # =============================================================
-with tab_baocao:
-    st.header("📱 Ghi Nhận Kết Quả Hiện Trường")
-    st.caption("Dành cho cán bộ kỹ thuật và đội trưởng thi công")
+else:
+    st.title("📱 HỆ THỐNG ĐIỀU HÀNH DỰ ÁN")
+    st.caption("Ghi nhận kết quả triển khai hiện trường tự động")
+
+    st.markdown("---")
+    st.subheader("1. Thông tin Dự án & Hiện trường")
 
     lua_chon_da = st.selectbox(
         "Đang thực hiện cho Dự án:",
@@ -365,7 +362,6 @@ with tab_baocao:
                     
                     ma_cv = f"CV-{datetime.now(tz_vn).strftime('%H%M%S')}-{idx_tb+1}"
                     
-                    # Ghi LAP_DAT
                     if ws_ld:
                         ws_ld.append_row([
                             ma_cv,
@@ -379,7 +375,6 @@ with tab_baocao:
                             link_gps_cuoi
                         ])
 
-                    # Ghi VAN_CHUYEN
                     if ws_vc:
                         ws_vc.append_row([
                             ma_da_chon,
@@ -393,7 +388,6 @@ with tab_baocao:
                             thoi_gian_vn
                         ])
 
-                    # Ghi BAO_CAO_TRIEN_KHAI
                     if ws_bc:
                         ws_bc.append_row([
                             thoi_gian_vn,
