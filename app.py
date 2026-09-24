@@ -12,16 +12,17 @@ SCOPES = [
 @st.cache_resource
 def ket_noi_sheets():
     try:
+        # Nếu chạy trên Streamlit Cloud (đọc từ st.secrets)
         if "gcp_service_account" in st.secrets:
-            secrets_dict = dict(st.secrets["gcp_service_account"])
-            creds = Credentials.from_service_account_info(secrets_dict, scopes=SCOPES)
+            creds_info = dict(st.secrets["gcp_service_account"])
+            creds = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
         else:
+            # Nếu chạy trên máy tính cá nhân (đọc file credentials.json)
             creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
-        
         client = gspread.authorize(creds)
         return client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
     except Exception as e:
-        st.error(f"Lỗi xác thực kết nối: {e}")
+        st.error(f"Lỗi kết nối Google Sheets: {e}")
         return None
 
 try:
