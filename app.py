@@ -26,82 +26,33 @@ def ket_noi_sheets():
 
 sh = ket_noi_sheets()
 
-st.title("⚙️ CẤU HÌNH TỰ ĐỘNG HỆ THỐNG")
-st.write("Bấm nút bên dưới để hệ thống tự động thiết lập danh sách Dropdown và sửa toàn bộ lỗi trên Google Sheets.")
+st.title("⚙️ CẬP NHẬT CẤU HÌNH DANH SÁCH ĐỘI")
+st.write("Bấm nút bên dưới để chuyển danh sách Đội nhận thiết bị sang **Cột B (Tên đội)** của sheet `QUAN_LY_DOI`.")
 
-if st.button("🚀 BẮT ĐẦU CẤU HÌNH TRỰC TIẾP", type="primary"):
+if st.button("🚀 CẬP NHẬT LẠI DANH SÁCH ĐỘI (CỘT B)", type="primary"):
     if not sh:
         st.error("Chưa kết nối được với Google Sheets.")
     else:
-        with st.spinner("Đang cấu hình trực tiếp vào Google Sheets..."):
+        with st.spinner("Đang cập nhật trực tiếp vào Google Sheets..."):
             try:
-                spreadsheet_id = sh.id
-                
-                # 1. Lấy sheetId của các trang tính
                 ws_kpb = sh.worksheet("KHO_PHAN_BO")
-                ws_da = sh.worksheet("DANH_SACH_DU_AN")
-                ws_nk = sh.worksheet("NHAP_KHO")
-                ws_doi = sh.worksheet("QUAN_LY_DOI")
-                ws_diem = sh.worksheet("DANH_SACH_DIEM")
-                
                 id_kpb = ws_kpb.id
-                id_da = ws_da.id
-                id_nk = ws_nk.id
-                id_doi = ws_doi.id
-                id_diem = ws_diem.id
 
-                # 2. Tạo yêu cầu Data Validation (Dropdown) qua Google Sheets API
+                # Cấu hình Cột G nhận dữ liệu từ QUAN_LY_DOI!B2:B30 (bỏ dòng 1 tiêu đề)
                 requests = [
-                    # Dropdown Cột A: Mã dự án (lấy từ DANH_SACH_DU_AN!A2:A20)
                     {
                         "setDataValidation": {
-                            "range": {"sheetId": id_kpb, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 0, "endColumnIndex": 1},
+                            "range": {
+                                "sheetId": id_kpb,
+                                "startRowIndex": 2,
+                                "endRowIndex": 100,
+                                "startColumnIndex": 6,
+                                "endColumnIndex": 7
+                            },
                             "rule": {
                                 "condition": {
                                     "type": "ONE_OF_RANGE",
-                                    "values": [{"userEnteredValue": f"='DANH_SACH_DU_AN'!$A$2:$A$20"}]
-                                },
-                                "showCustomUi": True,
-                                "strict": False
-                            }
-                        }
-                    },
-                    # Dropdown Cột D: Tên thiết bị (lấy từ NHAP_KHO!C3:C50)
-                    {
-                        "setDataValidation": {
-                            "range": {"sheetId": id_kpb, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 3, "endColumnIndex": 4},
-                            "rule": {
-                                "condition": {
-                                    "type": "ONE_OF_RANGE",
-                                    "values": [{"userEnteredValue": f"='NHAP_KHO'!$C$3:$C$50"}]
-                                },
-                                "showCustomUi": True,
-                                "strict": False
-                            }
-                        }
-                    },
-                    # Dropdown Cột G: Đội nhận thiết bị (lấy từ QUAN_LY_DOI!A2:A30)
-                    {
-                        "setDataValidation": {
-                            "range": {"sheetId": id_kpb, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 6, "endColumnIndex": 7},
-                            "rule": {
-                                "condition": {
-                                    "type": "ONE_OF_RANGE",
-                                    "values": [{"userEnteredValue": f"='QUAN_LY_DOI'!$A$2:$A$30"}]
-                                },
-                                "showCustomUi": True,
-                                "strict": False
-                            }
-                        }
-                    },
-                    # Dropdown Cột H: Địa điểm vận chuyển (lấy từ DANH_SACH_DIEM!D3:D130)
-                    {
-                        "setDataValidation": {
-                            "range": {"sheetId": id_kpb, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 7, "endColumnIndex": 8},
-                            "rule": {
-                                "condition": {
-                                    "type": "ONE_OF_RANGE",
-                                    "values": [{"userEnteredValue": f"='DANH_SACH_DIEM'!$D$3:$D$130"}]
+                                    "values": [{"userEnteredValue": "='QUAN_LY_DOI'!$B$2:$B$30"}]
                                 },
                                 "showCustomUi": True,
                                 "strict": False
@@ -110,9 +61,7 @@ if st.button("🚀 BẮT ĐẦU CẤU HÌNH TRỰC TIẾP", type="primary"):
                     }
                 ]
                 
-                # Gửi cấu hình trực tiếp vào bảng tính
                 sh.batch_update({"requests": requests})
-                
-                st.success("✅ Đã thiết lập thành công 100% Dropdown cho các cột A, D, G, H trên Sheet KHO_PHAN_BO!")
+                st.success("✅ Đã đổi thành công! Cột G giờ sẽ hiển thị đúng Tên đội (VHH, Nguyễn văn B, Đội KTV 003...)!")
             except Exception as e:
                 st.error(f"Chi tiết lỗi: {e}")
