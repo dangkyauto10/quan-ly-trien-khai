@@ -3,12 +3,13 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 import pytz
+import pandas as pd
 from streamlit_js_eval import get_geolocation
 
 st.set_page_config(
-    page_title="Hệ Thống Điều Hành Dự Án",
-    page_icon="📱",
-    layout="centered"
+    page_title="Hệ Thống Quản Trị & Báo Cáo Tiến Độ",
+    page_icon="📊",
+    layout="wide"
 )
 
 # -------------------------------------------------------------
@@ -36,75 +37,7 @@ def ket_noi_sheets():
 sh = ket_noi_sheets()
 
 # -------------------------------------------------------------
-# 2. TỰ ĐỘNG CẤU HÌNH SHEET VAN_CHUYEN KHI CẦN
-# -------------------------------------------------------------
-with st.sidebar:
-    st.subheader("⚙️ Quản Trị Hệ Thống")
-    if st.button("🔄 ĐỒNG BỘ DROPDOWN VẬN CHUYỂN"):
-        if sh:
-            try:
-                ws_vc = sh.worksheet("VAN_CHUYEN")
-                id_vc = ws_vc.id
-                
-                # Thiết lập Data Validation chuẩn cho các cột của VAN_CHUYEN
-                reqs = [
-                    # Cột A: Mã dự án -> DANH_SACH_DU_AN!A2:A20
-                    {
-                        "setDataValidation": {
-                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 0, "endColumnIndex": 1},
-                            "rule": {"condition": {"type": "ONE_OF_RANGE", "values": [{"userEnteredValue": "='DANH_SACH_DU_AN'!$A$2:$A$20"}]}, "showCustomUi": True, "strict": False}
-                        }
-                    },
-                    # Cột B: Đội nhận TB -> QUAN_LY_DOI!B3:B30 (Tên đội)
-                    {
-                        "setDataValidation": {
-                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 1, "endColumnIndex": 2},
-                            "rule": {"condition": {"type": "ONE_OF_RANGE", "values": [{"userEnteredValue": "='QUAN_LY_DOI'!$B$3:$B$30"}]}, "showCustomUi": True, "strict": False}
-                        }
-                    },
-                    # Cột C: Tên thiết bị -> NHAP_KHO!C3:C50
-                    {
-                        "setDataValidation": {
-                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 2, "endColumnIndex": 3},
-                            "rule": {"condition": {"type": "ONE_OF_RANGE", "values": [{"userEnteredValue": "='NHAP_KHO'!$C$3:$C$50"}]}, "showCustomUi": True, "strict": False}
-                        }
-                    },
-                    # Cột E: Đơn vị vận chuyển -> Cho phép nhập tự do hoặc danh mục chuẩn
-                    {
-                        "setDataValidation": {
-                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 4, "endColumnIndex": 5},
-                            "rule": {"condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Xe nội bộ"}, {"userEnteredValue": "Xe thuê ngoài"}, {"userEnteredValue": "Đơn vị vận chuyển A"}]}, "showCustomUi": True, "strict": False}
-                        }
-                    },
-                    # Cột F: Cán bộ giao -> Cho phép nhập theo KTV thực tế
-                    {
-                        "setDataValidation": {
-                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 5, "endColumnIndex": 6},
-                            "rule": {"condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Vỹ - Hạnh - Hiền (Nguyễn Văn A)"}, {"userEnteredValue": "Nguyễn Văn A"}, {"userEnteredValue": "Nguyễn Văn B"}, {"userEnteredValue": "KTV-01"}, {"userEnteredValue": "KTV-02"}]}, "showCustomUi": True, "strict": False}
-                        }
-                    },
-                    # Cột G: Điểm giao -> DANH_SACH_DIEM!D3:D130
-                    {
-                        "setDataValidation": {
-                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 6, "endColumnIndex": 7},
-                            "rule": {"condition": {"type": "ONE_OF_RANGE", "values": [{"userEnteredValue": "='DANH_SACH_DIEM'!$D$3:$D$130"}]}, "showCustomUi": True, "strict": False}
-                        }
-                    },
-                    # Cột H: Trạng thái -> Chuẩn 3 trạng thái
-                    {
-                        "setDataValidation": {
-                            "range": {"sheetId": id_vc, "startRowIndex": 2, "endRowIndex": 100, "startColumnIndex": 7, "endColumnIndex": 8},
-                            "rule": {"condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Đang chuẩn bị"}, {"userEnteredValue": "Đang vận chuyển"}, {"userEnteredValue": "Đã giao hàng"}]}, "showCustomUi": True, "strict": False}
-                        }
-                    }
-                ]
-                sh.batch_update({"requests": reqs})
-                st.sidebar.success("✅ Đã đồng bộ Dropdown toàn bộ cột A->H của sheet VAN_CHUYEN!")
-            except Exception as e:
-                st.sidebar.error(f"Lỗi: {e}")
-
-# -------------------------------------------------------------
-# 3. ĐỌC DỮ LIỆU ĐA DỰ ÁN & PHÂN BỔ THIẾT BỊ
+# 2. ĐỌC DỮ LIỆU TỔNG QUAN
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_du_an = []
@@ -192,180 +125,261 @@ if not danh_sach_du_an:
     danh_sach_du_an = [{"ma": "DA880", "hien_thi": "DA880 - Viettel Tuyên Quang"}, {"ma": "Dự án 76", "hien_thi": "Dự án 76"}]
 
 # -------------------------------------------------------------
-# 4. GIAO DIỆN BÁO CÁO THÔNG MINH
+# PHÂN CHIA GIAO DIỆN BẰNG 2 TAB
 # -------------------------------------------------------------
-st.title("📱 HỆ THỐNG ĐIỀU HÀNH DỰ ÁN")
-st.caption("Quản trị đa dự án song song & cập nhật hiện trường tự động")
+tab_dashboard, tab_baocao = st.tabs(["📊 BÁO CÁO TIẾN ĐỘ (DÀNH CHO LÃNH ĐẠO)", "📱 BÁO CÁO HIỆN TRƯỜNG"])
 
-st.markdown("---")
-st.subheader("1. Thông tin Dự án & Hiện trường")
+# =============================================================
+# TAB 1: BÁO CÁO DÀNH CHO LÃNH ĐẠO
+# =============================================================
+with tab_dashboard:
+    st.header("📈 Báo Cáo Tiến Độ Dự Án Thời Gian Thực")
+    st.caption("Cập nhật tự động từ kết quả triển khai thực địa")
 
-lua_chon_da = st.selectbox(
-    "Đang thực hiện cho Dự án:",
-    options=[item["hien_thi"] for item in danh_sach_du_an]
-)
-ma_da_chon = next(item["ma"] for item in danh_sach_du_an if item["hien_thi"] == lua_chon_da)
-
-ds_diem_kha_dung = diem_theo_du_an.get(ma_da_chon, [])
-if not ds_diem_kha_dung:
-    ds_diem_kha_dung = toan_bo_diem_goc if toan_bo_diem_goc else ["Phường Minh Xuân", "Phường Nông Tiến"]
-
-col_kb1, col_kb2 = st.columns(2)
-with col_kb1:
-    can_bo_chon = st.selectbox("Cán bộ / Đội trưởng:", options=danh_sach_ktv)
-with col_kb2:
-    diem_chon = st.selectbox("Địa điểm lắp đặt:", options=ds_diem_kha_dung)
-
-key_tra_cuu = (ma_da_chon, diem_chon)
-danh_sach_tb = kho_phan_bo_map.get(key_tra_cuu, [])
-
-st.markdown("#### 📦 Danh mục thiết bị thực hiện:")
-ket_qua_nhap = []
-
-if danh_sach_tb:
-    for idx, item in enumerate(danh_sach_tb):
-        tb_name = item["thiet_bi"]
-        sl_dm = item["so_luong"]
-        dvt = item.get("dvt", "Chiếc")
-        doi_nhan = item.get("doi_nhan", "VHH")
-        
-        c1, c2 = st.columns([3, 2])
-        with c1:
-            st.markdown(f"**{tb_name}**  \n*(Phân bổ: {sl_dm} {dvt})*")
-        with c2:
-            sl_tt = st.number_input(
-                f"SL {tb_name}",
-                min_value=0,
-                max_value=1000,
-                value=int(sl_dm),
-                step=1,
-                key=f"in_tb_{idx}",
-                label_visibility="collapsed"
-            )
-        ket_qua_nhap.append({
-            "thiet_bi": tb_name,
-            "so_luong": sl_tt,
-            "dvt": dvt,
-            "doi_nhan": doi_nhan
-        })
-else:
-    st.info(f"Điểm '{diem_chon}' chưa cấu hình chi tiết ở KHO_PHAN_BO. Mặc định nhận 5 thiết bị chuẩn:")
-    sl_mac_dinh = st.number_input("Số lượng thiết bị thực tế:", min_value=1, max_value=500, value=5, step=1)
-    ket_qua_nhap.append({
-        "thiet_bi": "Thiết bị chuẩn theo gói",
-        "so_luong": sl_mac_dinh,
-        "dvt": "Thiết bị",
-        "doi_nhan": "VHH"
-    })
-
-# -------------------------------------------------------------
-# 5. GPS VỆ TINH
-# -------------------------------------------------------------
-st.markdown("---")
-st.subheader("2. Định vị Hiện trường (GPS)")
-
-location = get_geolocation()
-link_maps_tu_dong = ""
-if location and "coords" in location:
-    lat = location["coords"]["latitude"]
-    lon = location["coords"]["longitude"]
-    link_maps_tu_dong = f"https://www.google.com/maps?q={lat},{lon}"
-    st.success(f"📍 Tọa độ vệ tinh: {lat:.5f}, {lon:.5f}")
-else:
-    st.warning("⚠️ Nếu thiết bị hỏi quyền vị trí, hãy chọn 'Cho phép' (Allow).")
-
-link_gps_cuoi = st.text_input(
-    "Link Google Maps:",
-    value=link_maps_tu_dong,
-    placeholder="https://www.google.com/maps?q=..."
-)
-
-# -------------------------------------------------------------
-# 6. GHI DỮ LIỆU ĐÚNG CHUẨN DANH MỤC
-# -------------------------------------------------------------
-st.markdown("---")
-st.subheader("3. Xác nhận hoàn thành công việc")
-
-col_b1, col_b2 = st.columns(2)
-
-def xu_ly_ghi_nhan(loai_hinh):
-    if not sh:
-        st.error("Không có kết nối với Google Sheets.")
-        return
-    
-    with st.spinner("Đang ghi nhận dữ liệu..."):
+    # Đọc dữ liệu từ BAO_CAO_TRIEN_KHAI
+    df_bc = pd.DataFrame()
+    if sh:
         try:
-            tz_vn = pytz.timezone('Asia/Ho_Chi_Minh')
-            thoi_gian_vn = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
-            
-            ws_bc = None
-            ws_ld = None
-            ws_vc = None
-            try: ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
-            except: pass
+            ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
+            data_all = ws_bc.get_all_records()
+            df_bc = pd.DataFrame(data_all)
+        except Exception as e:
+            st.error(f"Chưa lấy được dữ liệu báo cáo: {e}")
 
-            if loai_hinh == "Đã lắp đặt xong":
-                ws_ld = sh.worksheet("LAP_DAT")
-            elif loai_hinh == "Đã giao hàng":
-                try: ws_vc = sh.worksheet("VAN_CHUYEN")
+    if not df_bc.empty:
+        # Bộ lọc dự án cho Lãnh đạo
+        ds_loc_da = ["Tất cả dự án"] + [item["hien_thi"] for item in danh_sach_du_an]
+        da_duoc_chon = st.selectbox("🔍 Xem tiến độ theo Dự án:", options=ds_loc_da, key="filter_da_boss")
+        
+        df_hien_thi = df_bc.copy()
+        if da_duoc_chon != "Tất cả dự án":
+            ma_da_loc = next(item["ma"] for item in danh_sach_du_an if item["hien_thi"] == da_duoc_chon)
+            # Lọc theo tiền tố [Mã dự án]
+            df_hien_thi = df_hien_thi[df_hien_thi["Tên đội thực hiện"].astype(str).str.contains(ma_da_loc, na=False)]
+
+        # Tính toán các chỉ số KPI
+        tong_luot = len(df_hien_thi)
+        so_giao_hang = len(df_hien_thi[df_hien_thi["Tình trạng thực hiện"] == "Đã giao hàng"])
+        so_lap_dat = len(df_hien_thi[df_hien_thi["Tình trạng thực hiện"] == "Đã lắp đặt xong"])
+        tong_tb = 0
+        if "Số lượng thiết bị thực tế" in df_hien_thi.columns:
+            try:
+                tong_tb = int(pd.to_numeric(df_hien_thi["Số lượng thiết bị thực tế"], errors="coerce").fillna(0).sum())
+            except:
+                pass
+
+        # 4 Thẻ KPI nổi bật trên điện thoại
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        kpi1.metric("📦 Đã Giao Hàng", f"{so_giao_hang} lượt")
+        kpi2.metric("🔧 Đã Lắp Đặt", f"{so_lap_dat} lượt")
+        kpi3.metric("🎯 Tổng Thiết Bị", f"{tong_tb} chiếc")
+        kpi4.metric("📝 Tổng Lần Ghi Nhận", f"{tong_luot} lượt")
+
+        st.markdown("---")
+        
+        # Biểu đồ cột tổng hợp
+        col_c1, col_c2 = st.columns([1, 1])
+        with col_c1:
+            st.subheader("📊 Tỷ Lệ Hoàn Thành Công Việc")
+            df_chart = pd.DataFrame({
+                "Hạng mục": ["Giao hàng", "Lắp đặt xong"],
+                "Số lượng": [so_giao_hang, so_lap_dat]
+            }).set_index("Hạng mục")
+            st.bar_chart(df_chart)
+
+        with col_c2:
+            st.subheader("📌 Tóm Tắt Tình Hình")
+            st.success(f"✔️ Tiến độ lắp đặt hiện trường: **{so_lap_dat}** điểm đã hoàn thành.")
+            st.info(f"✔️ Tổng thiết bị đã triển khai đến các điểm: **{tong_tb}** thiết bị.")
+            if so_giao_hang > 0:
+                tl = round((so_lap_dat / so_giao_hang) * 100, 1) if so_giao_hang else 0
+                st.warning(f"⚡ Tỷ lệ lắp đặt / giao hàng: **{tl}%**")
+
+        st.markdown("---")
+        st.subheader("📋 Danh Sách Nhật Ký Hiện Trường Mới Nhất")
+        
+        # Hiển thị bảng chi tiết, cho phép xem link Maps trực tiếp
+        df_view = df_hien_thi.tail(15).iloc[::-1]  # Lấy 15 dòng mới nhất lên đầu
+        st.dataframe(
+            df_view,
+            use_container_width=True,
+            column_config={
+                "Link Google Maps": st.column_config.LinkColumn("Vị trí GPS", display_text="📍 Xem bản đồ")
+            },
+            hide_index=True
+        )
+    else:
+        st.info("Chưa có dữ liệu báo cáo nào được gửi từ hiện trường.")
+
+# =============================================================
+# TAB 2: GIAO DIỆN BÁO CÁO CHO ANH EM HIỆN TRƯỜNG
+# =============================================================
+with tab_baocao:
+    st.header("📱 Ghi Nhận Kết Quả Hiện Trường")
+    st.caption("Dành cho cán bộ kỹ thuật và đội trưởng thi công")
+
+    lua_chon_da = st.selectbox(
+        "Đang thực hiện cho Dự án:",
+        options=[item["hien_thi"] for item in danh_sach_du_an],
+        key="sb_da_tech"
+    )
+    ma_da_chon = next(item["ma"] for item in danh_sach_du_an if item["hien_thi"] == lua_chon_da)
+
+    ds_diem_kha_dung = diem_theo_du_an.get(ma_da_chon, [])
+    if not ds_diem_kha_dung:
+        ds_diem_kha_dung = toan_bo_diem_goc if toan_bo_diem_goc else ["Phường Minh Xuân", "Phường Nông Tiến"]
+
+    col_kb1, col_kb2 = st.columns(2)
+    with col_kb1:
+        can_bo_chon = st.selectbox("Cán bộ / Đội trưởng:", options=danh_sach_ktv, key="sb_ktv_tech")
+    with col_kb2:
+        diem_chon = st.selectbox("Địa điểm lắp đặt:", options=ds_diem_kha_dung, key="sb_diem_tech")
+
+    key_tra_cuu = (ma_da_chon, diem_chon)
+    danh_sach_tb = kho_phan_bo_map.get(key_tra_cuu, [])
+
+    st.markdown("#### 📦 Danh mục thiết bị thực hiện:")
+    ket_qua_nhap = []
+
+    if danh_sach_tb:
+        for idx, item in enumerate(danh_sach_tb):
+            tb_name = item["thiet_bi"]
+            sl_dm = item["so_luong"]
+            dvt = item.get("dvt", "Chiếc")
+            doi_nhan = item.get("doi_nhan", "VHH")
+            
+            c1, c2 = st.columns([3, 2])
+            with c1:
+                st.markdown(f"**{tb_name}**  \n*(Phân bổ: {sl_dm} {dvt})*")
+            with c2:
+                sl_tt = st.number_input(
+                    f"SL {tb_name}",
+                    min_value=0,
+                    max_value=1000,
+                    value=int(sl_dm),
+                    step=1,
+                    key=f"in_tb_{idx}",
+                    label_visibility="collapsed"
+                )
+            ket_qua_nhap.append({
+                "thiet_bi": tb_name,
+                "so_luong": sl_tt,
+                "dvt": dvt,
+                "doi_nhan": doi_nhan
+            })
+    else:
+        st.info(f"Điểm '{diem_chon}' chưa cấu hình chi tiết ở KHO_PHAN_BO. Mặc định nhận 5 thiết bị chuẩn:")
+        sl_mac_dinh = st.number_input("Số lượng thiết bị thực tế:", min_value=1, max_value=500, value=5, step=1, key="sl_def_tech")
+        ket_qua_nhap.append({
+            "thiet_bi": "Thiết bị chuẩn theo gói",
+            "so_luong": sl_mac_dinh,
+            "dvt": "Thiết bị",
+            "doi_nhan": "VHH"
+        })
+
+    st.markdown("---")
+    st.subheader("2. Định vị Hiện trường (GPS)")
+
+    location = get_geolocation()
+    link_maps_tu_dong = ""
+    if location and "coords" in location:
+        lat = location["coords"]["latitude"]
+        lon = location["coords"]["longitude"]
+        link_maps_tu_dong = f"https://www.google.com/maps?q={lat},{lon}"
+        st.success(f"📍 Tọa độ vệ tinh: {lat:.5f}, {lon:.5f}")
+    else:
+        st.warning("⚠️ Nếu thiết bị hỏi quyền vị trí, hãy chọn 'Cho phép' (Allow).")
+
+    link_gps_cuoi = st.text_input(
+        "Link Google Maps:",
+        value=link_maps_tu_dong,
+        placeholder="https://www.google.com/maps?q=...",
+        key="inp_gps_tech"
+    )
+
+    st.markdown("---")
+    st.subheader("3. Xác nhận hoàn thành công việc")
+
+    col_b1, col_b2 = st.columns(2)
+
+    def xu_ly_ghi_nhan(loai_hinh):
+        if not sh:
+            st.error("Không có kết nối với Google Sheets.")
+            return
+        
+        with st.spinner("Đang ghi nhận dữ liệu..."):
+            try:
+                tz_vn = pytz.timezone('Asia/Ho_Chi_Minh')
+                thoi_gian_vn = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
+                
+                ws_bc = None
+                ws_ld = None
+                ws_vc = None
+                try: ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
                 except: pass
 
-            for idx_tb, item in enumerate(ket_qua_nhap):
-                ten_tb = item["thiet_bi"]
-                sl = item["so_luong"]
-                doi_nhan = item.get("doi_nhan", "VHH")
-                if sl <= 0:
-                    continue
-                
-                ma_cv = f"CV-{datetime.now(tz_vn).strftime('%H%M%S')}-{idx_tb+1}"
-                
-                # Ghi LAP_DAT
-                if ws_ld:
-                    ws_ld.append_row([
-                        ma_cv,
-                        ma_da_chon,
-                        can_bo_chon,
-                        ten_tb,
-                        sl,
-                        diem_chon,
-                        "Đã hoàn thành",
-                        thoi_gian_vn,
-                        link_gps_cuoi
-                    ])
+                if loai_hinh == "Đã lắp đặt xong":
+                    ws_ld = sh.worksheet("LAP_DAT")
+                elif loai_hinh == "Đã giao hàng":
+                    try: ws_vc = sh.worksheet("VAN_CHUYEN")
+                    except: pass
 
-                # Ghi VAN_CHUYEN chuẩn khớp 100% Dropdown (dùng đúng chữ "Đã giao hàng")
-                if ws_vc:
-                    ws_vc.append_row([
-                        ma_da_chon,         # A: Mã DA
-                        doi_nhan,           # B: Đội nhận TB (khớp QUAN_LY_DOI)
-                        ten_tb,             # C: Tên thiết bị
-                        sl,                 # D: SL
-                        "Xe nội bộ",        # E: Đơn vị vận chuyển
-                        can_bo_chon,        # F: Cán bộ phụ trách giao
-                        diem_chon,          # G: Điểm giao
-                        "Đã giao hàng",     # H: Khớp đúng giá trị Dropdown
-                        thoi_gian_vn        # I: Thời gian cập nhật
-                    ])
+                for idx_tb, item in enumerate(ket_qua_nhap):
+                    ten_tb = item["thiet_bi"]
+                    sl = item["so_luong"]
+                    doi_nhan = item.get("doi_nhan", "VHH")
+                    if sl <= 0:
+                        continue
+                    
+                    ma_cv = f"CV-{datetime.now(tz_vn).strftime('%H%M%S')}-{idx_tb+1}"
+                    
+                    # Ghi LAP_DAT
+                    if ws_ld:
+                        ws_ld.append_row([
+                            ma_cv,
+                            ma_da_chon,
+                            can_bo_chon,
+                            ten_tb,
+                            sl,
+                            diem_chon,
+                            "Đã hoàn thành",
+                            thoi_gian_vn,
+                            link_gps_cuoi
+                        ])
 
-                # Ghi BAO_CAO_TRIEN_KHAI
-                if ws_bc:
-                    ws_bc.append_row([
-                        thoi_gian_vn,
-                        f"[{ma_da_chon}] {can_bo_chon}",
-                        f"{diem_chon} ({ten_tb})",
-                        sl,
-                        link_gps_cuoi,
-                        loai_hinh
-                    ])
+                    # Ghi VAN_CHUYEN
+                    if ws_vc:
+                        ws_vc.append_row([
+                            ma_da_chon,
+                            doi_nhan,
+                            ten_tb,
+                            sl,
+                            "Xe nội bộ",
+                            can_bo_chon,
+                            diem_chon,
+                            "Đã giao hàng",
+                            thoi_gian_vn
+                        ])
 
-            st.success(f"✅ Ghi nhận thành công cho [{ma_da_chon}] tại {diem_chon}!")
-        except Exception as e:
-            st.error(f"Lỗi khi gửi dữ liệu: {e}")
+                    # Ghi BAO_CAO_TRIEN_KHAI
+                    if ws_bc:
+                        ws_bc.append_row([
+                            thoi_gian_vn,
+                            f"[{ma_da_chon}] {can_bo_chon}",
+                            f"{diem_chon} ({ten_tb})",
+                            sl,
+                            link_gps_cuoi,
+                            loai_hinh
+                        ])
 
-with col_b1:
-    if st.button("📦 ĐÃ GIAO HÀNG", use_container_width=True, type="primary"):
-        xu_ly_ghi_nhan("Đã giao hàng")
+                st.success(f"✅ Ghi nhận thành công cho [{ma_da_chon}] tại {diem_chon}!")
+            except Exception as e:
+                st.error(f"Lỗi khi gửi dữ liệu: {e}")
 
-with col_b2:
-    if st.button("🔧 ĐÃ LẮP ĐẶT XONG", use_container_width=True):
-        xu_ly_ghi_nhan("Đã lắp đặt xong")
+    with col_b1:
+        if st.button("📦 ĐÃ GIAO HÀNG", use_container_width=True, type="primary", key="btn_gh_tech"):
+            xu_ly_ghi_nhan("Đã giao hàng")
+
+    with col_b2:
+        if st.button("🔧 ĐÃ LẮP ĐẶT XONG", use_container_width=True, key="btn_ld_tech"):
+            xu_ly_ghi_nhan("Đã lắp đặt xong")
