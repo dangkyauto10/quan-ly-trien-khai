@@ -37,30 +37,68 @@ def ket_noi_sheets():
 sh = ket_noi_sheets()
 
 # -------------------------------------------------------------
-# 2. TỰ ĐỘNG CẤU HÌNH CÔNG THỨC CHO KHO_PHAN_BO (TỰ ĐỘNG 100%)
+# 2. ĐỒNG BỘ TỰ ĐỘNG THÔNG TIN KHO_PHAN_BO (XỬ LÝ DỮ LIỆU SẠCH)
 # -------------------------------------------------------------
-def tu_dong_cai_dat_kho_phan_bo(spreadsheet):
+def dong_bo_kho_phan_bo(spreadsheet):
+    """Tự động điền Tên dự án, SKU, ĐVT theo mã mà không cần chèn hàm gây lỗi"""
     if not spreadsheet:
         return
     try:
         ws_kpb = spreadsheet.worksheet("KHO_PHAN_BO")
-        # Kiểm tra nếu ô C3 chưa có công thức thì tự nạp công thức VLOOKUP
-        val_c3 = ws_kpb.acell("C3").value
-        if not val_c3 or not str(val_c3).startswith("="):
-            # Cột C (Tên dự án) tự nhảy theo Cột A (Mã dự án)
-            ws_kpb.update_acell("C3", '=IFERROR(VLOOKUP(A3, DANH_SACH_DU_AN!A2:B, 2, FALSE), "")')
-            # Cột F (ĐVT) tự nhảy theo Cột D (Tên thiết bị) từ sheet NHAP_KHO
-            ws_kpb.update_acell("F3", '=IFERROR(VLOOKUP(D3, NHAP_KHO!C2:D, 2, FALSE), "")')
-            # Cột B (Mã SKU) tự nhảy theo Cột D từ sheet NHAP_KHO
-            ws_kpb.update_acell("B3", '=IFERROR(INDEX(NHAP_KHO!B2:B, MATCH(D3, NHAP_KHO!C2:C, 0)), "")')
+        ws_da = spreadsheet.worksheet("DANH_SACH_DU_AN")
+        ws_nk = spreadsheet.worksheet("NHAP_KHO")
+        
+        # Đọc từ điển Dự án {Mã DA: Tên DA}
+        da_dict = {}
+        for r in ws_da.get_all_records():
+            m = str(r.get("Mã dự án", "")).strip()
+            t = str(r.get("Tên dự án", "")).strip()
+            if m: da_dict[m] = t
+            
+        # Đọc từ điển Thiết bị {Tên TB: (SKU, DVT)}
+        tb_dict = {}
+        data_nk = ws_nk.get_all_values()
+        if len(data_nk) >= 3:
+            for row in data_nk[2:]:
+                if len(row) >= 4:
+                    sku = row[1].strip()
+                    ten_tb = row[2].strip()
+                    dvt = row[3].strip()
+                    if ten_tb:
+                        tb_dict[ten_tb] = (sku, dvt)
+                        
+        # Quét các dòng trong KHO_PHAN_BO để tự động bù thông tin
+        data_kpb = ws_kpb.get_all_values()
+        for idx in range(1, len(data_kpb)):
+            row = data_kpb[idx]
+            r_num = idx + 1
+            if len(row) >= 1:
+                m_da = row[0].strip()
+                # Tự động điền Tên dự án vào Cột C nếu đang trống hoặc bị lỗi
+                if m_da in da_dict:
+                    ten_da_hien_tai = row[2].strip() if len(row) > 2 else ""
+                    if not ten_da_hien_tai or "#ERROR" in ten_da_hien_tai:
+                        ws_kpb.update_cell(r_num, 3, da_dict[m_da])
+                        
+                # Tự động điền SKU (Cột B) và ĐVT (Cột F) theo Tên TB (Cột D)
+                if len(row) >= 4:
+                    t_tb = row[3].strip()
+                    if t_tb in tb_dict:
+                        sku_val, dvt_val = tb_dict[t_tb]
+                        cur_sku = row[1].strip() if len(row) > 1 else ""
+                        cur_dvt = row[5].strip() if len(row) > 5 else ""
+                        if not cur_sku or "#ERROR" in cur_sku:
+                            ws_kpb.update_cell(r_num, 2, sku_val)
+                        if not cur_dvt or "#ERROR" in cur_dvt:
+                            ws_kpb.update_cell(r_num, 6, dvt_val)
     except Exception:
         pass
 
 if sh:
-    tu_dong_cai_dat_kho_phan_bo(sh)
+    dong_bo_kho_phan_bo(sh)
 
 # -------------------------------------------------------------
-# 3. ĐỌC DỮ LIỆU ĐA DỰ ÁN & HIỆN TRƯỜNG
+# 3. ĐỌC DỮ LIỆU ĐA DỰ ÁN
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_du_an = []
@@ -68,11 +106,10 @@ danh_sach_diem = []
 kho_phan_bo_map = {}
 
 if sh:
-    # Đọc dự án
+    # 3.1 Đọc dự án
     try:
         ws_da = sh.worksheet("DANH_SACH_DU_AN")
-        records_da = ws_da.get_all_records()
-        for r in records_da:
+        for r in ws_da.get_all_records():
             ma = str(r.get("Mã dự án", "")).strip()
             ten = str(r.get("Tên dự án", "")).strip()
             if ma and ma != "nan":
@@ -81,7 +118,7 @@ if sh:
     except Exception:
         pass
 
-    # Đọc địa điểm từ DANH_SACH_DIEM
+    # 3.2 Đọc danh sách địa điểm từ DANH_SACH_DIEM
     try:
         ws_diem = sh.worksheet("DANH_SACH_DIEM")
         data_diem = ws_diem.get_all_values()
@@ -100,7 +137,7 @@ if sh:
     except Exception:
         pass
 
-    # Đọc KHO_PHAN_BO
+    # 3.3 Đọc phân bổ từ KHO_PHAN_BO
     try:
         ws_kho = sh.worksheet("KHO_PHAN_BO")
         data_kho = ws_kho.get_all_values()
@@ -119,7 +156,7 @@ if sh:
                     m_da = row[col_da].strip()
                     d_diem = row[col_diem].strip()
                     t_tb = row[col_tb].strip()
-                    if not m_da or not d_diem or not t_tb:
+                    if not m_da or not d_diem or not t_tb or "#" in t_tb:
                         continue
                     sl = 1
                     if len(row) > col_sl:
@@ -140,10 +177,10 @@ if not danh_sach_diem:
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường"]
 
 # -------------------------------------------------------------
-# 4. GIAO DIỆN BÁO CÁO HIỆN TRƯỜNG ĐA DỰ ÁN
+# 4. GIAO DIỆN BÁO CÁO TRÊN ĐIỆN THOẠI
 # -------------------------------------------------------------
 st.title("📱 HỆ THỐNG ĐIỀU HÀNH DỰ ÁN")
-st.caption("Quản trị đa dự án song song & cập nhật hiện trường tự động")
+st.caption("Quản trị đa dự án song song & ghi nhận hiện trường tự động")
 
 st.markdown("---")
 st.subheader("1. Thông tin Dự án & Hiện trường")
@@ -160,11 +197,11 @@ with col_kb1:
 with col_kb2:
     diem_chon = st.selectbox("Địa điểm lắp đặt:", options=danh_sach_diem)
 
-# Lấy danh sách thiết bị theo (Dự án + Điểm)
+# Lấy danh mục thiết bị từ KHO_PHAN_BO
 key_tra_cuu = (ma_da_chon, diem_chon)
 danh_sach_tb = kho_phan_bo_map.get(key_tra_cuu, [])
 
-st.markdown("#### 📦 Danh mục thiết bị phân bổ:")
+st.markdown("#### 📦 Danh mục thiết bị thực hiện:")
 ket_qua_nhap = []
 
 if danh_sach_tb:
@@ -183,7 +220,7 @@ if danh_sach_tb:
                 max_value=1000,
                 value=int(sl_dm),
                 step=1,
-                key=f"input_tb_{idx}",
+                key=f"in_tb_{idx}",
                 label_visibility="collapsed"
             )
         ket_qua_nhap.append({"thiet_bi": tb_name, "so_luong": sl_tt, "dvt": dvt})
@@ -193,7 +230,7 @@ else:
     ket_qua_nhap.append({"thiet_bi": "Thiết bị chuẩn theo gói", "so_luong": sl_mac_dinh, "dvt": "Thiết bị"})
 
 # -------------------------------------------------------------
-# 5. ĐỊNH VỊ GPS VỆ TINH
+# 5. GPS VỆ TINH
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("2. Định vị Hiện trường (GPS)")
@@ -215,7 +252,7 @@ link_gps_cuoi = st.text_input(
 )
 
 # -------------------------------------------------------------
-# 6. GHI DỮ LIỆU TỰ ĐỘNG
+# 6. PHÂN LUỒNG DỮ LIỆU TỰ ĐỘNG
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("3. Xác nhận hoàn thành công việc")
@@ -252,7 +289,7 @@ def xu_ly_ghi_nhan(loai_hinh):
                 
                 ma_cv = f"CV-{datetime.now(tz_vn).strftime('%H%M%S')}-{idx_tb+1}"
                 
-                # Ghi vào LAP_DAT
+                # Ghi sheet LAP_DAT
                 if ws_ld:
                     ws_ld.append_row([
                         ma_cv,
@@ -266,7 +303,7 @@ def xu_ly_ghi_nhan(loai_hinh):
                         link_gps_cuoi
                     ])
 
-                # Ghi vào VAN_CHUYEN
+                # Ghi sheet VAN_CHUYEN
                 if ws_vc:
                     ws_vc.append_row([
                         thoi_gian_vn,
@@ -278,7 +315,7 @@ def xu_ly_ghi_nhan(loai_hinh):
                         link_gps_cuoi
                     ])
 
-                # Ghi nhật ký BAO_CAO_TRIEN_KHAI
+                # Ghi sheet nhật ký chung BAO_CAO_TRIEN_KHAI
                 if ws_bc:
                     ws_bc.append_row([
                         thoi_gian_vn,
