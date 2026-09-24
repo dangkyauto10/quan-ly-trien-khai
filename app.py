@@ -37,16 +37,38 @@ def ket_noi_sheets():
 sh = ket_noi_sheets()
 
 # -------------------------------------------------------------
-# 2. ĐỌC DỮ LIỆU ĐA DỰ ÁN & TÍNH TOÁN TỒN KHO TỰ ĐỘNG
+# 2. TỰ ĐỘNG CẤU HÌNH CÔNG THỨC CHO KHO_PHAN_BO (TỰ ĐỘNG 100%)
+# -------------------------------------------------------------
+def tu_dong_cai_dat_kho_phan_bo(spreadsheet):
+    if not spreadsheet:
+        return
+    try:
+        ws_kpb = spreadsheet.worksheet("KHO_PHAN_BO")
+        # Kiểm tra nếu ô C3 chưa có công thức thì tự nạp công thức VLOOKUP
+        val_c3 = ws_kpb.acell("C3").value
+        if not val_c3 or not str(val_c3).startswith("="):
+            # Cột C (Tên dự án) tự nhảy theo Cột A (Mã dự án)
+            ws_kpb.update_acell("C3", '=IFERROR(VLOOKUP(A3, DANH_SACH_DU_AN!A2:B, 2, FALSE), "")')
+            # Cột F (ĐVT) tự nhảy theo Cột D (Tên thiết bị) từ sheet NHAP_KHO
+            ws_kpb.update_acell("F3", '=IFERROR(VLOOKUP(D3, NHAP_KHO!C2:D, 2, FALSE), "")')
+            # Cột B (Mã SKU) tự nhảy theo Cột D từ sheet NHAP_KHO
+            ws_kpb.update_acell("B3", '=IFERROR(INDEX(NHAP_KHO!B2:B, MATCH(D3, NHAP_KHO!C2:C, 0)), "")')
+    except Exception:
+        pass
+
+if sh:
+    tu_dong_cai_dat_kho_phan_bo(sh)
+
+# -------------------------------------------------------------
+# 3. ĐỌC DỮ LIỆU ĐA DỰ ÁN & HIỆN TRƯỜNG
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_du_an = []
 danh_sach_diem = []
-kho_phan_bo_map = {}  # {(ma_da, dia_diem): [{'thiet_bi': '...', 'so_luong': 2, 'dvt': 'Chiếc'}]}
-nhap_kho_map = {}     # {ma_da: [{'tb': '...', 'tong_nhap': 50, 'dvt': 'Chiếc'}]}
+kho_phan_bo_map = {}
 
 if sh:
-    # 2.1 Đọc danh sách dự án
+    # Đọc dự án
     try:
         ws_da = sh.worksheet("DANH_SACH_DU_AN")
         records_da = ws_da.get_all_records()
@@ -59,7 +81,7 @@ if sh:
     except Exception:
         pass
 
-    # 2.2 Đọc danh sách điểm
+    # Đọc địa điểm từ DANH_SACH_DIEM
     try:
         ws_diem = sh.worksheet("DANH_SACH_DIEM")
         data_diem = ws_diem.get_all_values()
@@ -78,7 +100,7 @@ if sh:
     except Exception:
         pass
 
-    # 2.3 Đọc cấu hình phân bổ KHO_PHAN_BO
+    # Đọc KHO_PHAN_BO
     try:
         ws_kho = sh.worksheet("KHO_PHAN_BO")
         data_kho = ws_kho.get_all_values()
@@ -112,45 +134,16 @@ if sh:
     except Exception:
         pass
 
-    # 2.4 Đọc và tự động tính tồn kho từ sheet NHAP_KHO
-    try:
-        ws_nk = sh.worksheet("NHAP_KHO")
-        data_nk = ws_nk.get_all_values()
-        if len(data_nk) >= 3:
-            # Tiêu đề ở dòng 2 (index 1)
-            headers_nk = [str(x).strip() for x in data_nk[1]]
-            col_da_nk, col_tb_nk, col_nhap_nk = 0, 2, 4
-            for i, h in enumerate(headers_nk):
-                if "Mã dự án" in h: col_da_nk = i
-                elif "Tên thiết bị" in h: col_tb_nk = i
-                elif "Tổng nhập" in h: col_nhap_nk = i
-            
-            for row in data_nk[2:]:
-                if len(row) > max(col_da_nk, col_tb_nk, col_nhap_nk):
-                    m_da = row[col_da_nk].strip()
-                    t_tb = row[col_tb_nk].strip()
-                    if not m_da or not t_tb:
-                        continue
-                    try: sl_nhap = int(float(str(row[col_nhap_nk]).strip()))
-                    except: sl_nhap = 0
-                    
-                    if m_da not in nhap_kho_map:
-                        nhap_kho_map[m_da] = []
-                    nhap_kho_map[m_da].append({"thiet_bi": t_tb, "tong_nhap": sl_nhap})
-    except Exception:
-        pass
-
-# Giá trị dự phòng
 if not danh_sach_du_an:
     danh_sach_du_an = [{"ma": "DA880", "hien_thi": "DA880 - Viettel Tuyên Quang"}, {"ma": "Dự án 76", "hien_thi": "Dự án 76"}]
 if not danh_sach_diem:
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường"]
 
 # -------------------------------------------------------------
-# 3. GIAO DIỆN BÁO CÁO HIỆN TRƯỜNG ĐA DỰ ÁN
+# 4. GIAO DIỆN BÁO CÁO HIỆN TRƯỜNG ĐA DỰ ÁN
 # -------------------------------------------------------------
 st.title("📱 HỆ THỐNG ĐIỀU HÀNH DỰ ÁN")
-st.caption("Quản trị đa dự án song song & ghi nhận hiện trường thời gian thực")
+st.caption("Quản trị đa dự án song song & cập nhật hiện trường tự động")
 
 st.markdown("---")
 st.subheader("1. Thông tin Dự án & Hiện trường")
@@ -171,11 +164,7 @@ with col_kb2:
 key_tra_cuu = (ma_da_chon, diem_chon)
 danh_sach_tb = kho_phan_bo_map.get(key_tra_cuu, [])
 
-# Nếu chưa có trong KHO_PHAN_BO nhưng đã nhập ở NHAP_KHO của dự án này
-if not danh_sach_tb and ma_da_chon in nhap_kho_map:
-    danh_sach_tb = [{"thiet_bi": x["thiet_bi"], "so_luong": 1, "dvt": "Chiếc"} for x in nhap_kho_map[ma_da_chon]]
-
-st.markdown("#### 📦 Danh mục thiết bị thực hiện:")
+st.markdown("#### 📦 Danh mục thiết bị phân bổ:")
 ket_qua_nhap = []
 
 if danh_sach_tb:
@@ -199,12 +188,12 @@ if danh_sach_tb:
             )
         ket_qua_nhap.append({"thiet_bi": tb_name, "so_luong": sl_tt, "dvt": dvt})
 else:
-    st.info(f"Điểm '{diem_chon}' đang dùng gói chuẩn thầu (5 thiết bị):")
+    st.info(f"Điểm '{diem_chon}' chưa cấu hình chi tiết ở KHO_PHAN_BO. Mặc định nhận 5 thiết bị chuẩn:")
     sl_mac_dinh = st.number_input("Số lượng thiết bị thực tế:", min_value=1, max_value=500, value=5, step=1)
     ket_qua_nhap.append({"thiet_bi": "Thiết bị chuẩn theo gói", "so_luong": sl_mac_dinh, "dvt": "Thiết bị"})
 
 # -------------------------------------------------------------
-# 4. TỰ ĐỘNG BẮT TỌA ĐỘ GPS
+# 5. ĐỊNH VỊ GPS VỆ TINH
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("2. Định vị Hiện trường (GPS)")
@@ -226,7 +215,7 @@ link_gps_cuoi = st.text_input(
 )
 
 # -------------------------------------------------------------
-# 5. TỰ ĐỘNG PHÂN LUỒNG VÀ CẬP NHẬT TỒN KHO TỰ ĐỘNG
+# 6. GHI DỮ LIỆU TỰ ĐỘNG
 # -------------------------------------------------------------
 st.markdown("---")
 st.subheader("3. Xác nhận hoàn thành công việc")
@@ -238,7 +227,7 @@ def xu_ly_ghi_nhan(loai_hinh):
         st.error("Không có kết nối với Google Sheets.")
         return
     
-    with st.spinner("Đang tự động xử lý và phân luồng dữ liệu..."):
+    with st.spinner("Đang tự động phân luồng dữ liệu..."):
         try:
             tz_vn = pytz.timezone('Asia/Ho_Chi_Minh')
             thoi_gian_vn = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
@@ -299,39 +288,10 @@ def xu_ly_ghi_nhan(loai_hinh):
                         link_gps_cuoi,
                         loai_hinh
                     ])
-            
-            # Cập nhật tự động cột Tồn kho dự án trên sheet NHAP_KHO
-            try:
-                ws_nk = sh.worksheet("NHAP_KHO")
-                data_nk = ws_nk.get_all_values()
-                if len(data_nk) >= 3:
-                    # Tính tổng đã giao/lắp của từng thiết bị theo dự án
-                    for r_idx in range(2, len(data_nk)):
-                        row_vals = data_nk[r_idx]
-                        if len(row_vals) >= 5:
-                            r_ma_da = row_vals[0].strip()
-                            r_tb = row_vals[2].strip()
-                            try: tong_nhap = int(float(str(row_vals[4]).strip()))
-                            except: tong_nhap = 0
-                            
-                            # Tính tổng số lượng đã hoàn thành từ LAP_DAT
-                            da_lap = 0
-                            if ws_ld:
-                                ld_data = ws_ld.get_all_values()
-                                for ld_row in ld_data[2:]:
-                                    if len(ld_row) >= 5 and ld_row[1].strip() == r_ma_da and ld_row[3].strip() == r_tb:
-                                        try: da_lap += int(float(str(ld_row[4]).strip()))
-                                        except: pass
-                            
-                            ton_kho = max(0, tong_nhap - da_lap)
-                            # Cột F là cột 6 (Tồn kho dự án)
-                            ws_nk.update_cell(r_idx + 1, 6, ton_kho)
-            except Exception:
-                pass
 
             st.success(f"✅ Ghi nhận thành công cho [{ma_da_chon}] tại {diem_chon}!")
         except Exception as e:
-            st.error(f"Lỗi khi gửi dữ liệu lên Google Sheets: {e}")
+            st.error(f"Lỗi khi gửi dữ liệu: {e}")
 
 with col_b1:
     if st.button("📦 ĐÃ GIAO HÀNG", use_container_width=True, type="primary"):
