@@ -36,21 +36,56 @@ THONG_TIN_DIEM = {
 # ==============================================================================
 if view_mode == "dangky":
     st.title("📝 Đăng Ký Thành Viên Đội Thi Công")
-    st.caption("Dành cho KTV và đối tác đăng ký gia nhập đội triển khai")
+    st.caption("Dành cho KTV, đội vận chuyển và đối tác đăng ký tham gia dự án")
     
     with st.form("form_dangky"):
         ho_ten = st.text_input("Họ và tên KTV / Trưởng nhóm *")
         so_dien_thoai = st.text_input("Số điện thoại (Zalo) *")
-        chuyen_mon = st.selectbox("Chuyên môn chính", ["Kéo cáp viễn thông", "Lắp đặt Camera / Thiết bị", "Cấu hình mạng", "Tổng hợp"])
-        phuong_tien = st.selectbox("Phương tiện di chuyển", ["Xe máy", "Xe bán tải / Ô tô", "Xe tải"])
-        dia_ban = st.multiselect("Địa bàn / Tuyến có thể nhận", ["TP Tuyên Quang", "Sơn Dương", "Yên Sơn", "Hàm Yên", "Chiêm Hóa", "Na Hang", "Lâm Bình"])
+        
+        # Danh mục vai trò chuẩn theo quy trình công việc
+        lua_chon_vai_tro = st.selectbox(
+            "Vai trò / Chuyên môn tham gia *",
+            [
+                "1. Vận chuyển / Giao nhận thiết bị",
+                "2. KTV Lắp đặt thiết bị",
+                "3. Kiêm nhiệm (Vừa giao nhận vừa lắp đặt)",
+                "4. Tự nhập chuyên môn khác..."
+            ]
+        )
+        
+        # Ô nhập tự do xuất hiện khi chọn tự nhập khác
+        chuyen_mon_tu_ghi = st.text_input(
+            "Nếu chọn 'Tự nhập khác', ghi cụ thể chuyên môn tại đây (hoặc để trống nếu chọn gợi ý trên):",
+            placeholder="Ví dụ: Kéo rải cáp quang, hàn nối, cấu hình thiết bị mạng..."
+        )
+        
+        phuong_tien = st.selectbox("Phương tiện di chuyển chính", ["Xe máy", "Xe bán tải / Ô tô", "Xe tải"])
+        dia_ban = st.multiselect(
+            "Địa bàn phụ trách có thể nhận", 
+            ["TP Tuyên Quang", "Sơn Dương", "Yên Sơn", "Hàm Yên", "Chiêm Hóa", "Na Hang", "Lâm Bình"]
+        )
         
         submitted = st.form_submit_button("Gửi Đăng Ký")
         if submitted:
             if not ho_ten or not so_dien_thoai:
-                st.error("Vui lòng điền đầy đủ Họ tên và Số điện thoại!")
+                st.error("Vui lòng điền đầy đủ Họ và tên và Số điện thoại!")
             else:
-                st.success("✅ Đã gửi đăng ký thành công! Quản trị viên sẽ phê duyệt trên Google Sheets.")
+                # Xác định chuyên môn cuối cùng
+                chuyen_mon_cuoi = chuyen_mon_tu_ghi.strip() if chuyen_mon_tu_ghi.strip() else lua_chon_vai_tro
+                
+                payload = {
+                    "action": "dang_ky_thanh_vien",
+                    "ho_ten": ho_ten,
+                    "so_dien_thoai": so_dien_thoai,
+                    "chuyen_mon": chuyen_mon_cuoi,
+                    "phuong_tien": phuong_tien,
+                    "dia_ban": ", ".join(dia_ban)
+                }
+                try:
+                    resp = requests.post(WEBHOOK_URL, json=payload, timeout=15)
+                except Exception:
+                    pass
+                st.success(f"✅ Đã gửi đăng ký thành công cho {ho_ten} với vai trò: '{chuyen_mon_cuoi}'! Quản trị viên sẽ phê duyệt trên Google Sheets.")
 
 # ==============================================================================
 # NHÁNH 2: TRUNG TÂM GIÁM SÁT DÀNH CHO LÃNH ĐẠO (?view=lanhdao)
@@ -59,7 +94,6 @@ elif view_mode == "lanhdao":
     st.title("📊 TRUNG TÂM GIÁM SÁT & ĐIỀU HÀNH DỰ ÁN (LÃNH ĐẠO)")
     st.caption("Số liệu báo cáo tiến độ và biểu đồ trực quan thời gian thực")
     
-    # 4 THẺ METRIC
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric(label="📍 Tổng điểm dự án (DA880)", value="4 điểm")
@@ -72,7 +106,6 @@ elif view_mode == "lanhdao":
         
     st.markdown("---")
     
-    # BIỂU ĐỒ TRỰC QUAN
     st.subheader("📈 Biểu Đồ Tiến Độ Thực Hiện")
     col_chart1, col_chart2 = st.columns(2)
     
@@ -94,7 +127,6 @@ elif view_mode == "lanhdao":
         
     st.markdown("---")
     
-    # BẢNG TỔNG HỢP CHI TIẾT
     st.subheader("📋 Bảng Tổng Hợp Trạng Thái Các Điểm Triển Khai")
     data_tonghop = [
         {"Mã CV": "CV-100001", "Dự án": "DA880", "Đội KTV": "VHH", "Địa bàn": "Phường Minh Xuân", "Thiết bị": 5, "Trạng thái": "✅ Đã lắp đặt xong"},
