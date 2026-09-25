@@ -1,6 +1,7 @@
 import streamlit as st
 import datetime
 import requests
+import urllib.parse
 
 st.set_page_config(
     page_title="Hệ Thống Quản Lý Triển Khai Hiện Trường",
@@ -13,12 +14,12 @@ WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquD
 query_params = st.query_params
 view_mode = query_params.get("view", "hientruong")
 
-# Bảng tra cứu định mức phân bổ cố định từ Kho (Chống thất thoát)
-DINH_MUC_PHAN_BO = {
-    "Phường Minh Xuân": 5,
-    "Phường Nông Tiến": 6,
-    "Phường Bình Thuận": 1,
-    "Phường An Tường": 7
+# Bảng tra cứu định mức & tọa độ chuẩn cho từng điểm tác nghiệp
+THONG_TIN_DIEM = {
+    "Phường Minh Xuân": {"so_luong": 5, "toa_do": "21.83059,105.19240", "dia_chi": "Phường Minh Xuân, Tuyên Quang"},
+    "Phường Nông Tiến": {"so_luong": 6, "toa_do": "21.82145,105.22810", "dia_chi": "Phường Nông Tiến, Tuyên Quang"},
+    "Phường Bình Thuận": {"so_luong": 1, "toa_do": "21.78912,105.18520", "dia_chi": "Phường Bình Thuận, Tuyên Quang"},
+    "Phường An Tường": {"so_luong": 7, "toa_do": "21.80210,105.20140", "dia_chi": "Phường An Tường, Tuyên Quang"}
 }
 
 # ==============================================================================
@@ -62,13 +63,12 @@ elif view_mode == "lanhdao":
     st.info("💡 Toàn bộ dữ liệu được quản trị tập trung tại Google Sheets của Ban Quản lý.")
 
 # ==============================================================================
-# 3. TẦNG 2: HIỆN TRƯỜNG TÁC NGHIỆP (KHÓA CHẶT SỐ LƯỢNG - CHỐNG SỬA)
+# 3. TẦNG 2: BÁO CÁO THỰC ĐỊA (CÓ CHỈ ĐƯỜNG & ĐỊNH VỊ GPS CHÍNH XÁC)
 # ==============================================================================
 else:
-    st.title("🛠️ Báo Cáo Hiện Trường Thực Địa")
-    st.caption("Đội kỹ thuật cập nhật tiến độ nghiệm thu theo định mức kho đã giao")
+    st.title("🛠️ Báo Cáo Hiện Trường Thực Thực Địa")
+    st.caption("Dành cho đội kỹ thuật nhận thiết bị, chỉ đường GPS & nghiệm thu lắp đặt")
     
-    # Lựa chọn bên ngoài form để tự động nhảy số lượng định mức
     col_a, col_b = st.columns(2)
     with col_a:
         ma_da = st.selectbox("Mã dự án *", ["DA880", "Dự án khác"])
@@ -85,23 +85,31 @@ else:
     with col_b:
         diem_lap_dat = st.selectbox(
             "Điểm tác nghiệp *", 
-            [
-                "Phường Minh Xuân", 
-                "Phường Nông Tiến", 
-                "Phường Bình Thuận", 
-                "Phường An Tường"
-            ]
+            list(THONG_TIN_DIEM.keys())
         )
         
-        # Tự động lấy số lượng định mức đã phân bổ từ kho
-        so_luong_chuan = DINH_MUC_PHAN_BO.get(diem_lap_dat, 5)
-        # Khóa trường này lại, thợ không thể bấm tăng giảm hay gõ sửa
+        info_diem = THONG_TIN_DIEM.get(diem_lap_dat, {"so_luong": 5, "toa_do": "", "dia_chi": ""})
+        so_luong_chuan = info_diem["so_luong"]
+        
         st.number_input(
-            "Số lượng thiết bị bàn giao theo định mức (CỐ ĐỊNH - KHÔNG ĐƯỢC SỬA)", 
+            "Số lượng thiết bị theo định mức (KHÓA CỐ ĐỊNH)", 
             value=so_luong_chuan, 
             disabled=True,
-            help="Số lượng được ấn định tự động từ Kho phân bổ. Kỹ thuật viên không được can thiệp."
+            help="Số lượng được ấn định tự động từ Kho. Không được phép chỉnh sửa."
         )
+
+    # KHU VỰC TÌM ĐƯỜNG VÀ DẪN ĐƯỜNG GOOGLE MAPS
+    st.markdown("### 🗺️ Tìm Đường & Dẫn Đường Tới Điểm Thi Công")
+    col_map1, col_map2 = st.columns(2)
+    
+    with col_map1:
+        # Link dẫn đường Google Maps Directions
+        link_dan_duong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(info_diem['dia_chi'])}"
+        st.link_button(f"🚗 Mở Google Maps chỉ đường tới {diem_lap_dat}", link_dan_duong)
+
+    with col_map2:
+        # Tiện ích định vị GPS thực địa qua trình duyệt
+        st.caption("📍 Tọa độ đích danh mục: " + info_diem["toa_do"])
 
     with st.form("form_hientruong"):
         tinh_trang = st.radio(
@@ -110,7 +118,13 @@ else:
             index=1
         )
         
-        link_maps = st.text_input("Tọa độ GPS / Link vị trí xác thực", value="https://maps.google.com/?q=21.83059,105.19240")
+        # Cho phép thợ dán link vị trí GPS chụp từ điện thoại hoặc lấy tọa độ mặc định
+        default_map_url = f"https://maps.google.com/?q={info_diem['toa_do']}"
+        link_maps = st.text_input(
+            "Tọa độ GPS / Link vị trí xác thực thực địa *", 
+            value=default_map_url,
+            help="Thợ có thể bấm chia sẻ vị trí từ Google Maps điện thoại và dán vào đây để xác thực có mặt tại công trình."
+        )
         
         btn_gui = st.form_submit_button("XÁC NHẬN BÁO CÁO NGHIỆM THU")
         if btn_gui:
@@ -124,7 +138,7 @@ else:
             }
             try:
                 resp = requests.post(WEBHOOK_URL, json=payload, timeout=15)
-                st.success(f"🎉 Đã gửi xác nhận {tinh_trang} tại {diem_lap_dat} với đúng định mức {so_luong_chuan} thiết bị!")
+                st.success(f"🎉 Đã gửi xác nhận nghiệm thu {tinh_trang} tại {diem_lap_dat}!")
                 st.balloons()
             except Exception as e:
-                st.warning("⚠️ Báo cáo đã ghi nhận, hệ thống đang đồng bộ về bảng tính.")
+                st.warning("⚠️ Đã ghi nhận báo cáo, đang đồng bộ về Google Sheets.")
