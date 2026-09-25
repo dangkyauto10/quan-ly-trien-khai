@@ -25,7 +25,7 @@ else:
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
 
 # ==============================================================================
-# CƠ SỞ DỮ LIỆU ĐỊA BÀN & TUYẾN THEO ĐÚNG SHEET DANH SÁCH ĐIỂM
+# CƠ SỞ DỮ LIỆU ĐỊA BÀN & TUYẾN THEO SHEET DANH SÁCH ĐIỂM
 # ==============================================================================
 DANH_SACH_DIEM_CHI_TIET = {
     # T01: Tuyên Quang nội tỉnh
@@ -68,6 +68,9 @@ DANH_SACH_DIEM_CHI_TIET = {
 }
 
 LIST_OPTIONS = list(DANH_SACH_DIEM_CHI_TIET.keys())
+
+# Danh sách chuỗi địa chỉ để gợi ý tìm đường
+DANH_SACH_GOI_Y = [f"{info['ten']}, {info['huyen']}, Tuyên Quang" for k, info in DANH_SACH_DIEM_CHI_TIET.items() if "Tự nhập" not in k]
 
 # ==============================================================================
 # NHÁNH 1: ĐĂNG KÝ THÀNH VIÊN (?view=dangky)
@@ -191,7 +194,6 @@ else:
             ]
         )
     with col_b:
-        # Danh sách chọn sẵn toàn bộ 26 điểm theo Tuyến (Không cần gõ chữ)
         muc_duoc_chon = st.selectbox(
             "📋 Danh sách điểm tác nghiệp (Bấm chọn điểm từ danh sách):", 
             options=LIST_OPTIONS,
@@ -202,12 +204,12 @@ else:
         if "Tự nhập" in muc_duoc_chon:
             diem_thuc_te = st.text_input("Gõ tên địa điểm cụ thể:")
             so_luong_chuan = 5
-            dia_chi_full = diem_thuc_te + ", Tuyên Quang"
+            dia_chi_mac_dinh = diem_thuc_te + ", Tuyên Quang" if diem_thuc_te else "TP Tuyên Quang"
             toa_do_chuan = "21.83059,105.19240"
         else:
             diem_thuc_te = info["ten"]
             so_luong_chuan = info["so_luong"]
-            dia_chi_full = f"{info['ten']}, {info['huyen']}, Tuyên Quang"
+            dia_chi_mac_dinh = f"{info['ten']}, {info['huyen']}, Tuyên Quang"
             toa_do_chuan = info["toa_do"]
 
         st.number_input(
@@ -219,14 +221,29 @@ else:
 
     st.markdown("---")
 
-    # DẪN ĐƯỜNG VÀ ĐỊNH VỊ GPS
+    # KHU VỰC VỊ TRÍ ĐẾN (ĐÃ SỬA THÀNH Ô TÌM KIẾM CÓ GỢI Ý DANH SÁCH)
     st.markdown("### 🗺️ Tiện Ích Dẫn Đường & Định Vị Thực Địa")
     col_nav1, col_nav2 = st.columns([1.3, 1])
     
     with col_nav1:
-        st.write(f"**Vị trí đến:** `{dia_chi_full}`")
-        url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_full)}"
-        st.link_button(f"🚗 Mở Google Maps chỉ đường tới {diem_thuc_te}", url_chiduong)
+        # Ô GÕ TÌM ĐƯỜNG CÓ DANH SÁCH GỢI Ý XỔ XUỐNG
+        danh_sach_goi_y_tim_duong = [dia_chi_mac_dinh] + [d for d in DANH_SACH_GOI_Y if d != dia_chi_mac_dinh] + ["🔍 [Tự gõ địa chỉ khác...]"]
+        
+        vi_tri_den_chon = st.selectbox(
+            "📍 Vị trí đến (Gõ vào để tìm nhanh gợi ý các điểm):",
+            options=danh_sach_goi_y_tim_duong,
+            index=0,
+            help="Chỉ cần gõ tên xã, phường hoặc huyện, hệ thống tự động lọc danh sách gợi ý."
+        )
+        
+        if "Tự gõ" in vi_tri_den_chon:
+            dia_chi_chi_duong = st.text_input("Gõ chi tiết địa chỉ hoặc thôn/xóm cần đến:", placeholder="Ví dụ: Thôn 3, Xã Đạo Viện, Yên Sơn...")
+        else:
+            dia_chi_chi_duong = vi_tri_den_chon
+            
+        if dia_chi_chi_duong.strip():
+            url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_chi_duong.strip())}"
+            st.link_button(f"🚗 Mở Google Maps chỉ đường tới đây", url_chiduong)
 
     with col_nav2:
         st.write("**Lấy tọa độ GPS thực tế nơi đang đứng:**")
