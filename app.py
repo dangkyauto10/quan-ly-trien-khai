@@ -69,7 +69,7 @@ DANH_SACH_DIEM_CHI_TIET = {
 
 LIST_OPTIONS = list(DANH_SACH_DIEM_CHI_TIET.keys())
 
-# Danh sách chuỗi địa chỉ để gợi ý tìm đường
+# Tạo danh sách các chuỗi địa chỉ để gợi ý tìm kiếm
 DANH_SACH_GOI_Y = [f"{info['ten']}, {info['huyen']}, Tuyên Quang" for k, info in DANH_SACH_DIEM_CHI_TIET.items() if "Tự nhập" not in k]
 
 # ==============================================================================
@@ -221,29 +221,31 @@ else:
 
     st.markdown("---")
 
-    # KHU VỰC VỊ TRÍ ĐẾN (ĐÃ SỬA THÀNH Ô TÌM KIẾM CÓ GỢI Ý DANH SÁCH)
+    # KHU VỰC VỊ TRÍ ĐẾN: CHẠM VÀO GÕ ĐƯỢC NGAY (AUTO-SELECT / PLACEHOLDER THÔNG MINH)
     st.markdown("### 🗺️ Tiện Ích Dẫn Đường & Định Vị Thực Địa")
     col_nav1, col_nav2 = st.columns([1.3, 1])
     
     with col_nav1:
-        # Ô GÕ TÌM ĐƯỜNG CÓ DANH SÁCH GỢI Ý XỔ XUỐNG
-        danh_sach_goi_y_tim_duong = [dia_chi_mac_dinh] + [d for d in DANH_SACH_GOI_Y if d != dia_chi_mac_dinh] + ["🔍 [Tự gõ địa chỉ khác...]"]
-        
-        vi_tri_den_chon = st.selectbox(
-            "📍 Vị trí đến (Gõ vào để tìm nhanh gợi ý các điểm):",
-            options=danh_sach_goi_y_tim_duong,
-            index=0,
-            help="Chỉ cần gõ tên xã, phường hoặc huyện, hệ thống tự động lọc danh sách gợi ý."
+        # Ô nhập chữ mờ: Chạm vào là gõ được ngay lập tức mà không cần bấm xóa chữ cũ
+        nhap_tim_duong = st.text_input(
+            "📍 Vị trí đến (Chạm vào gõ ngay - có gợi ý điểm):",
+            value="",
+            placeholder=f"Gõ tìm điểm tiếp theo (Mặc định: {dia_chi_mac_dinh})",
+            help="Chạm tay vào là gõ được ngay. Gõ tên xã, phường hoặc thôn/xóm bất kỳ."
         )
         
-        if "Tự gõ" in vi_tri_den_chon:
-            dia_chi_chi_duong = st.text_input("Gõ chi tiết địa chỉ hoặc thôn/xóm cần đến:", placeholder="Ví dụ: Thôn 3, Xã Đạo Viện, Yên Sơn...")
-        else:
-            dia_chi_chi_duong = vi_tri_den_chon
-            
-        if dia_chi_chi_duong.strip():
-            url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_chi_duong.strip())}"
-            st.link_button(f"🚗 Mở Google Maps chỉ đường tới đây", url_chiduong)
+        # Nếu thợ có gõ tìm kiếm thì ưu tiên lấy nội dung vừa gõ, nếu để trống thì lấy điểm đã chọn ở trên
+        dia_chi_chi_duong = nhap_tim_duong.strip() if nhap_tim_duong.strip() else dia_chi_mac_dinh
+        
+        # Danh sách gợi ý các điểm liên quan khi thợ gõ
+        if nhap_tim_duong.strip():
+            tu_khoa = nhap_tim_duong.strip().lower()
+            goi_y_khop = [d for d in DANH_SACH_GOI_Y if tu_khoa in d.lower()]
+            if goi_y_khop:
+                st.caption("💡 *Gợi ý điểm khớp từ danh bạ:* " + " | ".join(goi_y_khop[:3]))
+
+        url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_chi_duong)}"
+        st.link_button(f"🚗 Mở Google Maps chỉ đường tới {dia_chi_chi_duong.split(',')[0]}", url_chiduong)
 
     with col_nav2:
         st.write("**Lấy tọa độ GPS thực tế nơi đang đứng:**")
