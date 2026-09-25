@@ -45,7 +45,8 @@ def ket_noi_dich_vu():
 sh, creds_he_thong = ket_noi_dich_vu()
 
 def tai_anh_len_drive(creds, file_obj, ten_file):
-    if not creds or not file_obj: return ""
+    if not creds or not file_obj:
+        return ""
     try:
         session = AuthorizedSession(creds)
         metadata = {'name': ten_file, 'mimeType': 'image/jpeg'}
@@ -71,7 +72,6 @@ if che_do_xem == "dangky":
     st.caption("Dành cho các đội thợ / đối tác vận chuyển & lắp đặt dự án")
     st.markdown("---")
 
-    # Lấy danh sách 123 điểm để thợ có thể chọn địa bàn mong muốn
     ds_diem_dk = []
     if sh:
         try:
@@ -81,20 +81,26 @@ if che_do_xem == "dangky":
             for row in d_data[1:]:
                 if len(row) > col_idx and row[col_idx].strip() and row[col_idx].strip() not in ds_diem_dk:
                     ds_diem_dk.append(row[col_idx].strip())
-        except Exception: pass
+        except Exception:
+            pass
 
     with st.form("form_dang_ky_thanh_vien"):
         ho_ten = st.text_input("1. Họ và tên đầy đủ *", placeholder="Ví dụ: Nguyễn Văn Bình")
         so_dien_thoai = st.text_input("2. Số điện thoại (dùng Zalo) *", placeholder="Ví dụ: 0912345678")
         
-        # Cho phép chọn nhiều địa bàn mong muốn
         dia_ban_chon = st.multiselect(
             "3. Địa bàn mong muốn nhận tuyến (chọn một hoặc nhiều điểm) *",
             options=ds_diem_dk if ds_diem_dk else ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Thái Bình"]
         )
         
-        chuyen_mon = st.selectbox("4. Đăng ký hạng mục chuyên môn *", options=["Lắp đặt thiết bị kỹ thuật", "Vận chuyển hàng hóa", "Cả vận chuyển & lắp đặt"])
-        phuong_tien = st.selectbox("5. Phương tiện di chuyển *", options=["Xe máy cá nhân", "Xe bán tải", "Xe tải chở hàng", "Không có xe vận chuyển"])
+        chuyen_mon = st.selectbox(
+            "4. Đăng ký hạng mục chuyên môn *", 
+            options=["Lắp đặt thiết bị kỹ thuật", "Vận chuyển hàng hóa", "Cả vận chuyển & lắp đặt"]
+        )
+        phuong_tien = st.selectbox(
+            "5. Phương tiện di chuyển *", 
+            options=["Xe máy cá nhân", "Xe bán tải", "Xe tải chở hàng", "Không có xe vận chuyển"]
+        )
         
         btn_gui_dk = st.form_submit_button("🚀 GỬI BẢN ĐĂNG KÝ THÀNH VIÊN", use_container_width=True)
 
@@ -104,7 +110,17 @@ if che_do_xem == "dangky":
         else:
             with st.spinner("Đang lưu thông tin..."):
                 try:
-                    ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
+                    ws_dk = None
+                    try:
+                        ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
+                    except Exception:
+                        ws_dk = sh.add_worksheet(title="DANG_KY_THANH_VIEN", rows="100", cols="10")
+                        ws_dk.append_row([
+                            "Thời gian", "Họ và tên", "Số điện thoại", 
+                            "Địa bàn phụ trách", "Chuyên môn", "Phương tiện", 
+                            "Trạng thái duyệt", "Đội gán"
+                        ])
+
                     tz_vn = pytz.timezone('Asia/Ho_Chi_Minh')
                     thoi_gian_vn = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
                     dia_ban_str = ", ".join(dia_ban_chon)
@@ -132,14 +148,13 @@ if che_do_xem == "dangky":
 # =============================================================
 else:
     danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)"]
-    ktv_diem_map = {} # Lưu danh sách các điểm mà KTV đó phụ trách
+    ktv_diem_map = {}
     danh_sach_du_an = []
     toan_bo_diem_goc = []
     kho_phan_bo_map = {}
     trang_thai_diem = {}
 
     if sh:
-        # 1. Đọc thành viên đã duyệt và các điểm họ được gán
         try:
             ws_tv = sh.worksheet("DANG_KY_THANH_VIEN")
             data_tv = ws_tv.get_all_values()
@@ -155,13 +170,12 @@ else:
                             nhan_tv = f"{doi_gan} - {ten_tv}" if doi_gan else ten_tv
                             if nhan_tv not in danh_sach_ktv:
                                 danh_sach_ktv.append(nhan_tv)
-                            # Tách danh sách nhiều điểm phụ trách
                             if diem_giao:
                                 cac_diem = [d.strip() for d in diem_giao.split(",") if d.strip()]
                                 ktv_diem_map[nhan_tv] = cac_diem
-        except Exception: pass
+        except Exception:
+            pass
 
-        # 2. Danh mục Dự án
         try:
             ws_da = sh.worksheet("DANH_SACH_DU_AN")
             d_da = ws_da.get_all_values()
@@ -169,9 +183,9 @@ else:
                 if len(r) >= 2 and r[0].strip() and r[0].strip() != "Mã dự án":
                     nhan = f"{r[0].strip()} - {r[1].strip()}" if r[1].strip() else r[0].strip()
                     danh_sach_du_an.append({"ma": r[0].strip(), "hien_thi": nhan})
-        except Exception: pass
+        except Exception:
+            pass
 
-        # 3. Toàn bộ 123 điểm gốc
         try:
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
             data_diem = ws_diem.get_all_values()
@@ -181,16 +195,17 @@ else:
                     val = r[col_diem_idx].strip()
                     if val not in toan_bo_diem_goc and "Địa điểm" not in val:
                         toan_bo_diem_goc.append(val)
-        except Exception: pass
+        except Exception:
+            pass
 
-        # 4. Trạng thái tiến độ
         try:
             ws_td = sh.worksheet("TIEN_DO")
             d_td = ws_td.get_all_values()
             for r in d_td[2:]:
                 if len(r) >= 4 and r[3].strip():
                     trang_thai_diem[r[3].strip()] = r[2].strip()
-        except Exception: pass
+        except Exception:
+            pass
 
     if not danh_sach_du_an:
         danh_sach_du_an = [{"ma": "DA880", "hien_thi": "DA880 - Viettel Tuyên Quang"}]
@@ -210,11 +225,14 @@ else:
                 if len(raw_vals) >= 2:
                     h_idx = 0
                     for idx, r in enumerate(raw_vals[:3]):
-                        if any("thời gian" in str(c).lower() for c in r): h_idx = idx; break
+                        if any("thời gian" in str(c).lower() for c in r):
+                            h_idx = idx
+                            break
                     headers = [str(c).strip() if str(c).strip() else f"Cột_{i+1}" for i, c in enumerate(raw_vals[h_idx])]
                     clean_rows = [r + [""] * (len(headers) - len(r)) for r in raw_vals[h_idx+1:] if any(str(x).strip() for x in r)]
                     df_bc = pd.DataFrame([r[:len(headers)] for r in clean_rows], columns=headers)
-            except Exception: pass
+            except Exception:
+                pass
 
         if not df_bc.empty:
             ds_loc = ["Tất cả dự án"] + [item["hien_thi"] for item in danh_sach_du_an]
@@ -262,13 +280,12 @@ else:
         with col_kb1:
             can_bo_chon = st.selectbox("Cán bộ / Đội trưởng:", options=danh_sach_ktv, key="sb_ktv_tech")
 
-        # TỰ ĐỘNG LỌC ĐIỂM THEO TUYẾN CỦA ĐỘI ĐÓ ĐƯỢC GÁN
         ds_tuyen_cua_doi = ktv_diem_map.get(can_bo_chon, [])
         if not ds_tuyen_cua_doi:
             ds_tuyen_cua_doi = toan_bo_diem_goc if toan_bo_diem_goc else ["Phường Minh Xuân", "Phường Nông Tiến"]
 
         with col_kb2:
-            st.info(f"📍 Đội đang nhận: **{len(ds_tuyen_cua_doi)} điểm tuyến**")
+            st.info(f"📍 Tuyến nhận: **{len(ds_tuyen_cua_doi)} điểm**")
 
         st.markdown("---")
         st.markdown("### 🧭 Tra cứu tuyến & Chỉ đường Maps")
@@ -287,14 +304,20 @@ else:
 
         st.markdown("---")
         st.subheader("1. Thông tin Báo cáo Hiện trường")
-        diem_chon = st.selectbox("Địa điểm báo cáo:", options=ds_tuyen_cua_doi, index=ds_tuyen_cua_doi.index(diem_tim_kiem) if diem_tim_kiem in ds_tuyen_cua_doi else 0, key="sb_diem_tech")
+        diem_chon = st.selectbox(
+            "Địa điểm báo cáo:", 
+            options=ds_tuyen_cua_doi, 
+            index=ds_tuyen_cua_doi.index(diem_tim_kiem) if diem_tim_kiem in ds_tuyen_cua_doi else 0, 
+            key="sb_diem_tech"
+        )
 
         sl_mac_dinh = st.number_input("Số lượng thiết bị thực tế bàn giao / lắp đặt:", min_value=1, max_value=500, value=5, step=1, key="sl_def_tech")
 
         st.markdown("---")
         st.subheader("2. Chụp ảnh nghiệm thu / Biên bản")
         file_anh = st.file_uploader("Chụp hoặc tải ảnh hiện trường (Camera sau):", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
-        if file_anh: st.image(file_anh, caption="Ảnh xem trước", width=250)
+        if file_anh:
+            st.image(file_anh, caption="Ảnh xem trước", width=250)
 
         st.markdown("---")
         st.subheader("3. Định vị Hiện trường (GPS)")
@@ -311,7 +334,8 @@ else:
         col_b1, col_b2 = st.columns(2)
 
         def xu_ly_ghi_nhan(loai_hinh):
-            if not sh: return
+            if not sh:
+                return
             with st.spinner("Đang ghi nhận..."):
                 try:
                     tz_vn = pytz.timezone('Asia/Ho_Chi_Minh')
@@ -326,10 +350,16 @@ else:
 
                     ws_bc.append_row([thoi_gian_vn, f"[{ma_da_chon}] {can_bo_chon}", f"{diem_chon} (Bộ thiết bị)", sl_mac_dinh, link_gps_cuoi, f"{loai_hinh} - [Xem ảnh]({link_anh_drive})" if link_anh_drive else loai_hinh])
 
+                    dong_anh = f"\n📸 Ảnh: {link_anh_drive}" if link_anh_drive else ""
                     noi_dung_zalo = (
-                        f"📢 [BÁO CÁO TIẾN ĐỘ]\n▪ Dự án: {lua_chon_da}\n▪ Cán bộ: {can_bo_chon}\n▪ Điểm: {diem_chon}\n▪ Hạng mục: {loai_hinh} (SL: {sl_mac_dinh})\n"
-                        f"▪ Thời gian: {thoi_gian_vn}\n📍 GPS: {link_gps_cuoi if link_gps_cuoi else 'Chưa có'}"
-                        f"{('\n📸 Ảnh: ' + link_anh_drive) if link_anh_drive else ''}"
+                        f"📢 [BÁO CÁO TIẾN ĐỘ]\n"
+                        f"▪ Dự án: {lua_chon_da}\n"
+                        f"▪ Cán bộ: {can_bo_chon}\n"
+                        f"▪ Điểm: {diem_chon}\n"
+                        f"▪ Hạng mục: {loai_hinh} (SL: {sl_mac_dinh})\n"
+                        f"▪ Thời gian: {thoi_gian_vn}\n"
+                        f"📍 GPS: {link_gps_cuoi if link_gps_cuoi else 'Chưa có'}"
+                        f"{dong_anh}"
                     )
                     st.session_state["zalo_share_url"] = f"https://zalo.me/share?text={urllib.parse.quote(noi_dung_zalo)}"
                     st.success(f"✅ Đã ghi nhận thành công cho {diem_chon}!")
