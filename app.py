@@ -80,7 +80,7 @@ def tai_anh_len_drive(creds, file_obj, ten_file):
         return ""
 
 # -------------------------------------------------------------
-# 3. ĐỌC DỮ LIỆU ĐA DỰ ÁN & PHÂN BỔ
+# 3. ĐỌC DỮ LIỆU ĐA DỰ ÁN & TOÀN BỘ 123 ĐIỂM
 # -------------------------------------------------------------
 danh_sach_ktv = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "KTV-01", "KTV-02", "KTV-03"]
 danh_sach_du_an = []
@@ -105,26 +105,27 @@ if sh:
     except Exception:
         pass
 
-    # 2. Danh sách Điểm gốc
+    # 2. Đọc toàn bộ danh sách xã/phường từ DANH_SACH_DIEM
     try:
         ws_diem = sh.worksheet("DANH_SACH_DIEM")
         data_diem = ws_diem.get_all_values()
         if len(data_diem) >= 2:
-            headers = [h.strip() for h in data_diem[1]]
             col_diem_idx = 3
-            for idx, h in enumerate(headers):
-                if "Địa điểm" in h:
-                    col_diem_idx = idx
-                    break
-            for row in data_diem[2:]:
+            for r_idx in range(min(3, len(data_diem))):
+                for c_idx, h in enumerate(data_diem[r_idx]):
+                    if "Địa điểm" in str(h) or "Tên địa điểm" in str(h):
+                        col_diem_idx = c_idx
+                        break
+            
+            for row in data_diem[1:]:
                 if len(row) > col_diem_idx:
-                    val = row[col_diem_idx].strip()
-                    if val and val not in toan_bo_diem_goc:
+                    val = str(row[col_diem_idx]).strip()
+                    if val and val != "Địa điểm" and val != "Tên địa điểm" and val not in toan_bo_diem_goc:
                         toan_bo_diem_goc.append(val)
     except Exception:
         pass
 
-    # 3. Trạng thái từ TIEN_DO
+    # 3. Đọc từ TIEN_DO nếu có thêm điểm
     try:
         ws_td = sh.worksheet("TIEN_DO")
         data_td = ws_td.get_all_values()
@@ -135,6 +136,8 @@ if sh:
                     d_status = row[2].strip()
                     if d_name:
                         trang_thai_diem[d_name] = d_status
+                        if d_name not in toan_bo_diem_goc:
+                            toan_bo_diem_goc.append(d_name)
     except Exception:
         pass
 
@@ -187,6 +190,15 @@ if sh:
 
 if not danh_sach_du_an:
     danh_sach_du_an = [{"ma": "DA880", "hien_thi": "DA880 - Viettel Tuyên Quang"}, {"ma": "Dự án 76", "hien_thi": "Dự án 76"}]
+
+# Danh sách tra cứu đầy đủ 123 điểm
+danh_sach_tra_cuu_all = toan_bo_diem_goc if toan_bo_diem_goc else [
+    "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường",
+    "Phường Mỹ Lâm", "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành",
+    "Xã Xuân Vân", "Xã Thái Bình", "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết",
+    "Xã Đông Thọ", "Xã Hồng Sơn", "Xã Trường Sinh", "Xã Phú Lương", "Xã Sơn Thủy",
+    "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca", "Xã Sơn Dương"
+]
 
 # =============================================================
 # TRƯỜNG HỢP 1: BÁO CÁO CHO LÃNH ĐẠO (?view=lanhdao)
@@ -287,12 +299,13 @@ if che_do_xem == "lanhdao":
         st.info("Chưa có dữ liệu báo cáo nào được ghi nhận.")
 
 # =============================================================
-# TRƯỜNG HỢP 2: BÁO CÁO HIỆN TRƯỜNG & TÌM ĐƯỜNG GOOGLE MAPS
+# TRƯỜNG HỢP 2: BÁO CÁO HIỆN TRƯỜNG & TRA CỨU 123 ĐIỂM
 # =============================================================
 else:
     st.title("📱 ĐIỀU HÀNH HIỆN TRƯỜNG")
     st.caption("Dẫn đường vệ tinh & Báo cáo tiến độ")
 
+    # 1. CHỌN DỰ ÁN
     lua_chon_da = st.selectbox(
         "Dự án đang thực hiện:",
         options=[item["hien_thi"] for item in danh_sach_du_an],
@@ -300,28 +313,25 @@ else:
     )
     ma_da_chon = next(item["ma"] for item in danh_sach_du_an if item["hien_thi"] == lua_chon_da)
 
-    ds_diem_kha_dung = diem_theo_du_an.get(ma_da_chon, [])
-    if not ds_diem_kha_dung:
-        ds_diem_kha_dung = toan_bo_diem_goc if toan_bo_diem_goc else ["Phường Minh Xuân", "Phường Nông Tiến"]
-
     # ---------------------------------------------------------
-    # TRA CỨU ĐIỂM & CHỈ ĐƯỜNG GOOGLE MAPS
+    # TRA CỨU ĐIỂM TRONG TOÀN BỘ 123 ĐỊA BÀN
     # ---------------------------------------------------------
     st.markdown("---")
     st.markdown("### 🧭 Tra cứu điểm & Chỉ đường Maps")
+    
     diem_tim_kiem = st.selectbox(
-        "🔍 Chọn hoặc gõ tìm điểm cần tới:",
-        options=ds_diem_kha_dung,
+        "🔍 Gõ hoặc chọn điểm cần tới (trong 123 điểm):",
+        options=danh_sach_tra_cuu_all,
         key="sb_tim_diem"
     )
 
     tt_hien_tai = trang_thai_diem.get(diem_tim_kiem, "Chưa thực hiện")
     if "100%" in tt_hien_tai or "xong" in tt_hien_tai.lower():
-        st.success(f"📌 Điểm: **{diem_tim_kiem}** — Trạng thái: **{tt_hien_tai}** (Đã xong)")
+        st.success(f"📌 **{diem_tim_kiem}** — Trạng thái: **{tt_hien_tai}** (Đã xong)")
     elif "giao" in tt_hien_tai.lower():
-        st.warning(f"📌 Điểm: **{diem_tim_kiem}** — Trạng thái: **{tt_hien_tai}** (Cần lắp đặt)")
+        st.warning(f"📌 **{diem_tim_kiem}** — Trạng thái: **{tt_hien_tai}** (Cần lắp đặt)")
     else:
-        st.info(f"📌 Điểm: **{diem_tim_kiem}** — Trạng thái: **{tt_hien_tai}** (Chưa làm)")
+        st.info(f"📌 **{diem_tim_kiem}** — Trạng thái: **{tt_hien_tai}** (Chưa làm)")
 
     link_dan_duong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(diem_tim_kiem + ', Tuyên Quang')}"
     st.link_button(
@@ -342,9 +352,14 @@ else:
         can_bo_chon = st.selectbox("Cán bộ / Đội trưởng:", options=danh_sach_ktv, key="sb_ktv_tech")
     with col_kb2:
         idx_mac_dinh = 0
-        if diem_tim_kiem in ds_diem_kha_dung:
-            idx_mac_dinh = ds_diem_kha_dung.index(diem_tim_kiem)
-        diem_chon = st.selectbox("Địa điểm báo cáo:", options=ds_diem_kha_dung, index=idx_mac_dinh, key="sb_diem_tech")
+        if diem_tim_kiem in danh_sach_tra_cuu_all:
+            idx_mac_dinh = danh_sach_tra_cuu_all.index(diem_tim_kiem)
+        diem_chon = st.selectbox(
+            "Địa điểm báo cáo:",
+            options=danh_sach_tra_cuu_all,
+            index=idx_mac_dinh,
+            key="sb_diem_tech"
+        )
 
     key_tra_cuu = (ma_da_chon, diem_chon)
     danh_sach_tb = kho_phan_bo_map.get(key_tra_cuu, [])
@@ -379,7 +394,7 @@ else:
                 "doi_nhan": doi_nhan
             })
     else:
-        st.info(f"Điểm '{diem_chon}' chưa cấu hình chi tiết ở KHO_PHAN_BO. Mặc định nhận 5 thiết bị chuẩn:")
+        st.info(f"Điểm '{diem_chon}' chưa có danh mục chi tiết ở KHO_PHAN_BO. Mặc định nhận 5 thiết bị chuẩn:")
         sl_mac_dinh = st.number_input("Số lượng thiết bị thực tế:", min_value=1, max_value=500, value=5, step=1, key="sl_def_tech")
         ket_qua_nhap.append({
             "thiet_bi": "Thiết bị chuẩn theo gói",
