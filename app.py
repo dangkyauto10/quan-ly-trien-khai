@@ -24,12 +24,27 @@ else:
 
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
 
+# Danh bạ các điểm triển khai & địa chỉ gợi ý dẫn đường chuẩn
 THONG_TIN_DIEM = {
     "Phường Minh Xuân": {"so_luong": 5, "toa_do": "21.83059,105.19240", "dia_chi": "Phường Minh Xuân, TP Tuyên Quang"},
     "Phường Nông Tiến": {"so_luong": 6, "toa_do": "21.82145,105.22810", "dia_chi": "Phường Nông Tiến, TP Tuyên Quang"},
     "Phường Bình Thuận": {"so_luong": 1, "toa_do": "21.78912,105.18520", "dia_chi": "Phường Bình Thuận, TP Tuyên Quang"},
     "Phường An Tường": {"so_luong": 7, "toa_do": "21.80210,105.20140", "dia_chi": "Phường An Tường, TP Tuyên Quang"}
 }
+
+# Danh sách gợi ý địa chỉ sẵn có cho KTV tìm đường
+DANH_SACH_GOI_Y_DIA_CHI = [
+    "Phường Minh Xuân, TP Tuyên Quang",
+    "Phường Nông Tiến, TP Tuyên Quang",
+    "Phường Bình Thuận, TP Tuyên Quang",
+    "Phường An Tường, TP Tuyên Quang",
+    "Phường Tân Quang, TP Tuyên Quang",
+    "Phường Phan Thiết, TP Tuyên Quang",
+    "Xã Tràng Đà, TP Tuyên Quang",
+    "Thị trấn Sơn Dương, Tuyên Quang",
+    "Thị trấn Yên Sơn, Tuyên Quang",
+    "🔍 [Tự nhập địa chỉ khác bên dưới...]"
+]
 
 # ==============================================================================
 # NHÁNH 1: ĐĂNG KÝ THÀNH VIÊN (?view=dangky)
@@ -42,7 +57,6 @@ if view_mode == "dangky":
         ho_ten = st.text_input("Họ và tên KTV / Trưởng nhóm *")
         so_dien_thoai = st.text_input("Số điện thoại (Zalo) *")
         
-        # Danh mục vai trò chuẩn theo quy trình công việc
         lua_chon_vai_tro = st.selectbox(
             "Vai trò / Chuyên môn tham gia *",
             [
@@ -53,7 +67,6 @@ if view_mode == "dangky":
             ]
         )
         
-        # Ô nhập tự do xuất hiện khi chọn tự nhập khác
         chuyen_mon_tu_ghi = st.text_input(
             "Nếu chọn 'Tự nhập khác', ghi cụ thể chuyên môn tại đây (hoặc để trống nếu chọn gợi ý trên):",
             placeholder="Ví dụ: Kéo rải cáp quang, hàn nối, cấu hình thiết bị mạng..."
@@ -70,7 +83,6 @@ if view_mode == "dangky":
             if not ho_ten or not so_dien_thoai:
                 st.error("Vui lòng điền đầy đủ Họ và tên và Số điện thoại!")
             else:
-                # Xác định chuyên môn cuối cùng
                 chuyen_mon_cuoi = chuyen_mon_tu_ghi.strip() if chuyen_mon_tu_ghi.strip() else lua_chon_vai_tro
                 
                 payload = {
@@ -172,18 +184,32 @@ else:
 
     st.markdown("---")
 
+    # PHẦN 2: TÌM ĐƯỜNG CÓ DANH SÁCH GỢI Ý ĐIỂM ĐẾN & NÚT BẮT GPS
     st.markdown("### 🗺️ Tiện Ích Dẫn Đường & Định Vị Thực Địa")
-    col_nav1, col_nav2 = st.columns([1.2, 1])
+    col_nav1, col_nav2 = st.columns([1.3, 1])
     
     with col_nav1:
-        dia_chi_mac_dinh = info_diem.get("dia_chi", "TP Tuyên Quang")
-        dia_chi_tim_duong = st.text_input(
-            "Nhập địa chỉ / Điểm cần đến tiếp theo:", 
-            value=dia_chi_mac_dinh,
-            help="Thợ có thể gõ bất kỳ thôn, xã, phường hoặc số nhà nào cần đến."
+        # Chọn từ danh sách gợi ý (KTV gõ chữ vào ô này sẽ tự lọc gợi ý điểm tương ứng)
+        dia_chi_mac_dinh = info_diem.get("dia_chi", "Phường Minh Xuân, TP Tuyên Quang")
+        default_index = 0
+        if dia_chi_mac_dinh in DANH_SACH_GOI_Y_DIA_CHI:
+            default_index = DANH_SACH_GOI_Y_DIA_CHI.index(dia_chi_mac_dinh)
+            
+        dia_chi_chon = st.selectbox(
+            "🔍 Điểm cần đến tiếp theo (Gõ chữ để tìm nhanh gợi ý):",
+            options=DANH_SACH_GOI_Y_DIA_CHI,
+            index=default_index,
+            help="Thợ chỉ cần gõ tên phường/xã, danh sách sẽ tự lọc gợi ý ngay lập tức."
         )
-        if dia_chi_tim_duong.strip():
-            url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_tim_duong.strip())}"
+        
+        # Nếu chọn tự nhập khác thì mở thêm ô gõ tay
+        if "Tự nhập" in dia_chi_chon:
+            dia_chi_thuc_te = st.text_input("Gõ chính xác địa chỉ / số nhà / thôn cần đến:", placeholder="Ví dụ: Thôn 2, Xã Đạo Viện...")
+        else:
+            dia_chi_thuc_te = dia_chi_chon
+            
+        if dia_chi_thuc_te.strip():
+            url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_thuc_te.strip())}"
             st.link_button(f"🚗 Mở Google Maps chỉ đường tới đây", url_chiduong)
 
     with col_nav2:
