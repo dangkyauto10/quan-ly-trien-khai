@@ -25,48 +25,49 @@ else:
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
 
 # ==============================================================================
-# CƠ SỞ DỮ LIỆU ĐỊA BÀN & TUYẾN TỪ SHEET "DANH SÁCH ĐIỂM"
+# CƠ SỞ DỮ LIỆU ĐỊA BÀN & TUYẾN THEO ĐÚNG SHEET DANH SÁCH ĐIỂM
 # ==============================================================================
-DANH_SACH_DIEM_CHUAN = {
-    # Tuyến T01: Tuyên Quang nội tỉnh
-    "Phường Minh Xuân": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 5, "toa_do": "21.83059,105.19240"},
-    "Phường Nông Tiến": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 6, "toa_do": "21.82145,105.22810"},
-    "Phường Bình Thuận": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 1, "toa_do": "21.78912,105.18520"},
-    "Phường An Tường": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 7, "toa_do": "21.80210,105.20140"},
-    "Phường Mỹ Lâm": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 5, "toa_do": "21.78500,105.15000"},
+DANH_SACH_DIEM_CHI_TIET = {
+    # T01: Tuyên Quang nội tỉnh
+    "[T01] Phường Minh Xuân - TP Tuyên Quang": {"ten": "Phường Minh Xuân", "tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 5, "toa_do": "21.83059,105.19240"},
+    "[T01] Phường Nông Tiến - TP Tuyên Quang": {"ten": "Phường Nông Tiến", "tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 6, "toa_do": "21.82145,105.22810"},
+    "[T01] Phường Bình Thuận - TP Tuyên Quang": {"ten": "Phường Bình Thuận", "tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 1, "toa_do": "21.78912,105.18520"},
+    "[T01] Phường An Tường - TP Tuyên Quang": {"ten": "Phường An Tường", "tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 7, "toa_do": "21.80210,105.20140"},
+    "[T01] Phường Mỹ Lâm - TP Tuyên Quang": {"ten": "Phường Mỹ Lâm", "tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 5, "toa_do": "21.78500,105.15000"},
     
-    # Tuyến T02: Yên Sơn – phía Bắc/Đông
-    "Xã Nhữ Khê": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.72000,105.25000"},
-    "Xã Yên Sơn": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.85000,105.28000"},
-    "Xã Tân Long": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.90000,105.29000"},
-    "Xã Lực Hành": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.93000,105.31000"},
-    "Xã Xuân Vân": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.95000,105.32000"},
+    # T02: Yên Sơn – phía Bắc/Đông
+    "[T02] Xã Nhữ Khê - Huyện Yên Sơn": {"ten": "Xã Nhữ Khê", "tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.72000,105.25000"},
+    "[T02] Xã Yên Sơn - Huyện Yên Sơn": {"ten": "Xã Yên Sơn", "tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.85000,105.28000"},
+    "[T02] Xã Tân Long - Huyện Yên Sơn": {"ten": "Xã Tân Long", "tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.90000,105.29000"},
+    "[T02] Xã Lực Hành - Huyện Yên Sơn": {"ten": "Xã Lực Hành", "tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.93000,105.31000"},
+    "[T02] Xã Xuân Vân - Huyện Yên Sơn": {"ten": "Xã Xuân Vân", "tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.95000,105.32000"},
     
-    # Tuyến T03: Yên Sơn – Kiến Thiết
-    "Xã Thái Bình": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.82000,105.35000"},
-    "Xã Hùng Lợi": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.75000,105.40000"},
-    "Xã Trung Sơn": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.79000,105.43000"},
-    "Xã Kiến Thiết": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.86000,105.45000"},
-    "Xã Đông Thọ": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.68000,105.38000"},
+    # T03: Yên Sơn – Kiến Thiết
+    "[T03] Xã Thái Bình - Huyện Yên Sơn": {"ten": "Xã Thái Bình", "tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.82000,105.35000"},
+    "[T03] Xã Hùng Lợi - Huyện Yên Sơn": {"ten": "Xã Hùng Lợi", "tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.75000,105.40000"},
+    "[T03] Xã Trung Sơn - Huyện Yên Sơn": {"ten": "Xã Trung Sơn", "tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.79000,105.43000"},
+    "[T03] Xã Kiến Thiết - Huyện Yên Sơn": {"ten": "Xã Kiến Thiết", "tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.86000,105.45000"},
+    "[T03] Xã Đông Thọ - Huyện Yên Sơn": {"ten": "Xã Đông Thọ", "tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.68000,105.38000"},
     
-    # Tuyến T04: Sơn Dương
-    "Xã Hồng Sơn": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.65000,105.35000"},
-    "Xã Trường Sinh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.61000,105.32000"},
-    "Xã Phú Lương": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.62000,105.39000"},
-    "Xã Sơn Thủy": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.67000,105.41000"},
-    "Xã Minh Thanh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.74000,105.42000"},
-    "Xã Tân Trào": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.77000,105.44000"},
-    "Xã Tân Thanh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.71000,105.39000"},
-    "Xã Bình Ca": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.73000,105.31000"},
-    "Xã Sơn Dương": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.70000,105.37000"},
+    # T04: Sơn Dương
+    "[T04] Xã Hồng Sơn - Huyện Sơn Dương": {"ten": "Xã Hồng Sơn", "tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.65000,105.35000"},
+    "[T04] Xã Trường Sinh - Huyện Sơn Dương": {"ten": "Xã Trường Sinh", "tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.61000,105.32000"},
+    "[T04] Xã Phú Lương - Huyện Sơn Dương": {"ten": "Xã Phú Lương", "tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.62000,105.39000"},
+    "[T04] Xã Sơn Thủy - Huyện Sơn Dương": {"ten": "Xã Sơn Thủy", "tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.67000,105.41000"},
+    "[T04] Xã Minh Thanh - Huyện Sơn Dương": {"ten": "Xã Minh Thanh", "tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.74000,105.42000"},
+    "[T04] Xã Tân Trào - Huyện Sơn Dương": {"ten": "Xã Tân Trào", "tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.77000,105.44000"},
+    "[T04] Xã Tân Thanh - Huyện Sơn Dương": {"ten": "Xã Tân Thanh", "tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.71000,105.39000"},
+    "[T04] Xã Bình Ca - Huyện Sơn Dương": {"ten": "Xã Bình Ca", "tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.73000,105.31000"},
+    "[T04] Xã Sơn Dương - Huyện Sơn Dương": {"ten": "Xã Sơn Dương", "tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.70000,105.37000"},
     
-    # Tuyến T05: Chiêm Hóa
-    "Xã Yên Nguyên": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.05000,105.20000"},
-    "Xã Kim Bình": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.12000,105.23000"},
-    "Xã Tri Phú": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.18000,105.21000"}
+    # T05: Chiêm Hóa
+    "[T05] Xã Yên Nguyên - Huyện Chiêm Hóa": {"ten": "Xã Yên Nguyên", "tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.05000,105.20000"},
+    "[T05] Xã Kim Bình - Huyện Chiêm Hóa": {"ten": "Xã Kim Bình", "tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.12000,105.23000"},
+    "[T05] Xã Tri Phú - Huyện Chiêm Hóa": {"ten": "Xã Tri Phú", "tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.18000,105.21000"},
+    "🔍 [Tự nhập địa điểm phát sinh khác...]": {"ten": "Điểm phát sinh", "tuyen": "Tuyến ngoài danh mục", "huyen": "Tuyên Quang", "so_luong": 5, "toa_do": "21.83059,105.19240"}
 }
 
-DANH_SACH_TEN_DIEM = list(DANH_SACH_DIEM_CHUAN.keys()) + ["🔍 [Tự nhập điểm khác...]"]
+LIST_OPTIONS = list(DANH_SACH_DIEM_CHI_TIET.keys())
 
 # ==============================================================================
 # NHÁNH 1: ĐĂNG KÝ THÀNH VIÊN (?view=dangky)
@@ -174,9 +175,8 @@ elif view_mode == "lanhdao":
 # ==============================================================================
 else:
     st.title("🛠️ BÁO CÁO TIẾN ĐỘ THỰC HIỆN DỰ ÁN")
-    st.caption("Tra cứu tuyến đường, lấy tọa độ GPS thực địa & nghiệm thu công việc")
+    st.caption("Xem danh sách điểm, lấy tọa độ GPS thực địa & nghiệm thu công việc")
     
-    # PHẦN 1: THÔNG TIN DỰ ÁN & ĐIỂM TÁC NGHIỆP TỪ DANH MỤC
     col_a, col_b = st.columns(2)
     with col_a:
         ma_da = st.selectbox("Mã dự án *", ["DA880", "Dự án khác"])
@@ -191,44 +191,40 @@ else:
             ]
         )
     with col_b:
-        # Gõ chữ để lọc và tìm nhanh bất kỳ điểm nào trong danh sách
-        diem_lap_dat = st.selectbox(
-            "📍 Điểm tác nghiệp mục tiêu (Gõ chữ để gợi ý nhanh) *", 
-            options=DANH_SACH_TEN_DIEM,
-            index=0,
-            help="Chỉ cần gõ tên xã hoặc phường, hệ thống tự động tìm và gợi ý điểm đến."
+        # Danh sách chọn sẵn toàn bộ 26 điểm theo Tuyến (Không cần gõ chữ)
+        muc_duoc_chon = st.selectbox(
+            "📋 Danh sách điểm tác nghiệp (Bấm chọn điểm từ danh sách):", 
+            options=LIST_OPTIONS,
+            index=0
         )
         
-        if "Tự nhập" in diem_lap_dat:
-            diem_thuc_te = st.text_input("Gõ tên địa điểm tác nghiệp cụ thể:")
+        info = DANH_SACH_DIEM_CHI_TIET[muc_duoc_chon]
+        if "Tự nhập" in muc_duoc_chon:
+            diem_thuc_te = st.text_input("Gõ tên địa điểm cụ thể:")
             so_luong_chuan = 5
-            tuyen_duong = "Tuyến phát sinh"
             dia_chi_full = diem_thuc_te + ", Tuyên Quang"
             toa_do_chuan = "21.83059,105.19240"
         else:
-            diem_thuc_te = diem_lap_dat
-            info_diem = DANH_SACH_DIEM_CHUAN[diem_lap_dat]
-            so_luong_chuan = info_diem["so_luong"]
-            tuyen_duong = info_diem["tuyen"]
-            dia_chi_full = f"{diem_lap_dat}, {info_diem['huyen']}, Tuyên Quang"
-            toa_do_chuan = info_diem["toa_do"]
+            diem_thuc_te = info["ten"]
+            so_luong_chuan = info["so_luong"]
+            dia_chi_full = f"{info['ten']}, {info['huyen']}, Tuyên Quang"
+            toa_do_chuan = info["toa_do"]
 
-        # Khóa cứng số lượng thiết bị theo định mức phân bổ
         st.number_input(
-            f"Số lượng thiết bị theo định mức ({tuyen_duong}) - [KHÓA CỐ ĐỊNH]", 
+            f"Số lượng thiết bị định mức ({info['tuyen']}) - [KHÓA CỐ ĐỊNH]", 
             value=so_luong_chuan, 
             disabled=True,
-            help="Số lượng được ấn định tự động từ Kho. Kỹ thuật viên không được can thiệp."
+            help="Số lượng được lấy cố định từ Kho phân bổ. Kỹ thuật viên không được chỉnh sửa."
         )
 
     st.markdown("---")
 
-    # PHẦN 2: DẪN ĐƯỜNG TỚI ĐIỂM ĐÃ CHỌN & NÚT BẮT GPS VỆ TINH
+    # DẪN ĐƯỜNG VÀ ĐỊNH VỊ GPS
     st.markdown("### 🗺️ Tiện Ích Dẫn Đường & Định Vị Thực Địa")
     col_nav1, col_nav2 = st.columns([1.3, 1])
     
     with col_nav1:
-        st.write(f"**Điểm đến:** `{dia_chi_full}`")
+        st.write(f"**Vị trí đến:** `{dia_chi_full}`")
         url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_full)}"
         st.link_button(f"🚗 Mở Google Maps chỉ đường tới {diem_thuc_te}", url_chiduong)
 
@@ -267,7 +263,7 @@ else:
 
     st.markdown("---")
 
-    # PHẦN 3: FORM BÁO CÁO CÔNG VIỆC
+    # FORM BÁO CÁO CÔNG VIỆC
     with st.form("form_hientruong"):
         tinh_trang = st.radio(
             "Xác nhận tình trạng công việc *",
