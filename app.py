@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. BỘ XỬ LÝ NHẬN DIỆN LINK (CHUẨN HÓA MỌI TRÌNH DUYỆT)
+# 1. BỘ XỬ LÝ NHẬN DIỆN LINK
 try:
     params = dict(st.query_params)
     raw_view = params.get("view", "hientruong")
@@ -24,27 +24,49 @@ else:
 
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
 
-# Danh bạ các điểm triển khai & địa chỉ gợi ý dẫn đường chuẩn
-THONG_TIN_DIEM = {
-    "Phường Minh Xuân": {"so_luong": 5, "toa_do": "21.83059,105.19240", "dia_chi": "Phường Minh Xuân, TP Tuyên Quang"},
-    "Phường Nông Tiến": {"so_luong": 6, "toa_do": "21.82145,105.22810", "dia_chi": "Phường Nông Tiến, TP Tuyên Quang"},
-    "Phường Bình Thuận": {"so_luong": 1, "toa_do": "21.78912,105.18520", "dia_chi": "Phường Bình Thuận, TP Tuyên Quang"},
-    "Phường An Tường": {"so_luong": 7, "toa_do": "21.80210,105.20140", "dia_chi": "Phường An Tường, TP Tuyên Quang"}
+# ==============================================================================
+# CƠ SỞ DỮ LIỆU ĐỊA BÀN & TUYẾN TỪ SHEET "DANH SÁCH ĐIỂM"
+# ==============================================================================
+DANH_SACH_DIEM_CHUAN = {
+    # Tuyến T01: Tuyên Quang nội tỉnh
+    "Phường Minh Xuân": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 5, "toa_do": "21.83059,105.19240"},
+    "Phường Nông Tiến": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 6, "toa_do": "21.82145,105.22810"},
+    "Phường Bình Thuận": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 1, "toa_do": "21.78912,105.18520"},
+    "Phường An Tường": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 7, "toa_do": "21.80210,105.20140"},
+    "Phường Mỹ Lâm": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 5, "toa_do": "21.78500,105.15000"},
+    
+    # Tuyến T02: Yên Sơn – phía Bắc/Đông
+    "Xã Nhữ Khê": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.72000,105.25000"},
+    "Xã Yên Sơn": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.85000,105.28000"},
+    "Xã Tân Long": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.90000,105.29000"},
+    "Xã Lực Hành": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.93000,105.31000"},
+    "Xã Xuân Vân": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.95000,105.32000"},
+    
+    # Tuyến T03: Yên Sơn – Kiến Thiết
+    "Xã Thái Bình": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.82000,105.35000"},
+    "Xã Hùng Lợi": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.75000,105.40000"},
+    "Xã Trung Sơn": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.79000,105.43000"},
+    "Xã Kiến Thiết": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.86000,105.45000"},
+    "Xã Đông Thọ": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.68000,105.38000"},
+    
+    # Tuyến T04: Sơn Dương
+    "Xã Hồng Sơn": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.65000,105.35000"},
+    "Xã Trường Sinh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.61000,105.32000"},
+    "Xã Phú Lương": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.62000,105.39000"},
+    "Xã Sơn Thủy": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.67000,105.41000"},
+    "Xã Minh Thanh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.74000,105.42000"},
+    "Xã Tân Trào": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.77000,105.44000"},
+    "Xã Tân Thanh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.71000,105.39000"},
+    "Xã Bình Ca": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.73000,105.31000"},
+    "Xã Sơn Dương": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.70000,105.37000"},
+    
+    # Tuyến T05: Chiêm Hóa
+    "Xã Yên Nguyên": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.05000,105.20000"},
+    "Xã Kim Bình": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.12000,105.23000"},
+    "Xã Tri Phú": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.18000,105.21000"}
 }
 
-# Danh sách gợi ý địa chỉ sẵn có cho KTV tìm đường
-DANH_SACH_GOI_Y_DIA_CHI = [
-    "Phường Minh Xuân, TP Tuyên Quang",
-    "Phường Nông Tiến, TP Tuyên Quang",
-    "Phường Bình Thuận, TP Tuyên Quang",
-    "Phường An Tường, TP Tuyên Quang",
-    "Phường Tân Quang, TP Tuyên Quang",
-    "Phường Phan Thiết, TP Tuyên Quang",
-    "Xã Tràng Đà, TP Tuyên Quang",
-    "Thị trấn Sơn Dương, Tuyên Quang",
-    "Thị trấn Yên Sơn, Tuyên Quang",
-    "🔍 [Tự nhập địa chỉ khác bên dưới...]"
-]
+DANH_SACH_TEN_DIEM = list(DANH_SACH_DIEM_CHUAN.keys()) + ["🔍 [Tự nhập điểm khác...]"]
 
 # ==============================================================================
 # NHÁNH 1: ĐĂNG KÝ THÀNH VIÊN (?view=dangky)
@@ -84,7 +106,6 @@ if view_mode == "dangky":
                 st.error("Vui lòng điền đầy đủ Họ và tên và Số điện thoại!")
             else:
                 chuyen_mon_cuoi = chuyen_mon_tu_ghi.strip() if chuyen_mon_tu_ghi.strip() else lua_chon_vai_tro
-                
                 payload = {
                     "action": "dang_ky_thanh_vien",
                     "ho_ten": ho_ten,
@@ -94,7 +115,7 @@ if view_mode == "dangky":
                     "dia_ban": ", ".join(dia_ban)
                 }
                 try:
-                    resp = requests.post(WEBHOOK_URL, json=payload, timeout=15)
+                    requests.post(WEBHOOK_URL, json=payload, timeout=15)
                 except Exception:
                     pass
                 st.success(f"✅ Đã gửi đăng ký thành công cho {ho_ten} với vai trò: '{chuyen_mon_cuoi}'! Quản trị viên sẽ phê duyệt trên Google Sheets.")
@@ -153,8 +174,9 @@ elif view_mode == "lanhdao":
 # ==============================================================================
 else:
     st.title("🛠️ BÁO CÁO TIẾN ĐỘ THỰC HIỆN DỰ ÁN")
-    st.caption("Tra cứu đường đi, lấy tọa độ GPS thực địa & nghiệm thu công việc")
+    st.caption("Tra cứu tuyến đường, lấy tọa độ GPS thực địa & nghiệm thu công việc")
     
+    # PHẦN 1: THÔNG TIN DỰ ÁN & ĐIỂM TÁC NGHIỆP TỪ DANH MỤC
     col_a, col_b = st.columns(2)
     with col_a:
         ma_da = st.selectbox("Mã dự án *", ["DA880", "Dự án khác"])
@@ -169,14 +191,31 @@ else:
             ]
         )
     with col_b:
-        danh_sach_diem = list(THONG_TIN_DIEM.keys()) + ["Điểm tác nghiệp mới / Khác"]
-        diem_lap_dat = st.selectbox("Điểm tác nghiệp mục tiêu *", danh_sach_diem)
+        # Gõ chữ để lọc và tìm nhanh bất kỳ điểm nào trong danh sách
+        diem_lap_dat = st.selectbox(
+            "📍 Điểm tác nghiệp mục tiêu (Gõ chữ để gợi ý nhanh) *", 
+            options=DANH_SACH_TEN_DIEM,
+            index=0,
+            help="Chỉ cần gõ tên xã hoặc phường, hệ thống tự động tìm và gợi ý điểm đến."
+        )
         
-        info_diem = THONG_TIN_DIEM.get(diem_lap_dat, {"so_luong": 5, "toa_do": "21.83059,105.19240", "dia_chi": "Tuyên Quang"})
-        so_luong_chuan = info_diem["so_luong"]
-        
+        if "Tự nhập" in diem_lap_dat:
+            diem_thuc_te = st.text_input("Gõ tên địa điểm tác nghiệp cụ thể:")
+            so_luong_chuan = 5
+            tuyen_duong = "Tuyến phát sinh"
+            dia_chi_full = diem_thuc_te + ", Tuyên Quang"
+            toa_do_chuan = "21.83059,105.19240"
+        else:
+            diem_thuc_te = diem_lap_dat
+            info_diem = DANH_SACH_DIEM_CHUAN[diem_lap_dat]
+            so_luong_chuan = info_diem["so_luong"]
+            tuyen_duong = info_diem["tuyen"]
+            dia_chi_full = f"{diem_lap_dat}, {info_diem['huyen']}, Tuyên Quang"
+            toa_do_chuan = info_diem["toa_do"]
+
+        # Khóa cứng số lượng thiết bị theo định mức phân bổ
         st.number_input(
-            "Số lượng thiết bị theo định mức (KHÓA CỐ ĐỊNH - CHỐNG SỬA)", 
+            f"Số lượng thiết bị theo định mức ({tuyen_duong}) - [KHÓA CỐ ĐỊNH]", 
             value=so_luong_chuan, 
             disabled=True,
             help="Số lượng được ấn định tự động từ Kho. Kỹ thuật viên không được can thiệp."
@@ -184,33 +223,14 @@ else:
 
     st.markdown("---")
 
-    # PHẦN 2: TÌM ĐƯỜNG CÓ DANH SÁCH GỢI Ý ĐIỂM ĐẾN & NÚT BẮT GPS
+    # PHẦN 2: DẪN ĐƯỜNG TỚI ĐIỂM ĐÃ CHỌN & NÚT BẮT GPS VỆ TINH
     st.markdown("### 🗺️ Tiện Ích Dẫn Đường & Định Vị Thực Địa")
     col_nav1, col_nav2 = st.columns([1.3, 1])
     
     with col_nav1:
-        # Chọn từ danh sách gợi ý (KTV gõ chữ vào ô này sẽ tự lọc gợi ý điểm tương ứng)
-        dia_chi_mac_dinh = info_diem.get("dia_chi", "Phường Minh Xuân, TP Tuyên Quang")
-        default_index = 0
-        if dia_chi_mac_dinh in DANH_SACH_GOI_Y_DIA_CHI:
-            default_index = DANH_SACH_GOI_Y_DIA_CHI.index(dia_chi_mac_dinh)
-            
-        dia_chi_chon = st.selectbox(
-            "🔍 Điểm cần đến tiếp theo (Gõ chữ để tìm nhanh gợi ý):",
-            options=DANH_SACH_GOI_Y_DIA_CHI,
-            index=default_index,
-            help="Thợ chỉ cần gõ tên phường/xã, danh sách sẽ tự lọc gợi ý ngay lập tức."
-        )
-        
-        # Nếu chọn tự nhập khác thì mở thêm ô gõ tay
-        if "Tự nhập" in dia_chi_chon:
-            dia_chi_thuc_te = st.text_input("Gõ chính xác địa chỉ / số nhà / thôn cần đến:", placeholder="Ví dụ: Thôn 2, Xã Đạo Viện...")
-        else:
-            dia_chi_thuc_te = dia_chi_chon
-            
-        if dia_chi_thuc_te.strip():
-            url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_thuc_te.strip())}"
-            st.link_button(f"🚗 Mở Google Maps chỉ đường tới đây", url_chiduong)
+        st.write(f"**Điểm đến:** `{dia_chi_full}`")
+        url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_full)}"
+        st.link_button(f"🚗 Mở Google Maps chỉ đường tới {diem_thuc_te}", url_chiduong)
 
     with col_nav2:
         st.write("**Lấy tọa độ GPS thực tế nơi đang đứng:**")
@@ -247,6 +267,7 @@ else:
 
     st.markdown("---")
 
+    # PHẦN 3: FORM BÁO CÁO CÔNG VIỆC
     with st.form("form_hientruong"):
         tinh_trang = st.radio(
             "Xác nhận tình trạng công việc *",
@@ -258,7 +279,7 @@ else:
             index=0
         )
         
-        default_map_url = f"https://maps.google.com/?q={info_diem['toa_do']}"
+        default_map_url = f"https://maps.google.com/?q={toa_do_chuan}"
         link_maps = st.text_input(
             "Tọa độ GPS / Link vị trí nghiệm thu thực địa *", 
             value=default_map_url,
@@ -270,14 +291,14 @@ else:
             payload = {
                 "ma_da": ma_da,
                 "doi_thuc_hien": doi_thuc_hien,
-                "diem_lap_dat": diem_lap_dat,
+                "diem_lap_dat": diem_thuc_te,
                 "so_luong": so_luong_chuan,
                 "tinh_trang": tinh_trang,
                 "link_maps": link_maps
             }
             try:
                 resp = requests.post(WEBHOOK_URL, json=payload, timeout=15)
-                st.success(f"🎉 Đã gửi thành công! Trạng thái: {tinh_trang} tại {diem_lap_dat} ({so_luong_chuan} thiết bị). Dữ liệu đã tự động cập nhật về Google Sheets.")
+                st.success(f"🎉 Đã gửi thành công! Trạng thái: {tinh_trang} tại {diem_thuc_te} ({so_luong_chuan} thiết bị). Dữ liệu đã tự động cập nhật về Google Sheets.")
                 st.balloons()
             except Exception as e:
                 st.warning("⚠️ Báo cáo đã ghi nhận, hệ thống đang đồng bộ về Google Sheets.")
