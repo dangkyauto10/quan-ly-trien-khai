@@ -101,7 +101,7 @@ if sh:
     except Exception:
         pass
 
-    # 2. Danh sách Điểm gốc (DANH_SACH_DIEM)
+    # 2. Danh sách Điểm gốc
     try:
         ws_diem = sh.worksheet("DANH_SACH_DIEM")
         data_diem = ws_diem.get_all_values()
@@ -120,7 +120,7 @@ if sh:
     except Exception:
         pass
 
-    # 3. Lấy trạng thái hiện tại từ TIEN_DO để hỗ trợ tra cứu
+    # 3. Trạng thái từ TIEN_DO
     try:
         ws_td = sh.worksheet("TIEN_DO")
         data_td = ws_td.get_all_values()
@@ -283,14 +283,15 @@ if che_do_xem == "lanhdao":
         st.info("Chưa có dữ liệu báo cáo nào được ghi nhận.")
 
 # =============================================================
-# TRƯỜNG HỢP 2: BÁO CÁO HIỆN TRƯỜNG & CHỈ ĐƯỜNG ĐIỂM TIẾP THEO
+# TRƯỜNG HỢP 2: BÁO CÁO HIỆN TRƯỜNG & TÌM ĐƯỜNG GOOGLE MAPS
 # =============================================================
 else:
-    st.title("📱 HỆ THỐNG ĐIỀU HÀNH HIỆN TRƯỜNG")
-    st.caption("Báo cáo tiến độ & Dẫn đường tới điểm thi công")
+    st.title("📱 ĐIỀU HÀNH HIỆN TRƯỜNG")
+    st.caption("Dẫn đường vệ tinh & Báo cáo tiến độ")
 
+    # 1. CHỌN DỰ ÁN
     lua_chon_da = st.selectbox(
-        "Đang thực hiện cho Dự án:",
+        "Dự án đang thực hiện:",
         options=[item["hien_thi"] for item in danh_sach_du_an],
         key="sb_da_tech"
     )
@@ -301,34 +302,35 @@ else:
         ds_diem_kha_dung = toan_bo_diem_goc if toan_bo_diem_goc else ["Phường Minh Xuân", "Phường Nông Tiến"]
 
     # ---------------------------------------------------------
-    # TÍNH NĂNG MỚI: TÌM KIẾM ĐỊA ĐIỂM & CHỈ ĐƯỜNG GOOGLE MAPS
+    # TÍNH NĂNG MỚI: TÌM ĐỊA ĐIỂM & CHỈ ĐƯỜNG TRỰC TIẾP (HIỂN THỊ CỐ ĐỊNH)
     # ---------------------------------------------------------
-    with st.expander("🧭 TÌM ĐỊA ĐIỂM & CHỈ ĐƯỜNG TỚI ĐIỂM TIẾP THEO", expanded=False):
-        st.caption("Chọn điểm muốn đến để xem tình trạng và mở Google Maps dẫn đường trực tiếp:")
-        diem_tiep_theo = st.selectbox("Chọn hoặc gõ tìm điểm cần đến:", options=ds_diem_kha_dung, key="sb_next_point")
-        
-        tt_hien_tai = trang_thai_diem.get(diem_tiep_theo, "Chưa thực hiện")
-        if "100%" in tt_hien_tai or "xong" in tt_hien_tai.lower():
-            st.success(f"Trạng thái: **{tt_hien_tai}** (Điểm này đã hoàn thành)")
-        elif "giao" in tt_hien_tai.lower():
-            st.warning(f"Trạng thái: **{tt_hien_tai}** (Cần tiến hành lắp đặt)")
-        else:
-            st.info(f"Trạng thái: **{tt_hien_tai}** (Chưa giao/lắp)")
+    st.markdown("---")
+    st.markdown("### 🧭 Tra cứu điểm & Chỉ đường Maps")
+    diem_tim_kiem = st.selectbox(
+        "🔍 Chọn hoặc gõ tìm điểm cần tới:",
+        options=ds_diem_kha_dung,
+        key="sb_tim_diem"
+    )
 
-        # Tạo link dẫn đường Google Maps tự động
-        dia_chi_tim_kiem = f"{diem_tiep_theo}, Tuyên Quang"
-        maps_navigate_url = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_tim_kiem)}"
-        
-        st.markdown(f"""
-            <a href="{maps_navigate_url}" target="_blank" style="text-decoration:none;">
-                <button style="width:100%; background-color:#28a745; color:white; padding:10px; border:none; border-radius:6px; font-weight:bold; font-size:15px; margin-top:5px; cursor:pointer;">
-                    🚗 MỞ GOOGLE MAPS CHỈ ĐƯỜNG TỚI ĐÂY
-                </button>
-            </a>
-        """, unsafe_allow_html=True)
+    tt_hien_tai = trang_thai_diem.get(diem_tim_kiem, "Chưa thực hiện")
+    if "100%" in tt_hien_tai or "xong" in tt_hien_tai.lower():
+        st.success(f"📌 Điểm: **{diem_tim_kiem}** — Trạng thái: **{tt_hien_tai}** (Đã xong)")
+    elif "giao" in tt_hien_tai.lower():
+        st.warning(f"📌 Điểm: **{diem_tim_kiem}** — Trạng thái: **{tt_hien_tai}** (Cần lắp đặt)")
+    else:
+        st.info(f"📌 Điểm: **{diem_tim_kiem}** — Trạng thái: **{tt_hien_tai}** (Chưa làm)")
+
+    # Nút bấm mở Google Maps chuẩn native Streamlit
+    link_dan_duong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(diem_tim_kiem + ', Tuyên Quang')}"
+    st.link_button(
+        f"🚗 MỞ GOOGLE MAPS DẪN ĐƯỜNG TỚI: {diem_tim_kiem.upper()}",
+        link_dan_duong,
+        type="primary",
+        use_container_width=True
+    )
 
     # ---------------------------------------------------------
-    # KHU VỰC NHẬP BÁO CÁO THI CÔNG
+    # 2. KHU VỰC BÁO CÁO THI CÔNG
     # ---------------------------------------------------------
     st.markdown("---")
     st.subheader("1. Thông tin Báo cáo Hiện trường")
@@ -337,7 +339,11 @@ else:
     with col_kb1:
         can_bo_chon = st.selectbox("Cán bộ / Đội trưởng:", options=danh_sach_ktv, key="sb_ktv_tech")
     with col_kb2:
-        diem_chon = st.selectbox("Địa điểm vừa thực hiện:", options=ds_diem_kha_dung, key="sb_diem_tech")
+        # Tự động gợi ý điểm vừa tìm ở trên làm mặc định
+        idx_mac_dinh = 0
+        if diem_tim_kiem in ds_diem_kha_dung:
+            idx_mac_dinh = ds_diem_kha_dung.index(diem_tim_kiem)
+        diem_chon = st.selectbox("Địa điểm báo cáo:", options=ds_diem_kha_dung, index=idx_mac_dinh, key="sb_diem_tech")
 
     key_tra_cuu = (ma_da_chon, diem_chon)
     danh_sach_tb = kho_phan_bo_map.get(key_tra_cuu, [])
@@ -409,9 +415,15 @@ else:
         key="inp_gps_tech"
     )
 
-    # XÁC NHẬN BÁO CÁO
+    # ---------------------------------------------------------
+    # 4. XÁC NHẬN BÁO CÁO & NÚT ZALO
+    # ---------------------------------------------------------
     st.markdown("---")
     st.subheader("4. Xác nhận hoàn thành công việc")
+
+    # Lưu thông tin sau khi ghi thành công vào session_state để hiện nút Zalo chuẩn
+    if "zalo_share_url" not in st.session_state:
+        st.session_state["zalo_share_url"] = None
 
     col_b1, col_b2 = st.columns(2)
 
@@ -479,10 +491,8 @@ else:
                             noi_dung_tt
                         ])
 
-                st.success(f"✅ Ghi nhận thành công cho [{ma_da_chon}] tại {diem_chon}!")
-                
                 text_tb_str = ", ".join(ds_tb_text)
-                link_anh_kem = f"\n📸 Link ảnh nghiệm thu: {link_anh_drive}" if (link_anh_drive and "http" in link_anh_drive) else ""
+                link_anh_kem = f"\n📸 Link ảnh: {link_anh_drive}" if (link_anh_drive and "http" in link_anh_drive) else ""
                 
                 noi_dung_zalo = (
                     f"📢 [BÁO CÁO TIẾN ĐỘ]\n"
@@ -496,22 +506,26 @@ else:
                     f"{link_anh_kem}"
                 )
                 
-                zalo_url = f"https://zalo.me/share?text={urllib.parse.quote(noi_dung_zalo)}"
-                st.markdown(f"""
-                    <a href="{zalo_url}" target="_blank" style="text-decoration:none;">
-                        <button style="width:100%; background-color:#0068FF; color:white; padding:12px; border:none; border-radius:8px; font-weight:bold; font-size:16px; margin-top:10px; cursor:pointer;">
-                            📲 GỬI BÁO CÁO NÀY QUA ZALO NGAY
-                        </button>
-                    </a>
-                """, unsafe_allow_html=True)
+                st.session_state["zalo_share_url"] = f"https://zalo.me/share?text={urllib.parse.quote(noi_dung_zalo)}"
+                st.success(f"✅ Đã ghi nhận thành công cho [{ma_da_chon}] tại {diem_chon}!")
                 
             except Exception as e:
                 st.error(f"Lỗi khi gửi dữ liệu: {e}")
 
     with col_b1:
-        if st.button("📦 ĐÃ GIAO HÀNG", use_container_width=True, type="primary", key="btn_gh_tech"):
+        if st.button("📦 ĐÃ GIAO HÀNG", use_container_width=True, type="secondary", key="btn_gh_tech"):
             xu_ly_ghi_nhan("Đã giao hàng")
 
     with col_b2:
-        if st.button("🔧 ĐÃ LẮP ĐẶT XONG", use_container_width=True, key="btn_ld_tech"):
+        if st.button("🔧 ĐÃ LẮP ĐẶT XONG", use_container_width=True, type="primary", key="btn_ld_tech"):
             xu_ly_ghi_nhan("Đã lắp đặt xong")
+
+    # Nút Zalo chính thức dùng st.link_button không bao giờ bị chặn popup
+    if st.session_state.get("zalo_share_url"):
+        st.markdown("---")
+        st.link_button(
+            "📲 GỬI BÁO CÁO NÀY QUA ZALO NGAY",
+            st.session_state["zalo_share_url"],
+            type="primary",
+            use_container_width=True
+        )
