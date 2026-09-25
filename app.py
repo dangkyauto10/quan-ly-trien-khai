@@ -1,14 +1,13 @@
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from google.auth.transport.requests import AuthorizedSession
 from datetime import datetime
 import pytz
 import pandas as pd
 from streamlit_js_eval import get_geolocation
 import urllib.parse
-import io
+import json
 
 # -------------------------------------------------------------
 # 1. PHÂN QUYỀN ĐƯỜNG DẪN
@@ -47,33 +46,38 @@ def ket_noi_dich_vu():
         
         client_sheets = gspread.authorize(creds)
         file_sheet = client_sheets.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-        drive_service = build("drive", "v3", credentials=creds)
-        return file_sheet, drive_service
+        return file_sheet, creds
     except Exception as e:
         st.error(f"Lỗi kết nối cơ sở dữ liệu: {e}")
         return None, None
 
-sh, drive_service = ket_noi_dich_vu()
+sh, creds_he_thong = ket_noi_dich_vu()
 
-def tai_anh_len_drive(file_obj, ten_file):
-    if not drive_service or not file_obj:
+def tai_anh_len_drive(creds, file_obj, ten_file):
+    if not creds or not file_obj:
         return ""
     try:
-        file_metadata = {
-            "name": ten_file,
-            "mimeType": "image/jpeg"
+        session = AuthorizedSession(creds)
+        metadata = {'name': ten_file, 'mimeType': 'image/jpeg'}
+        files = {
+            'data': ('metadata', json.dumps(metadata), 'application/json; charset=UTF-8'),
+            'file': (ten_file, file_obj.getvalue(), 'image/jpeg')
         }
-        media = MediaIoBaseUpload(io.BytesIO(file_obj.read()), mimetype="image/jpeg", resumable=True)
-        uploaded = drive_service.files().create(body=file_metadata, media_body=media, fields="id, webViewLink").execute()
-        
-        file_id = uploaded.get("id")
-        drive_service.permissions().create(
-            fileId=file_id,
-            body={"role": "reader", "type": "anyone"}
-        ).execute()
-        return uploaded.get("webViewLink", "")
-    except Exception as e:
-        return f"Lỗi tải ảnh: {e}"
+        res = session.post(
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+            files=files
+        )
+        data = res.json()
+        file_id = data.get('id')
+        if file_id:
+            session.post(
+                f'https://www.googleapis.com/drive/v3/files/{file_id}/permissions',
+                json={'role': 'reader', 'type': 'anyone'}
+            )
+            return data.get('webViewLink', f'https://drive.google.com/file/d/{file_id}/view')
+        return ""
+    except Exception:
+        return ""
 
 # -------------------------------------------------------------
 # 3. ĐỌC DỮ LIỆU ĐA DỰ ÁN & PHÂN BỔ
@@ -289,7 +293,6 @@ else:
     st.title("📱 ĐIỀU HÀNH HIỆN TRƯỜNG")
     st.caption("Dẫn đường vệ tinh & Báo cáo tiến độ")
 
-    # 1. CHỌN DỰ ÁN
     lua_chon_da = st.selectbox(
         "Dự án đang thực hiện:",
         options=[item["hien_thi"] for item in danh_sach_du_an],
@@ -302,7 +305,7 @@ else:
         ds_diem_kha_dung = toan_bo_diem_goc if toan_bo_diem_goc else ["Phường Minh Xuân", "Phường Nông Tiến"]
 
     # ---------------------------------------------------------
-    # TÍNH NĂNG MỚI: TÌM ĐỊA ĐIỂM & CHỈ ĐƯỜNG TRỰC TIẾP (HIỂN THỊ CỐ ĐỊNH)
+    # TRA CỨU ĐIỂM & CHỈ ĐƯỜNG GOOGLE MAPS
     # ---------------------------------------------------------
     st.markdown("---")
     st.markdown("### 🧭 Tra cứu điểm & Chỉ đường Maps")
@@ -320,7 +323,6 @@ else:
     else:
         st.info(f"📌 Điểm: **{diem_tim_kiem}** — Trạng thái: **{tt_hien_tai}** (Chưa làm)")
 
-    # Nút bấm mở Google Maps chuẩn native Streamlit
     link_dan_duong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(diem_tim_kiem + ', Tuyên Quang')}"
     st.link_button(
         f"🚗 MỞ GOOGLE MAPS DẪN ĐƯỜNG TỚI: {diem_tim_kiem.upper()}",
@@ -330,7 +332,7 @@ else:
     )
 
     # ---------------------------------------------------------
-    # 2. KHU VỰC BÁO CÁO THI CÔNG
+    # KHU VỰC BÁO CÁO THI CÔNG
     # ---------------------------------------------------------
     st.markdown("---")
     st.subheader("1. Thông tin Báo cáo Hiện trường")
@@ -339,7 +341,6 @@ else:
     with col_kb1:
         can_bo_chon = st.selectbox("Cán bộ / Đội trưởng:", options=danh_sach_ktv, key="sb_ktv_tech")
     with col_kb2:
-        # Tự động gợi ý điểm vừa tìm ở trên làm mặc định
         idx_mac_dinh = 0
         if diem_tim_kiem in ds_diem_kha_dung:
             idx_mac_dinh = ds_diem_kha_dung.index(diem_tim_kiem)
@@ -416,12 +417,11 @@ else:
     )
 
     # ---------------------------------------------------------
-    # 4. XÁC NHẬN BÁO CÁO & NÚT ZALO
+    # XÁC NHẬN BÁO CÁO & NÚT ZALO
     # ---------------------------------------------------------
     st.markdown("---")
     st.subheader("4. Xác nhận hoàn thành công việc")
 
-    # Lưu thông tin sau khi ghi thành công vào session_state để hiện nút Zalo chuẩn
     if "zalo_share_url" not in st.session_state:
         st.session_state["zalo_share_url"] = None
 
@@ -438,9 +438,9 @@ else:
                 thoi_gian_vn = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
                 
                 link_anh_drive = ""
-                if file_anh:
+                if file_anh and creds_he_thong:
                     ten_file_drive = f"{ma_da_chon}_{diem_chon}_{datetime.now(tz_vn).strftime('%Y%m%d_%H%M%S')}.jpg"
-                    link_anh_drive = tai_anh_len_drive(file_anh, ten_file_drive)
+                    link_anh_drive = tai_anh_len_drive(creds_he_thong, file_anh, ten_file_drive)
 
                 ws_bc = None
                 ws_ld = None
@@ -520,7 +520,7 @@ else:
         if st.button("🔧 ĐÃ LẮP ĐẶT XONG", use_container_width=True, type="primary", key="btn_ld_tech"):
             xu_ly_ghi_nhan("Đã lắp đặt xong")
 
-    # Nút Zalo chính thức dùng st.link_button không bao giờ bị chặn popup
+    # Nút Zalo chuẩn link_button
     if st.session_state.get("zalo_share_url"):
         st.markdown("---")
         st.link_button(
