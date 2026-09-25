@@ -1,14 +1,17 @@
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 from datetime import datetime
 import pytz
 import pandas as pd
 from streamlit_js_eval import get_geolocation
 import urllib.parse
+import io
 
 # -------------------------------------------------------------
-# 1. KIỂM TRA PHÂN QUYỀN ĐƯỜNG DẪN
+# 1. PHÂN QUYỀN ĐƯỜNG DẪN
 # -------------------------------------------------------------
 che_do_xem = st.query_params.get("view", "")
 
@@ -26,7 +29,7 @@ else:
     )
 
 # -------------------------------------------------------------
-# 2. KẾT NỐI GOOGLE SHEETS
+# 2. KẾT NỐI SHEETS & DRIVE
 # -------------------------------------------------------------
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -34,20 +37,43 @@ SCOPES = [
 ]
 
 @st.cache_resource
-def ket_noi_sheets():
+def ket_noi_dich_vu():
     try:
         if "gcp_service_account" in st.secrets:
             creds_info = dict(st.secrets["gcp_service_account"])
             creds = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
         else:
             creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
-        client = gspread.authorize(creds)
-        return client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+        
+        client_sheets = gspread.authorize(creds)
+        file_sheet = client_sheets.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+        drive_service = build("drive", "v3", credentials=creds)
+        return file_sheet, drive_service
     except Exception as e:
         st.error(f"Lỗi kết nối cơ sở dữ liệu: {e}")
-        return None
+        return None, None
 
-sh = ket_noi_sheets()
+sh, drive_service = ket_noi_dich_vu()
+
+def tai_anh_len_drive(file_obj, ten_file):
+    if not drive_service or not file_obj:
+        return ""
+    try:
+        file_metadata = {
+            "name": ten_file,
+            "mimeType": "image/jpeg"
+        }
+        media = MediaIoBaseUpload(io.BytesIO(file_obj.read()), mimetype="image/jpeg", resumable=True)
+        uploaded = drive_service.files().create(body=file_metadata, media_body=media, fields="id, webViewLink").execute()
+        
+        file_id = uploaded.get("id")
+        drive_service.permissions().create(
+            fileId=file_id,
+            body={"role": "reader", "type": "anyone"}
+        ).execute()
+        return uploaded.get("webViewLink", "")
+    except Exception as e:
+        return f"Lỗi tải ảnh: {e}"
 
 # -------------------------------------------------------------
 # 3. ĐỌC DỮ LIỆU ĐA DỰ ÁN & PHÂN BỔ
@@ -57,8 +83,10 @@ danh_sach_du_an = []
 toan_bo_diem_goc = []
 kho_phan_bo_map = {}
 diem_theo_du_an = {}
+trang_thai_diem = {}
 
 if sh:
+    # 1. Danh sách Dự án
     try:
         ws_da = sh.worksheet("DANH_SACH_DU_AN")
         data_da = ws_da.get_all_values()
@@ -73,6 +101,7 @@ if sh:
     except Exception:
         pass
 
+    # 2. Danh sách Điểm gốc (DANH_SACH_DIEM)
     try:
         ws_diem = sh.worksheet("DANH_SACH_DIEM")
         data_diem = ws_diem.get_all_values()
@@ -91,6 +120,21 @@ if sh:
     except Exception:
         pass
 
+    # 3. Lấy trạng thái hiện tại từ TIEN_DO để hỗ trợ tra cứu
+    try:
+        ws_td = sh.worksheet("TIEN_DO")
+        data_td = ws_td.get_all_values()
+        if len(data_td) >= 3:
+            for row in data_td[2:]:
+                if len(row) >= 4:
+                    d_name = row[3].strip()
+                    d_status = row[2].strip()
+                    if d_name:
+                        trang_thai_diem[d_name] = d_status
+    except Exception:
+        pass
+
+    # 4. Kho phân bổ
     try:
         ws_kho = sh.worksheet("KHO_PHAN_BO")
         data_kho = ws_kho.get_all_values()
@@ -223,7 +267,7 @@ if che_do_xem == "lanhdao":
                 st.warning(f"⚡ Tỷ lệ hoàn thiện lắp đặt / giao nhận: **{tl}%**")
 
         st.markdown("---")
-        st.subheader("📋 Nhật Ký Hiện Trường Chi Tiết (Kèm GPS & Ảnh)")
+        st.subheader("📋 Nhật Ký Hiện Trường (Kèm GPS & Ảnh)")
         df_view = df_hien_thi.tail(25).iloc[::-1]
         cfg = {}
         if col_gps_ten in df_view.columns:
@@ -239,14 +283,11 @@ if che_do_xem == "lanhdao":
         st.info("Chưa có dữ liệu báo cáo nào được ghi nhận.")
 
 # =============================================================
-# TRƯỜNG HỢP 2: BÁO CÁO HIỆN TRƯỜNG (KÈM NÚT CHIA SẺ ZALO)
+# TRƯỜNG HỢP 2: BÁO CÁO HIỆN TRƯỜNG & CHỈ ĐƯỜNG ĐIỂM TIẾP THEO
 # =============================================================
 else:
     st.title("📱 HỆ THỐNG ĐIỀU HÀNH HIỆN TRƯỜNG")
-    st.caption("Ghi nhận kết quả triển khai & báo cáo nhanh")
-
-    st.markdown("---")
-    st.subheader("1. Thông tin Dự án & Hiện trường")
+    st.caption("Báo cáo tiến độ & Dẫn đường tới điểm thi công")
 
     lua_chon_da = st.selectbox(
         "Đang thực hiện cho Dự án:",
@@ -259,11 +300,44 @@ else:
     if not ds_diem_kha_dung:
         ds_diem_kha_dung = toan_bo_diem_goc if toan_bo_diem_goc else ["Phường Minh Xuân", "Phường Nông Tiến"]
 
+    # ---------------------------------------------------------
+    # TÍNH NĂNG MỚI: TÌM KIẾM ĐỊA ĐIỂM & CHỈ ĐƯỜNG GOOGLE MAPS
+    # ---------------------------------------------------------
+    with st.expander("🧭 TÌM ĐỊA ĐIỂM & CHỈ ĐƯỜNG TỚI ĐIỂM TIẾP THEO", expanded=False):
+        st.caption("Chọn điểm muốn đến để xem tình trạng và mở Google Maps dẫn đường trực tiếp:")
+        diem_tiep_theo = st.selectbox("Chọn hoặc gõ tìm điểm cần đến:", options=ds_diem_kha_dung, key="sb_next_point")
+        
+        tt_hien_tai = trang_thai_diem.get(diem_tiep_theo, "Chưa thực hiện")
+        if "100%" in tt_hien_tai or "xong" in tt_hien_tai.lower():
+            st.success(f"Trạng thái: **{tt_hien_tai}** (Điểm này đã hoàn thành)")
+        elif "giao" in tt_hien_tai.lower():
+            st.warning(f"Trạng thái: **{tt_hien_tai}** (Cần tiến hành lắp đặt)")
+        else:
+            st.info(f"Trạng thái: **{tt_hien_tai}** (Chưa giao/lắp)")
+
+        # Tạo link dẫn đường Google Maps tự động
+        dia_chi_tim_kiem = f"{diem_tiep_theo}, Tuyên Quang"
+        maps_navigate_url = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_tim_kiem)}"
+        
+        st.markdown(f"""
+            <a href="{maps_navigate_url}" target="_blank" style="text-decoration:none;">
+                <button style="width:100%; background-color:#28a745; color:white; padding:10px; border:none; border-radius:6px; font-weight:bold; font-size:15px; margin-top:5px; cursor:pointer;">
+                    🚗 MỞ GOOGLE MAPS CHỈ ĐƯỜNG TỚI ĐÂY
+                </button>
+            </a>
+        """, unsafe_allow_html=True)
+
+    # ---------------------------------------------------------
+    # KHU VỰC NHẬP BÁO CÁO THI CÔNG
+    # ---------------------------------------------------------
+    st.markdown("---")
+    st.subheader("1. Thông tin Báo cáo Hiện trường")
+
     col_kb1, col_kb2 = st.columns(2)
     with col_kb1:
         can_bo_chon = st.selectbox("Cán bộ / Đội trưởng:", options=danh_sach_ktv, key="sb_ktv_tech")
     with col_kb2:
-        diem_chon = st.selectbox("Địa điểm lắp đặt:", options=ds_diem_kha_dung, key="sb_diem_tech")
+        diem_chon = st.selectbox("Địa điểm vừa thực hiện:", options=ds_diem_kha_dung, key="sb_diem_tech")
 
     key_tra_cuu = (ma_da_chon, diem_chon)
     danh_sach_tb = kho_phan_bo_map.get(key_tra_cuu, [])
@@ -307,21 +381,15 @@ else:
             "doi_nhan": "VHH"
         })
 
-    # TÍNH NĂNG ẢNH
+    # CHỤP ẢNH / TẢI ẢNH
     st.markdown("---")
-    st.subheader("2. Ảnh Nghiệm thu / Biên bản")
-    tab_cam, tab_file = st.tabs(["📷 Chụp trực tiếp", "📁 Chọn từ thư viện"])
-    file_anh = None
-    with tab_cam:
-        anh_chup = st.camera_input("Chụp ảnh nghiệm thu:")
-        if anh_chup: file_anh = anh_chup
-    with tab_file:
-        anh_tai_len = st.file_uploader("Hoặc tải ảnh từ máy:", type=["jpg", "jpeg", "png"])
-        if anh_tai_len: file_anh = anh_tai_len
+    st.subheader("2. Chụp ảnh nghiệm thu / Biên bản")
+    st.caption("Chạm vào bên dưới để chụp ảnh bằng Camera sau hoặc tải ảnh:")
+    file_anh = st.file_uploader("Chụp hoặc tải ảnh hiện trường:", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+    if file_anh:
+        st.image(file_anh, caption="Ảnh xem trước", width=250)
 
-    ghi_chu_anh = "Đã đính kèm ảnh" if file_anh else "Không có ảnh"
-
-    # GPS
+    # GPS VỊ TRÍ HIỆN TẠI
     st.markdown("---")
     st.subheader("3. Định vị Hiện trường (GPS)")
     location = get_geolocation()
@@ -335,7 +403,7 @@ else:
         st.warning("⚠️ Nếu thiết bị hỏi quyền vị trí, hãy chọn 'Cho phép' (Allow).")
 
     link_gps_cuoi = st.text_input(
-        "Link Google Maps:",
+        "Link Google Maps hiện tại:",
         value=link_maps_tu_dong,
         placeholder="https://www.google.com/maps?q=...",
         key="inp_gps_tech"
@@ -352,11 +420,16 @@ else:
             st.error("Không có kết nối với Google Sheets.")
             return
         
-        with st.spinner("Đang ghi nhận dữ liệu..."):
+        with st.spinner("Đang lưu trữ dữ liệu và tải ảnh lên hệ thống..."):
             try:
                 tz_vn = pytz.timezone('Asia/Ho_Chi_Minh')
                 thoi_gian_vn = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
                 
+                link_anh_drive = ""
+                if file_anh:
+                    ten_file_drive = f"{ma_da_chon}_{diem_chon}_{datetime.now(tz_vn).strftime('%Y%m%d_%H%M%S')}.jpg"
+                    link_anh_drive = tai_anh_len_drive(file_anh, ten_file_drive)
+
                 ws_bc = None
                 ws_ld = None
                 ws_vc = None
@@ -393,16 +466,24 @@ else:
                         ])
 
                     if ws_bc:
+                        noi_dung_tt = loai_hinh
+                        if link_anh_drive and "http" in link_anh_drive:
+                            noi_dung_tt = f"{loai_hinh} - [Xem ảnh]({link_anh_drive})"
+                        
                         ws_bc.append_row([
-                            thoi_gian_vn, f"[{ma_da_chon}] {can_bo_chon}",
-                            f"{diem_chon} ({ten_tb})", sl, link_gps_cuoi,
-                            f"{loai_hinh} - {ghi_chu_anh}"
+                            thoi_gian_vn,
+                            f"[{ma_da_chon}] {can_bo_chon}",
+                            f"{diem_chon} ({ten_tb})",
+                            sl,
+                            link_gps_cuoi,
+                            noi_dung_tt
                         ])
 
                 st.success(f"✅ Ghi nhận thành công cho [{ma_da_chon}] tại {diem_chon}!")
                 
-                # Soạn sẵn nội dung chia sẻ Zalo
                 text_tb_str = ", ".join(ds_tb_text)
+                link_anh_kem = f"\n📸 Link ảnh nghiệm thu: {link_anh_drive}" if (link_anh_drive and "http" in link_anh_drive) else ""
+                
                 noi_dung_zalo = (
                     f"📢 [BÁO CÁO TIẾN ĐỘ]\n"
                     f"▪ Dự án: {lua_chon_da}\n"
@@ -412,9 +493,9 @@ else:
                     f"▪ Thiết bị: {text_tb_str}\n"
                     f"▪ Thời gian: {thoi_gian_vn}\n"
                     f"📍 Vị trí GPS: {link_gps_cuoi if link_gps_cuoi else 'Chưa có'}"
+                    f"{link_anh_kem}"
                 )
                 
-                # Nút bấm mở Zalo gửi ngay
                 zalo_url = f"https://zalo.me/share?text={urllib.parse.quote(noi_dung_zalo)}"
                 st.markdown(f"""
                     <a href="{zalo_url}" target="_blank" style="text-decoration:none;">
