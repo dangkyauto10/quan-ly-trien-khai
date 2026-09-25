@@ -5,7 +5,7 @@ import requests
 import urllib.parse
 
 st.set_page_config(
-    page_title="Hệ Thống Quản Lý Triển Khai Hiện Trường",
+    page_title="Báo Cáo Tiến Độ Thực Hiện Dự Án",
     page_icon="📡",
     layout="wide"
 )
@@ -64,10 +64,10 @@ elif view_mode == "lanhdao":
     st.info("💡 Toàn bộ dữ liệu được quản trị tập trung tại Google Sheets của Ban Quản lý.")
 
 # ==============================================================================
-# 3. TẦNG 2: HIỆN TRƯỜNG TÁC NGHIỆP - TỰ DO TÌM ĐƯỜNG, ĐỊNH VỊ GPS & BÁO CÁO
+# 3. TẦNG 2: BÁO CÁO TIẾN ĐỘ THỰC HIỆN DỰ ÁN
 # ==============================================================================
 else:
-    st.title("🛠️ Báo Cáo Hiện Trường Thực Địa")
+    st.title("🛠️ BÁO CÁO TIẾN ĐỘ THỰC HIỆN DỰ ÁN")
     st.caption("Tra cứu đường đi, lấy tọa độ GPS thực địa & nghiệm thu công việc")
     
     # --- PHẦN 1: THÔNG TIN DỰ ÁN & ĐỊNH MỨC VẬT TƯ (KHÓA CHỐNG SỬA) ---
@@ -107,7 +107,6 @@ else:
     col_nav1, col_nav2 = st.columns([1.2, 1])
     
     with col_nav1:
-        # Cho phép gõ địa chỉ bất kỳ để tìm đường tới điểm tiếp theo
         dia_chi_mac_dinh = info_diem.get("dia_chi", "TP Tuyên Quang")
         dia_chi_tim_duong = st.text_input(
             "Nhập địa chỉ / Điểm cần đến tiếp theo:", 
@@ -155,7 +154,6 @@ else:
 
     # --- PHẦN 3: FORM XÁC NHẬN BÁO CÁO CÔNG VIỆC ---
     with st.form("form_hientruong"):
-        # Tùy chọn 1 chạm dành riêng cho đội kiêm nhiệm
         tinh_trang = st.radio(
             "Xác nhận tình trạng công việc *",
             [
