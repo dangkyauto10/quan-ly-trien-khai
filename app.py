@@ -25,19 +25,32 @@ else:
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
 
 # ==============================================================================
-# DANH MỤC CÁC ĐỘI ĐÃ ĐƯỢC DUYỆT
+# DANH MỤC CÁC ĐỘI QUY CHIẾU CHUẨN XÁC THEO BẢNG DỮ LIỆU (ẢNH 1)
 # ==============================================================================
 DANH_SACH_DOI_CHUAN = [
     "VHH",
-    "Đội KTV 001",
-    "Đội KTV 002",
-    "Đội KTV 003",
-    "Đội KTV 004",
-    "Đội KTV 005",
+    "NTH",
+    "Vinh Bắc Mê",
+    "Nguyễn Văn A",
+    "Trần Văn B",
     "Đội KTV 006",
-    "Đội Vận Chuyển 01",
-    "Đội Vận Chuyển 02",
-    "Vỹ - Hạnh - Hiển (Nguyễn Văn A)",
+    "Đội KTV 007",
+    "Đội KTV 008",
+    "Đội KTV 009",
+    "Đội KTV 010",
+    "Đội KTV 011",
+    "Đội KTV 012",
+    "Đội KTV 013",
+    "Đội KTV 014",
+    "Đội KTV 015",
+    "Đội KTV 016",
+    "Đội KTV 017",
+    "Đội KTV 018",
+    "Đội KTV 019",
+    "Đội KTV 020",
+    "Đội KTV 021",
+    "Đội KTV 022",
+    "Đội KTV 023",
     "🔍 [Tự nhập tên đội khác...]"
 ]
 
@@ -197,42 +210,48 @@ else:
     with col_a:
         ma_da = st.selectbox("Mã dự án *", ["DA880", "Dự án khác"])
         
-        # 1 Ô DUY NHẤT: CHẠM VÀO LÀ HIỆN DANH SÁCH GỢI Ý & GÕ ĐƯỢC NGAY
+        # Ô CHỌN ĐỘI: CHẠM VÀO LÀ GÕ ĐƯỢC NGAY - KHÔNG PHẢI XÓA CHỮ CŨ (INDEX=NONE)
         doi_thuc_hien_chon = st.selectbox(
             "Đội thực hiện *",
             options=DANH_SACH_DOI_CHUAN,
-            index=0,
-            placeholder="Chạm vào để chọn hoặc gõ tên đội...",
-            help="Chạm vào là danh sách gợi ý hiện lên, gõ để lọc nhanh."
+            index=None,
+            placeholder="🔎 Chạm vào để gõ tìm đội (VHH, NTH, 006...)",
+            help="Chạm vào là gõ được ngay, danh sách gợi ý sẽ tự lọc bên dưới."
         )
         
-        if "Tự nhập" in doi_thuc_hien_chon:
+        # Nếu chưa chọn thì mặc định đội VHH để không bị lỗi form
+        if not doi_thuc_hien_chon:
+            doi_thuc_hien = "VHH"
+        elif "Tự nhập" in doi_thuc_hien_chon:
             doi_thuc_hien = st.text_input("Gõ chính xác tên đội mới:")
         else:
             doi_thuc_hien = doi_thuc_hien_chon
 
     with col_b:
-        # 1 Ô DUY NHẤT: CHẠM VÀO LÀ HIỆN GỢI Ý PHƯỜNG / XÃ & GÕ ĐƯỢC NGAY
+        # Ô CHỌN ĐIỂM: CHẠM VÀO LÀ GÕ ĐƯỢC NGAY - KHÔNG PHẢI XÓA CHỮ CŨ (INDEX=NONE)
         diem_duoc_chon = st.selectbox(
             "Điểm tác nghiệp (Chỉ hiển thị tên phường/xã) *",
             options=DANH_SACH_TEN_XA,
-            index=0,
-            placeholder="Chạm vào để chọn hoặc gõ tên phường/xã...",
-            help="Chạm vào là danh sách phường/xã hiện ra, gõ chữ để tìm nhanh."
+            index=None,
+            placeholder="🔎 Chạm vào để gõ tìm phường/xã (Minh Xuân, Nhữ Khê...)",
+            help="Chạm vào là gõ được ngay, danh sách phường/xã sẽ tự lọc bên dưới."
         )
         
-        if "Tự nhập" in diem_duoc_chon:
+        # Nếu chưa chọn thì mặc định lấy Phường Minh Xuân
+        diem_hien_tai = diem_duoc_chon if diem_duoc_chon else "Phường Minh Xuân"
+        
+        if "Tự nhập" in diem_hien_tai:
             diem_thuc_te = st.text_input("Gõ tên địa điểm cụ thể:")
             so_luong_chuan = 5
             tuyen_duong = "Điểm tác nghiệp mới"
             dia_chi_mac_dinh = f"{diem_thuc_te}, Tuyên Quang" if diem_thuc_te else "TP Tuyên Quang"
             toa_do_chuan = "21.83059,105.19240"
         else:
-            diem_thuc_te = diem_duoc_chon
-            info = DANH_SACH_DIEM_CHUAN[diem_duoc_chon]
+            diem_thuc_te = diem_hien_tai
+            info = DANH_SACH_DIEM_CHUAN.get(diem_hien_tai, {"tuyen": "T01 - Nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 5, "toa_do": "21.83059,105.19240"})
             so_luong_chuan = info["so_luong"]
             tuyen_duong = info["tuyen"]
-            dia_chi_mac_dinh = f"{diem_duoc_chon}, {info['huyen']}, Tuyên Quang"
+            dia_chi_mac_dinh = f"{diem_hien_tai}, {info['huyen']}, Tuyên Quang"
             toa_do_chuan = info["toa_do"]
 
         st.number_input(
