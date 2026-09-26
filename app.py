@@ -25,7 +25,7 @@ else:
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
 
 # ==============================================================================
-# DANH MỤC CÁC ĐỘI ĐÃ ĐƯỢC DUYỆT TRONG DỰ ÁN
+# DANH MỤC CÁC ĐỘI ĐÃ ĐƯỢC DUYỆT
 # ==============================================================================
 DANH_SACH_DOI_CHUAN = [
     "VHH",
@@ -37,11 +37,12 @@ DANH_SACH_DOI_CHUAN = [
     "Đội KTV 006",
     "Đội Vận Chuyển 01",
     "Đội Vận Chuyển 02",
-    "Vỹ - Hạnh - Hiển (Nguyễn Văn A)"
+    "Vỹ - Hạnh - Hiển (Nguyễn Văn A)",
+    "🔍 [Tự nhập tên đội khác...]"
 ]
 
 # ==============================================================================
-# CƠ SỞ DỮ LIỆU ĐỊA BÀN: CHUẨN TÊN NGUYÊN BẢN PHƯỜNG / XÃ
+# CƠ SỞ DỮ LIỆU ĐỊA BÀN: NGUYÊN TÊN PHƯỜNG / XÃ
 # ==============================================================================
 DANH_SACH_DIEM_CHUAN = {
     # Tuyến T01: Tuyên Quang nội tỉnh
@@ -82,7 +83,7 @@ DANH_SACH_DIEM_CHUAN = {
     "Xã Tri Phú": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.18000,105.21000"}
 }
 
-DANH_SACH_TEN_XA = list(DANH_SACH_DIEM_CHUAN.keys())
+DANH_SACH_TEN_XA = list(DANH_SACH_DIEM_CHUAN.keys()) + ["🔍 [Tự nhập điểm khác...]"]
 
 # ==============================================================================
 # NHÁNH 1: ĐĂNG KÝ THÀNH VIÊN (?view=dangky)
@@ -196,71 +197,43 @@ else:
     with col_a:
         ma_da = st.selectbox("Mã dự án *", ["DA880", "Dự án khác"])
         
-        # Ô GÕ TÌM ĐỘI: CHẠM VÀO GÕ NGAY
-        nhap_doi = st.text_input(
-            "Đội thực hiện (Chạm vào gõ ngay) *",
-            value="",
-            placeholder="Chạm vào gõ tên đội (Ví dụ: VHH, 003, 004...)",
-            help="Chạm vào là gõ ngay mà không phải xóa chữ. Gõ vài ký tự sẽ có gợi ý bên dưới."
+        # 1 Ô DUY NHẤT: CHẠM VÀO LÀ HIỆN DANH SÁCH GỢI Ý & GÕ ĐƯỢC NGAY
+        doi_thuc_hien_chon = st.selectbox(
+            "Đội thực hiện *",
+            options=DANH_SACH_DOI_CHUAN,
+            index=0,
+            placeholder="Chạm vào để chọn hoặc gõ tên đội...",
+            help="Chạm vào là danh sách gợi ý hiện lên, gõ để lọc nhanh."
         )
         
-        tu_khoa_doi = nhap_doi.strip().lower()
-        goi_y_doi = [d for d in DANH_SACH_DOI_CHUAN if tu_khoa_doi in d.lower()] if tu_khoa_doi else DANH_SACH_DOI_CHUAN
-        
-        if not nhap_doi.strip():
-            doi_thuc_hien = st.selectbox(
-                "Hoặc bấm chọn nhanh từ danh mục đội:",
-                options=DANH_SACH_DOI_CHUAN,
-                index=0
-            )
+        if "Tự nhập" in doi_thuc_hien_chon:
+            doi_thuc_hien = st.text_input("Gõ chính xác tên đội mới:")
         else:
-            if goi_y_doi:
-                st.caption("💡 *Đội khớp gợi ý:* " + " | ".join(goi_y_doi[:3]))
-                doi_thuc_hien = goi_y_doi[0]
-            else:
-                doi_thuc_hien = nhap_doi.strip()
-            st.info(f"👉 Đội ghi nhận: **{doi_thuc_hien}**")
+            doi_thuc_hien = doi_thuc_hien_chon
 
     with col_b:
-        # Ô GÕ TÌM ĐIỂM: CHẠM VÀO GÕ NGAY - CHỈ HIỂN THỊ NGUYÊN TÊN PHƯỜNG XÃ
-        nhap_diem = st.text_input(
-            "Điểm tác nghiệp (Chạm vào gõ ngay) *",
-            value="",
-            placeholder="Chạm vào gõ tên phường/xã (Ví dụ: Minh Xuân, Nhữ Khê...)",
-            help="Chạm vào là gõ ngay không phải xóa chữ cũ. Gõ tên xã hoặc phường sẽ có gợi ý bên dưới."
+        # 1 Ô DUY NHẤT: CHẠM VÀO LÀ HIỆN GỢI Ý PHƯỜNG / XÃ & GÕ ĐƯỢC NGAY
+        diem_duoc_chon = st.selectbox(
+            "Điểm tác nghiệp (Chỉ hiển thị tên phường/xã) *",
+            options=DANH_SACH_TEN_XA,
+            index=0,
+            placeholder="Chạm vào để chọn hoặc gõ tên phường/xã...",
+            help="Chạm vào là danh sách phường/xã hiện ra, gõ chữ để tìm nhanh."
         )
         
-        tu_khoa_diem = nhap_diem.strip().lower()
-        goi_y_diem = [d for d in DANH_SACH_TEN_XA if tu_khoa_diem in d.lower()] if tu_khoa_diem else DANH_SACH_TEN_XA
-        
-        if not nhap_diem.strip():
-            diem_duoc_chon = st.selectbox(
-                "Hoặc chọn nhanh từ danh sách phường/xã:",
-                options=DANH_SACH_TEN_XA + ["🔍 [Tự nhập điểm khác...]"],
-                index=0
-            )
+        if "Tự nhập" in diem_duoc_chon:
+            diem_thuc_te = st.text_input("Gõ tên địa điểm cụ thể:")
+            so_luong_chuan = 5
+            tuyen_duong = "Điểm tác nghiệp mới"
+            dia_chi_mac_dinh = f"{diem_thuc_te}, Tuyên Quang" if diem_thuc_te else "TP Tuyên Quang"
+            toa_do_chuan = "21.83059,105.19240"
         else:
-            if goi_y_diem:
-                st.caption("💡 *Phường/Xã gợi ý:* " + " | ".join(goi_y_diem[:3]))
-                diem_duoc_chon = goi_y_diem[0]
-            else:
-                diem_duoc_chon = nhap_diem.strip()
-            st.info(f"📍 Điểm ghi nhận: **{diem_duoc_chon}**")
-        
-        # Tra cứu thông tin điểm đã chọn
-        if diem_duoc_chon in DANH_SACH_DIEM_CHUAN:
-            info = DANH_SACH_DIEM_CHUAN[diem_duoc_chon]
             diem_thuc_te = diem_duoc_chon
+            info = DANH_SACH_DIEM_CHUAN[diem_duoc_chon]
             so_luong_chuan = info["so_luong"]
             tuyen_duong = info["tuyen"]
             dia_chi_mac_dinh = f"{diem_duoc_chon}, {info['huyen']}, Tuyên Quang"
             toa_do_chuan = info["toa_do"]
-        else:
-            diem_thuc_te = diem_duoc_chon
-            so_luong_chuan = 5
-            tuyen_duong = "Điểm tác nghiệp mới"
-            dia_chi_mac_dinh = f"{diem_duoc_chon}, Tuyên Quang"
-            toa_do_chuan = "21.83059,105.19240"
 
         st.number_input(
             f"Số lượng thiết bị định mức ({tuyen_duong}) - [KHÓA CỐ ĐỊNH]", 
@@ -271,28 +244,14 @@ else:
 
     st.markdown("---")
 
-    # KHU VỰC VỊ TRÍ ĐẾN: DẪN ĐƯỜNG & GPS
+    # KHU VỰC DẪN ĐƯỜNG & GPS
     st.markdown("### 🗺️ Tiện Ích Dẫn Đường & Định Vị Thực Địa")
     col_nav1, col_nav2 = st.columns([1.3, 1])
     
     with col_nav1:
-        nhap_tim_duong = st.text_input(
-            "📍 Vị trí đến (Chạm vào gõ ngay - có gợi ý điểm):",
-            value="",
-            placeholder=f"Gõ tìm điểm tiếp theo (Mặc định: {dia_chi_mac_dinh})",
-            help="Chạm tay vào là gõ được ngay. Gõ tên xã, phường hoặc thôn/xóm bất kỳ."
-        )
-        
-        dia_chi_chi_duong = nhap_tim_duong.strip() if nhap_tim_duong.strip() else dia_chi_mac_dinh
-        
-        if nhap_tim_duong.strip():
-            tu_khoa = nhap_tim_duong.strip().lower()
-            goi_y_khop = [f"{d}, {DANH_SACH_DIEM_CHUAN[d]['huyen']}" for d in DANH_SACH_TEN_XA if tu_khoa in d.lower()]
-            if goi_y_khop:
-                st.caption("💡 *Gợi ý điểm khớp từ danh bạ:* " + " | ".join(goi_y_khop[:3]))
-
-        url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_chi_duong)}"
-        st.link_button(f"🚗 Mở Google Maps chỉ đường tới {dia_chi_chi_duong.split(',')[0]}", url_chiduong)
+        st.write(f"**Điểm đến hiện tại:** `{dia_chi_mac_dinh}`")
+        url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_mac_dinh)}"
+        st.link_button(f"🚗 Mở Google Maps chỉ đường tới {diem_thuc_te}", url_chiduong)
 
     with col_nav2:
         st.write("**Lấy tọa độ GPS thực tế nơi đang đứng:**")
