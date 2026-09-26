@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 import pandas as pd
 import requests
 import urllib.parse
+import base64
 
 st.set_page_config(
     page_title="Hệ Thống Quản Lý & Điều Hành Dự Án 880",
@@ -10,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. BỘ XỬ LÝ ĐIỀU HƯỚNG LINH HOẠT (HỖ TRỢ CẢ LINK URL VÀ NÚT CHUYỂN TRÊN GIAO DIỆN)
+# 1. BỘ XỬ LÝ ĐIỀU HƯỚNG LINH HOẠT
 try:
     params = dict(st.query_params)
     raw_view = params.get("view", "hientruong")
@@ -27,7 +28,6 @@ DANH_SACH_MENU = [
     "📊 Giám sát lãnh đạo"
 ]
 
-# Tự động chọn tab tương ứng theo link URL nếu có
 index_mac_dinh = 0
 if "duyet" in raw_view:
     index_mac_dinh = 1
@@ -36,7 +36,6 @@ elif "dangky" in raw_view:
 elif "lanhdao" in raw_view:
     index_mac_dinh = 3
 
-# THANH ĐIỀU HƯỚNG TRÊN ĐẦU TRANG CHO ĐIỆN THOẠI
 che_do_chon = st.radio(
     "📌 Chuyển nhanh giao diện:",
     options=DANH_SACH_MENU,
@@ -45,7 +44,7 @@ che_do_chon = st.radio(
 )
 
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
-ADMIN_PIN = "880880"  # Mã PIN bảo mật duyệt trên điện thoại
+ADMIN_PIN = "880880"
 
 # ==============================================================================
 # DANH MỤC CÁC ĐỘI QUY CHIẾU THEO SHEET QUẢN LÝ ĐỘI
@@ -225,7 +224,7 @@ elif che_do_chon == "📊 Giám sát lãnh đạo":
 # ==============================================================================
 else:
     st.title("🛠️ BÁO CÁO TIẾN ĐỘ THỰC HIỆN DỰ ÁN")
-    st.caption("Tra cứu tuyến đường, lấy tọa độ GPS thực địa & nghiệm thu công việc")
+    st.caption("Tra cứu tuyến đường, chụp ảnh nghiệm thu, lấy GPS & hoàn tất công việc")
     
     col_a, col_b = st.columns(2)
     with col_a:
@@ -317,6 +316,27 @@ else:
 
     st.markdown("---")
 
+    # KHU VỰC CHỤP ẢNH HIỆN TRƯỜNG & NGHIỆM THU
+    st.markdown("### 📷 Chụp Ảnh Hiện Trường & Bàn Giao Thiết Bị")
+    tab_cam, tab_file = st.tabs(["📸 Chụp trực tiếp bằng Camera", "📁 Tải ảnh từ thư viện máy"])
+    
+    anh_base64 = ""
+    with tab_cam:
+        anh_chup = st.camera_input("Chạm để bật camera chụp ảnh hiện trường:")
+        if anh_chup is not None:
+            bytes_data = anh_chup.getvalue()
+            anh_base64 = base64.b64encode(bytes_data).decode()
+            st.success("✅ Đã chụp ảnh hiện trường thành công!")
+            
+    with tab_file:
+        anh_tai_len = st.file_uploader("Hoặc chọn ảnh đã chụp sẵn trong máy:", type=["jpg", "jpeg", "png"])
+        if anh_tai_len is not None and not anh_base64:
+            bytes_data = anh_tai_len.getvalue()
+            anh_base64 = base64.b64encode(bytes_data).decode()
+            st.success("✅ Đã tải ảnh lên thành công!")
+
+    st.markdown("---")
+
     # FORM BÁO CÁO CÔNG VIỆC
     with st.form("form_hientruong"):
         tinh_trang = st.radio(
@@ -336,6 +356,8 @@ else:
             help="Hệ thống tự điền tọa độ hoặc thợ bấm dán link GPS vừa copy vào đây."
         )
         
+        ghi_chu = st.text_input("Ghi chú hiện trường (nếu có):", placeholder="Ví dụ: Đã bàn giao chìa khóa tủ rack, tín hiệu tốt...")
+        
         btn_gui = st.form_submit_button("XÁC NHẬN BÁO CÁO NGHIỆM THU")
         if btn_gui:
             payload = {
@@ -344,11 +366,13 @@ else:
                 "diem_lap_dat": diem_thuc_te,
                 "so_luong": 5,
                 "tinh_trang": tinh_trang,
-                "link_maps": link_maps
+                "link_maps": link_maps,
+                "ghi_chu": ghi_chu,
+                "anh_hien_truong": anh_base64
             }
             try:
-                resp = requests.post(WEBHOOK_URL, json=payload, timeout=15)
-                st.success(f"🎉 Đã gửi thành công! Đội: {doi_thuc_hien} | Trạng thái: {tinh_trang} tại {diem_thuc_te}.")
+                resp = requests.post(WEBHOOK_URL, json=payload, timeout=20)
+                st.success(f"🎉 Đã gửi thành công! Đội: {doi_thuc_hien} | Trạng thái: {tinh_trang} tại {diem_thuc_te} kèm ảnh hiện trường.")
                 st.balloons()
             except Exception as e:
                 st.warning("⚠️ Báo cáo đã ghi nhận, hệ thống đang đồng bộ về Google Sheets.")
