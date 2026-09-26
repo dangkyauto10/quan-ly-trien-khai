@@ -25,7 +25,7 @@ else:
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
 
 # ==============================================================================
-# DANH MỤC CÁC ĐỘI QUY CHIẾU CHUẨN XÁC THEO BẢNG DỮ LIỆU (ẢNH 1)
+# DANH MỤC CÁC ĐỘI QUY CHIẾU THEO SHEET QUẢN LÝ ĐỘI
 # ==============================================================================
 DANH_SACH_DOI_CHUAN = [
     "VHH",
@@ -55,45 +55,45 @@ DANH_SACH_DOI_CHUAN = [
 ]
 
 # ==============================================================================
-# CƠ SỞ DỮ LIỆU ĐỊA BÀN: NGUYÊN TÊN PHƯỜNG / XÃ
+# QUY CHIẾU CHUẨN XÁC 100% THEO CỘT D (SHEET DANH SÁCH ĐIỂM)
 # ==============================================================================
 DANH_SACH_DIEM_CHUAN = {
-    # Tuyến T01: Tuyên Quang nội tỉnh
-    "Phường Minh Xuân": {"tuyen": "T01 - Nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 5, "toa_do": "21.83059,105.19240"},
-    "Phường Nông Tiến": {"tuyen": "T01 - Nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 6, "toa_do": "21.82145,105.22810"},
-    "Phường Bình Thuận": {"tuyen": "T01 - Nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 1, "toa_do": "21.78912,105.18520"},
-    "Phường An Tường": {"tuyen": "T01 - Nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 7, "toa_do": "21.80210,105.20140"},
-    "Phường Mỹ Lâm": {"tuyen": "T01 - Nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 5, "toa_do": "21.78500,105.15000"},
+    # T01: Tuyên Quang nội tỉnh (Dòng 3 -> 7)
+    "Phường Minh Xuân": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 5, "toa_do": "21.83059,105.19240"},
+    "Phường Nông Tiến": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 6, "toa_do": "21.82145,105.22810"},
+    "Phường Bình Thuận": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 1, "toa_do": "21.78912,105.18520"},
+    "Phường An Tường": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 7, "toa_do": "21.80210,105.20140"},
+    "Phường Mỹ Lâm": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 5, "toa_do": "21.78500,105.15000"},
     
-    # Tuyến T02: Yên Sơn Bắc/Đông
-    "Xã Nhữ Khê": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.72000,105.25000"},
-    "Xã Yên Sơn": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.85000,105.28000"},
-    "Xã Tân Long": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.90000,105.29000"},
-    "Xã Lực Hành": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.93000,105.31000"},
-    "Xã Xuân Vân": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.95000,105.32000"},
+    # T02: Yên Sơn – phía Bắc/Đông (Dòng 8 -> 12)
+    "Xã Nhữ Khê": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.72000,105.25000"},
+    "Xã Yên Sơn": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.85000,105.28000"},
+    "Xã Tân Long": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.90000,105.29000"},
+    "Xã Lực Hành": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.93000,105.31000"},
+    "Xã Xuân Vân": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.95000,105.32000"},
     
-    # Tuyến T03: Yên Sơn Kiến Thiết
-    "Xã Thái Bình": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.82000,105.35000"},
-    "Xã Hùng Lợi": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.75000,105.40000"},
-    "Xã Trung Sơn": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.79000,105.43000"},
-    "Xã Kiến Thiết": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.86000,105.45000"},
-    "Xã Đông Thọ": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn", "so_luong": 5, "toa_do": "21.68000,105.38000"},
+    # T03: Yên Sơn – Kiến Thiết (Dòng 13 -> 17)
+    "Xã Thái Bình": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.82000,105.35000"},
+    "Xã Hùng Lợi": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.75000,105.40000"},
+    "Xã Trung Sơn": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.79000,105.43000"},
+    "Xã Kiến Thiết": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.86000,105.45000"},
+    "Xã Đông Thọ": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.68000,105.38000"},
     
-    # Tuyến T04: Sơn Dương
-    "Xã Hồng Sơn": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.65000,105.35000"},
-    "Xã Trường Sinh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.61000,105.32000"},
-    "Xã Phú Lương": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.62000,105.39000"},
-    "Xã Sơn Thủy": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.67000,105.41000"},
-    "Xã Minh Thanh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.74000,105.42000"},
-    "Xã Tân Trào": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.77000,105.44000"},
-    "Xã Tân Thanh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.71000,105.39000"},
-    "Xã Bình Ca": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.73000,105.31000"},
-    "Xã Sơn Dương": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương", "so_luong": 5, "toa_do": "21.70000,105.37000"},
+    # T04: Sơn Dương (Dòng 18 -> 26)
+    "Xã Hồng Sơn": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.65000,105.35000"},
+    "Xã Trường Sinh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.61000,105.32000"},
+    "Xã Phú Lương": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.62000,105.39000"},
+    "Xã Sơn Thủy": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.67000,105.41000"},
+    "Xã Minh Thanh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.74000,105.42000"},
+    "Xã Tân Trào": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.77000,105.44000"},
+    "Xã Tân Thanh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.71000,105.39000"},
+    "Xã Bình Ca": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.73000,105.31000"},
+    "Xã Sơn Dương": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.70000,105.37000"},
     
-    # Tuyến T05: Chiêm Hóa
-    "Xã Yên Nguyên": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.05000,105.20000"},
-    "Xã Kim Bình": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.12000,105.23000"},
-    "Xã Tri Phú": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa", "so_luong": 5, "toa_do": "22.18000,105.21000"}
+    # T05: Chiêm Hóa (Dòng 27 -> 29)
+    "Xã Yên Nguyên": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa cũ", "so_luong": 5, "toa_do": "22.05000,105.20000"},
+    "Xã Kim Bình": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa cũ", "so_luong": 5, "toa_do": "22.12000,105.23000"},
+    "Xã Tri Phú": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa cũ", "so_luong": 5, "toa_do": "22.18000,105.21000"}
 }
 
 DANH_SACH_TEN_XA = list(DANH_SACH_DIEM_CHUAN.keys()) + ["🔍 [Tự nhập điểm khác...]"]
@@ -210,7 +210,7 @@ else:
     with col_a:
         ma_da = st.selectbox("Mã dự án *", ["DA880", "Dự án khác"])
         
-        # Ô CHỌN ĐỘI: CHẠM VÀO LÀ GÕ ĐƯỢC NGAY - KHÔNG PHẢI XÓA CHỮ CŨ (INDEX=NONE)
+        # Ô CHỌN ĐỘI: CHẠM VÀO GÕ NGAY (INDEX=NONE, KHÔNG CẦN XÓA CHỮ)
         doi_thuc_hien_chon = st.selectbox(
             "Đội thực hiện *",
             options=DANH_SACH_DOI_CHUAN,
@@ -219,7 +219,6 @@ else:
             help="Chạm vào là gõ được ngay, danh sách gợi ý sẽ tự lọc bên dưới."
         )
         
-        # Nếu chưa chọn thì mặc định đội VHH để không bị lỗi form
         if not doi_thuc_hien_chon:
             doi_thuc_hien = "VHH"
         elif "Tự nhập" in doi_thuc_hien_chon:
@@ -228,7 +227,7 @@ else:
             doi_thuc_hien = doi_thuc_hien_chon
 
     with col_b:
-        # Ô CHỌN ĐIỂM: CHẠM VÀO LÀ GÕ ĐƯỢC NGAY - KHÔNG PHẢI XÓA CHỮ CŨ (INDEX=NONE)
+        # Ô CHỌN ĐIỂM: QUY CHIẾU THEO CỘT D (SHEET DANH SÁCH ĐIỂM)
         diem_duoc_chon = st.selectbox(
             "Điểm tác nghiệp (Chỉ hiển thị tên phường/xã) *",
             options=DANH_SACH_TEN_XA,
@@ -237,7 +236,6 @@ else:
             help="Chạm vào là gõ được ngay, danh sách phường/xã sẽ tự lọc bên dưới."
         )
         
-        # Nếu chưa chọn thì mặc định lấy Phường Minh Xuân
         diem_hien_tai = diem_duoc_chon if diem_duoc_chon else "Phường Minh Xuân"
         
         if "Tự nhập" in diem_hien_tai:
@@ -248,7 +246,7 @@ else:
             toa_do_chuan = "21.83059,105.19240"
         else:
             diem_thuc_te = diem_hien_tai
-            info = DANH_SACH_DIEM_CHUAN.get(diem_hien_tai, {"tuyen": "T01 - Nội tỉnh", "huyen": "TP Tuyên Quang", "so_luong": 5, "toa_do": "21.83059,105.19240"})
+            info = DANH_SACH_DIEM_CHUAN.get(diem_hien_tai, {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 5, "toa_do": "21.83059,105.19240"})
             so_luong_chuan = info["so_luong"]
             tuyen_duong = info["tuyen"]
             dia_chi_mac_dinh = f"{diem_hien_tai}, {info['huyen']}, Tuyên Quang"
