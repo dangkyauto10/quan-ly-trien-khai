@@ -1,296 +1,37 @@
-import streamlit as st
-import streamlit.components.v1 as components
-import pandas as pd
-import requests
-import urllib.parse
-
-st.set_page_config(
-    page_title="Hệ Thống Quản Lý & Điều Hành Dự Án 880",
-    page_icon="📡",
-    layout="wide"
-)
-
-# 1. BỘ XỬ LÝ NHẬN DIỆN LINK
-try:
-    params = dict(st.query_params)
-    raw_view = params.get("view", "hientruong")
-except Exception:
-    raw_view = "hientruong"
-
-if isinstance(raw_view, list):
-    view_mode = raw_view[0] if len(raw_view) > 0 else "hientruong"
-else:
-    view_mode = str(raw_view).strip().lower()
-
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
-
-# ==============================================================================
-# DANH MỤC CÁC ĐỘI QUY CHIẾU CHUẨN XÁC THEO SHEET QUẢN LÝ ĐỘI
-# ==============================================================================
-DANH_SACH_DOI_CHUAN = [
-    "VHH", "NTH", "Vinh Bắc Mê", "Nguyễn Văn A", "Trần Văn B",
-    "Đội KTV 006", "Đội KTV 007", "Đội KTV 008", "Đội KTV 009", "Đội KTV 010",
-    "Đội KTV 011", "Đội KTV 012", "Đội KTV 013", "Đội KTV 014", "Đội KTV 015",
-    "Đội KTV 016", "Đội KTV 017", "Đội KTV 018", "Đội KTV 019", "Đội KTV 020",
-    "Đội KTV 021", "Đội KTV 022", "Đội KTV 023", "🔍 [Tự nhập tên đội khác...]"
-]
-
-# ==============================================================================
-# QUY CHIẾU TOÀN BỘ 27 ĐIỂM CỘT D (SHEET DANH SÁCH ĐIỂM)
-# ==============================================================================
-DANH_SACH_DIEM_CHUAN = {
-    # T01: Tuyên Quang nội tỉnh
-    "Phường Minh Xuân": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 5, "toa_do": "21.83059,105.19240"},
-    "Phường Nông Tiến": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 6, "toa_do": "21.82145,105.22810"},
-    "Phường Bình Thuận": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 1, "toa_do": "21.78912,105.18520"},
-    "Phường An Tường": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 7, "toa_do": "21.80210,105.20140"},
-    "Phường Mỹ Lâm": {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 5, "toa_do": "21.78500,105.15000"},
+// HÀM ĐỌC TỰ ĐỘNG TOÀN BỘ CỘT D GỬI SANG APP
+function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    // Tìm đúng sheet DANH SÁCH ĐIỂM
+    var sheet = ss.getSheetByName("DANH SÁCH ĐIỂM");
+    if (!sheet) {
+      sheet = ss.getSheets()[0];
+    }
     
-    # T02: Yên Sơn – phía Bắc/Đông
-    "Xã Nhữ Khê": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.72000,105.25000"},
-    "Xã Yên Sơn": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.85000,105.28000"},
-    "Xã Tân Long": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.90000,105.29000"},
-    "Xã Lực Hành": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.93000,105.31000"},
-    "Xã Xuân Vân": {"tuyen": "T02 - Yên Sơn Bắc/Đông", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.95000,105.32000"},
+    var lastRow = sheet.getLastRow();
+    var danhSachDiem = [];
     
-    # T03: Yên Sơn – Kiến Thiết
-    "Xã Thái Bình": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.82000,105.35000"},
-    "Xã Hùng Lợi": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.75000,105.40000"},
-    "Xã Trung Sơn": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.79000,105.43000"},
-    "Xã Kiến Thiết": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.86000,105.45000"},
-    "Xã Đông Thọ": {"tuyen": "T03 - Yên Sơn Kiến Thiết", "huyen": "Huyện Yên Sơn cũ", "so_luong": 5, "toa_do": "21.68000,105.38000"},
+    // Đọc từ dòng 3 của Cột D (Cột số 4) đến hết bảng
+    if (lastRow >= 3) {
+      var values = sheet.getRange(3, 4, lastRow - 2, 1).getValues();
+      for (var i = 0; i < values.length; i++) {
+        var val = String(values[i][0]).trim();
+        if (val !== "" && danhSachDiem.indexOf(val) === -1) {
+          danhSachDiem.push(val);
+        }
+      }
+    }
     
-    # T04: Sơn Dương
-    "Xã Hồng Sơn": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.65000,105.35000"},
-    "Xã Trường Sinh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.61000,105.32000"},
-    "Xã Phú Lương": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.62000,105.39000"},
-    "Xã Sơn Thủy": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.67000,105.41000"},
-    "Xã Minh Thanh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.74000,105.42000"},
-    "Xã Tân Trào": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.77000,105.44000"},
-    "Xã Tân Thanh": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.71000,105.39000"},
-    "Xã Bình Ca": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.73000,105.31000"},
-    "Xã Sơn Dương": {"tuyen": "T04 - Sơn Dương", "huyen": "Huyện Sơn Dương cũ", "so_luong": 5, "toa_do": "21.70000,105.37000"},
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      total: danhSachDiem.length,
+      data: danhSachDiem
+    })).setMimeType(ContentService.MimeType.JSON);
     
-    # T05: Chiêm Hóa
-    "Xã Yên Nguyên": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa cũ", "so_luong": 5, "toa_do": "22.05000,105.20000"},
-    "Xã Kim Bình": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa cũ", "so_luong": 5, "toa_do": "22.12000,105.23000"},
-    "Xã Tri Phú": {"tuyen": "T05 - Chiêm Hóa", "huyen": "Huyện Chiêm Hóa cũ", "so_luong": 5, "toa_do": "22.18000,105.21000"}
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 }
-
-DANH_SACH_TEN_XA = list(DANH_SACH_DIEM_CHUAN.keys()) + ["🔍 [Tự nhập điểm khác...]"]
-
-# ==============================================================================
-# NHÁNH 1: ĐĂNG KÝ THÀNH VIÊN (?view=dangky)
-# ==============================================================================
-if view_mode == "dangky":
-    st.title("📝 Đăng Ký Thành Viên Đội Thi Công")
-    st.caption("Dành cho KTV, đội vận chuyển và đối tác đăng ký tham gia dự án")
-    
-    with st.form("form_dangky"):
-        ho_ten = st.text_input("Họ và tên KTV / Trưởng nhóm *")
-        so_dien_thoai = st.text_input("Số điện thoại (Zalo) *")
-        
-        lua_chon_vai_tro = st.selectbox(
-            "Vai trò / Chuyên môn tham gia *",
-            [
-                "1. Vận chuyển / Giao nhận thiết bị",
-                "2. KTV Lắp đặt thiết bị",
-                "3. Kiêm nhiệm (Vừa giao nhận vừa lắp đặt)",
-                "4. Tự nhập chuyên môn khác..."
-            ]
-        )
-        
-        chuyen_mon_tu_ghi = st.text_input(
-            "Nếu chọn 'Tự nhập khác', ghi cụ thể chuyên môn tại đây (hoặc để trống nếu chọn gợi ý trên):",
-            placeholder="Ví dụ: Kéo rải cáp quang, hàn nối, cấu hình thiết bị mạng..."
-        )
-        
-        phuong_tien = st.selectbox("Phương tiện di chuyển chính", ["Xe máy", "Xe bán tải / Ô tô", "Xe tải"])
-        dia_ban = st.multiselect(
-            "Địa bàn phụ trách có thể nhận", 
-            ["TP Tuyên Quang", "Sơn Dương", "Yên Sơn", "Hàm Yên", "Chiêm Hóa", "Na Hang", "Lâm Bình"]
-        )
-        
-        submitted = st.form_submit_button("Gửi Đăng Ký")
-        if submitted:
-            if not ho_ten or not so_dien_thoai:
-                st.error("Vui lòng điền đầy đủ Họ và tên và Số điện thoại!")
-            else:
-                chuyen_mon_cuoi = chuyen_mon_tu_ghi.strip() if chuyen_mon_tu_ghi.strip() else lua_chon_vai_tro
-                payload = {
-                    "action": "dang_ky_thanh_vien",
-                    "ho_ten": ho_ten,
-                    "so_dien_thoai": so_dien_thoai,
-                    "chuyen_mon": chuyen_mon_cuoi,
-                    "phuong_tien": phuong_tien,
-                    "dia_ban": ", ".join(dia_ban)
-                }
-                try:
-                    requests.post(WEBHOOK_URL, json=payload, timeout=15)
-                except Exception:
-                    pass
-                st.success(f"✅ Đã gửi đăng ký thành công cho {ho_ten} với vai trò: '{chuyen_mon_cuoi}'! Quản trị viên sẽ phê duyệt trên Google Sheets.")
-
-# ==============================================================================
-# NHÁNH 2: TRUNG TÂM GIÁM SÁT DÀNH CHO LÃNH ĐẠO (?view=lanhdao)
-# ==============================================================================
-elif view_mode == "lanhdao":
-    st.title("📊 TRUNG TÂM GIÁM SÁT & ĐIỀU HÀNH DỰ ÁN (LÃNH ĐẠO)")
-    st.caption("Số liệu báo cáo tiến độ và biểu đồ trực quan thời gian thực")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric(label="📍 Tổng điểm dự án (DA880)", value=f"{len(DANH_SACH_DIEM_CHUAN)} điểm")
-    with col2:
-        st.metric(label="🚚 Tiến độ Giao hàng", value="Đang cập nhật", delta="Theo thời gian thực")
-    with col3:
-        st.metric(label="🔧 Tiến độ Lắp đặt", value="Đang cập nhật", delta="Theo thời gian thực")
-    with col4:
-        st.metric(label="✅ Tỷ lệ Nghiệm thu", value="Đang cập nhật", delta="Theo thời gian thực")
-        
-    st.markdown("---")
-    st.subheader("📋 Bảng Danh Sách Toàn Bộ Điểm Triển Khai (Cột D)")
-    df_preview = pd.DataFrame({"STT": range(1, len(DANH_SACH_DIEM_CHUAN) + 1), "Địa điểm (Cột D)": list(DANH_SACH_DIEM_CHUAN.keys())})
-    st.dataframe(df_preview, use_container_width=True, hide_index=True)
-
-# ==============================================================================
-# NHÁNH 3: BÁO CÁO TIẾN ĐỘ HIỆN TRƯỜNG (KỸ THUẬT VIÊN)
-# ==============================================================================
-else:
-    st.title("🛠️ BÁO CÁO TIẾN ĐỘ THỰC HIỆN DỰ ÁN")
-    st.caption("Tra cứu tuyến đường, lấy tọa độ GPS thực địa & nghiệm thu công việc")
-    
-    col_a, col_b = st.columns(2)
-    with col_a:
-        ma_da = st.selectbox("Mã dự án *", ["DA880", "Dự án khác"])
-        
-        # Ô CHỌN ĐỘI: CHẠM VÀO GÕ TÌM NGAY (INDEX=NONE, KHÔNG CẦN XÓA CHỮ)
-        doi_thuc_hien_chon = st.selectbox(
-            "Đội thực hiện *",
-            options=DANH_SACH_DOI_CHUAN,
-            index=None,
-            placeholder="🔎 Chạm vào để gõ tìm đội (VHH, NTH, 006...)",
-            help="Chạm vào là gõ được ngay, danh sách gợi ý sẽ tự lọc bên dưới."
-        )
-        
-        if not doi_thuc_hien_chon:
-            doi_thuc_hien = "VHH"
-        elif "Tự nhập" in doi_thuc_hien_chon:
-            doi_thuc_hien = st.text_input("Gõ chính xác tên đội mới:")
-        else:
-            doi_thuc_hien = doi_thuc_hien_chon
-
-    with col_b:
-        # Ô CHỌN ĐIỂM: CHẠM VÀO GÕ TÌM NGAY (INDEX=NONE, HIỂN THỊ CHUẨN CỘT D)
-        diem_duoc_chon = st.selectbox(
-            "Điểm tác nghiệp (Chỉ hiển thị tên phường/xã) *",
-            options=DANH_SACH_TEN_XA,
-            index=None,
-            placeholder="🔎 Chạm vào để gõ tìm phường/xã (Minh Xuân, Nhữ Khê...)",
-            help="Chạm vào là gõ được ngay, danh sách các điểm cột D sẽ tự lọc bên dưới."
-        )
-        
-        diem_hien_tai = diem_duoc_chon if diem_duoc_chon else "Phường Minh Xuân"
-        
-        if "Tự nhập" in diem_hien_tai:
-            diem_thuc_te = st.text_input("Gõ tên địa điểm cụ thể:")
-            so_luong_chuan = 5
-            tuyen_duong = "Điểm tác nghiệp mới"
-            dia_chi_mac_dinh = f"{diem_thuc_te}, Tuyên Quang" if diem_thuc_te else "TP Tuyên Quang"
-            toa_do_chuan = "21.83059,105.19240"
-        else:
-            diem_thuc_te = diem_hien_tai
-            info = DANH_SACH_DIEM_CHUAN.get(diem_hien_tai, {"tuyen": "T01 - Tuyên Quang nội tỉnh", "huyen": "TP Tuyên Quang cũ", "so_luong": 5, "toa_do": "21.83059,105.19240"})
-            so_luong_chuan = info["so_luong"]
-            tuyen_duong = info["tuyen"]
-            dia_chi_mac_dinh = f"{diem_hien_tai}, {info['huyen']}, Tuyên Quang"
-            toa_do_chuan = info["toa_do"]
-
-        st.number_input(
-            f"Số lượng thiết bị định mức ({tuyen_duong}) - [KHÓA CỐ ĐỊNH]", 
-            value=so_luong_chuan, 
-            disabled=True,
-            help="Số lượng được lấy cố định từ Kho phân bổ. Kỹ thuật viên không được chỉnh sửa."
-        )
-
-    st.markdown("---")
-
-    # KHU VỰC DẪN ĐƯỜNG & GPS
-    st.markdown("### 🗺️ Tiện Ích Dẫn Đường & Định Vị Thực Địa")
-    col_nav1, col_nav2 = st.columns([1.3, 1])
-    
-    with col_nav1:
-        st.write(f"**Điểm đến hiện tại:** `{dia_chi_mac_dinh}`")
-        url_chiduong = f"https://www.google.com/maps/dir/?api=1&destination={urllib.parse.quote(dia_chi_mac_dinh)}"
-        st.link_button(f"🚗 Mở Google Maps chỉ đường tới {diem_thuc_te}", url_chiduong)
-
-    with col_nav2:
-        st.write("**Lấy tọa độ GPS thực tế nơi đang đứng:**")
-        components.html("""
-            <div style="font-family: sans-serif;">
-                <button onclick="layViTri()" style="background-color: #0d6efd; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; width: 100%;">
-                    📍 Bấm để lấy GPS & Copy vị trí
-                </button>
-                <p id="gps_info" style="font-size: 12px; color: #198754; margin-top: 6px; margin-bottom: 0px; font-weight: bold;"></p>
-            </div>
-            <script>
-            function layViTri() {
-                var info = document.getElementById("gps_info");
-                info.innerText = "⏳ Đang kết nối vệ tinh GPS...";
-                info.style.color = "#d63384";
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(function(pos) {
-                        var lat = pos.coords.latitude.toFixed(6);
-                        var lng = pos.coords.longitude.toFixed(6);
-                        var mapUrl = "https://maps.google.com/?q=" + lat + "," + lng;
-                        info.innerText = "✅ Đã bắt GPS & sao chép: " + lat + ", " + lng;
-                        info.style.color = "#198754";
-                        navigator.clipboard.writeText(mapUrl);
-                    }, function(err) {
-                        info.innerText = "⚠️ Chưa bật GPS hoặc chưa cấp quyền.";
-                        info.style.color = "#dc3545";
-                    }, {enableHighAccuracy: true, timeout: 10000});
-                } else {
-                    info.innerText = "Trình duyệt không hỗ trợ GPS.";
-                }
-            }
-            </script>
-        """, height=75)
-
-    st.markdown("---")
-
-    # FORM BÁO CÁO CÔNG VIỆC
-    with st.form("form_hientruong"):
-        tinh_trang = st.radio(
-            "Xác nhận tình trạng công việc *",
-            [
-                "Giao hàng & Lắp đặt hoàn tất (Đội kiêm nhiệm trọn gói)",
-                "Đã giao hàng (Chỉ vận chuyển đến nơi)",
-                "Đã lắp đặt xong (KTV đã hoàn thành lắp đặt)"
-            ],
-            index=0
-        )
-        
-        default_map_url = f"https://maps.google.com/?q={toa_do_chuan}"
-        link_maps = st.text_input(
-            "Tọa độ GPS / Link vị trí nghiệm thu thực địa *", 
-            value=default_map_url,
-            help="Hệ thống tự điền tọa độ hoặc thợ bấm dán link GPS vừa copy vào đây."
-        )
-        
-        btn_gui = st.form_submit_button("XÁC NHẬN BÁO CÁO NGHIỆM THU")
-        if btn_gui:
-            payload = {
-                "ma_da": ma_da,
-                "doi_thuc_hien": doi_thuc_hien,
-                "diem_lap_dat": diem_thuc_te,
-                "so_luong": so_luong_chuan,
-                "tinh_trang": tinh_trang,
-                "link_maps": link_maps
-            }
-            try:
-                resp = requests.post(WEBHOOK_URL, json=payload, timeout=15)
-                st.success(f"🎉 Đã gửi thành công! Đội: {doi_thuc_hien} | Trạng thái: {tinh_trang} tại {diem_thuc_te} ({so_luong_chuan} thiết bị).")
-                st.balloons()
-            except Exception as e:
-                st.warning("⚠️ Báo cáo đã ghi nhận, hệ thống đang đồng bộ về Google Sheets.")
