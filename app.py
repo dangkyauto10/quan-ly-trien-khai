@@ -25,31 +25,40 @@ else:
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
 
 # ==============================================================================
-# DANH MỤC ĐỘI THEO QUY CHIẾU SHEET (ẢNH 2)
+# DANH MỤC CÁC ĐỘI QUY CHIẾU THEO SHEET QUẢN LÝ ĐỘI
 # ==============================================================================
 DANH_SACH_DOI_CHUAN = [
     "VHH", "NTH", "Vinh Bắc Mê", "Nguyễn Văn A", "Trần Văn B",
     "Đội KTV 006", "Đội KTV 007", "Đội KTV 008", "Đội KTV 009", "Đội KTV 010",
     "Đội KTV 011", "Đội KTV 012", "Đội KTV 013", "Đội KTV 014", "Đội KTV 015",
     "Đội KTV 016", "Đội KTV 017", "Đội KTV 018", "Đội KTV 019", "Đội KTV 020",
-    "Đội KTV 021", "Đội KTV 022", "Đội KTV 023"
+    "Đội KTV 021", "Đội KTV 022", "Đội KTV 023", "🔍 [Tự nhập tên đội khác...]"
 ]
 
 # ==============================================================================
-# DANH MỤC ĐIỂM CỘT D SHEET "DANH SÁCH ĐIỂM"
+# QUY CHIẾU TOÀN BỘ CỘT D TRONG SHEET DANH SÁCH ĐIỂM (TUYÊN QUANG + HÀ GIANG)
 # ==============================================================================
 DANH_SACH_DIEM_CHUAN = [
-    # T01: Tuyên Quang nội tỉnh
+    # --- TUYÊN QUANG ---
     "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
-    # T02: Yên Sơn – Bắc/Đông
     "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân",
-    # T03: Yên Sơn – Kiến Thiết
     "Xã Thái Bình", "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thọ",
-    # T04: Sơn Dương
     "Xã Hồng Sơn", "Xã Trường Sinh", "Xã Phú Lương", "Xã Sơn Thủy", "Xã Minh Thanh",
     "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca", "Xã Sơn Dương",
-    # T05: Chiêm Hóa
-    "Xã Yên Nguyên", "Xã Kim Bình", "Xã Tri Phú"
+    "Xã Yên Nguyên", "Xã Kim Bình", "Xã Tri Phú",
+    
+    # --- HÀ GIANG (THEO BẢNG ẢNH 2 SHEET CỘT D) ---
+    "Xã Đường Hồng", "Xã Giáp Trung", "Xã Cán Tỷ", "Xã Lùng Tám", "Xã Quản Bạ",
+    "Xã Tùng Vài", "Xã Nghĩa Thuận", "Xã Đông Hà", "Xã Quyết Tiến", "Xã Bát Đại Sơn",
+    "Xã Bạch Đích", "Xã Thắng Mố", "Xã Yên Minh", "Xã Mậu Duệ", "Xã Du Già",
+    "Xã Đường Thượng", "Xã Ngọc Long", "Xã Lũng Phìn", "Xã Sà Phìn", "Xã Phố Bảng",
+    "Xã Đồng Văn", "Xã Lũng Cú", "Xã Niêm Sơn", "Xã Ma Lé", "Xã Sính Lủng",
+    "Xã Tát Ngà", "Xã Sủng Máng", "Xã Mèo Vạc", "Xã Khâu Vai", "Xã Sơn Vĩ",
+    "Xã Giàng Chu Phìn", "Xã Lũng Pù", "Xã Cán Chu Phìn", "Xã Thượng Phùng", "Xã Xín Cái",
+    "Xã Pả Vi", "Xã Pải Lủng", "Xã Tả Lủng", "Xã Nậm Ban", "Xã Niêm Tòng",
+    "Xã Minh Tân", "Xã Thuận Hòa", "Xã Tùng Bá", "Xã Thanh Thủy", "Xã Phương Độ",
+    "Xã Yên Cường", "Xã Lạc Nông", "Xã Giáp Trung", "Xã Minh Sơn", "Xã Thượng Tân",
+    "🔍 [Tự nhập điểm khác ngoài danh mục...]"
 ]
 
 # ==============================================================================
@@ -81,7 +90,7 @@ if view_mode == "dangky":
         phuong_tien = st.selectbox("Phương tiện di chuyển chính", ["Xe máy", "Xe bán tải / Ô tô", "Xe tải"])
         dia_ban = st.multiselect(
             "Địa bàn phụ trách có thể nhận", 
-            ["TP Tuyên Quang", "Sơn Dương", "Yên Sơn", "Hàm Yên", "Chiêm Hóa", "Na Hang", "Lâm Bình"]
+            ["TP Tuyên Quang", "Sơn Dương", "Yên Sơn", "Hàm Yên", "Chiêm Hóa", "Na Hang", "Lâm Bình", "Hà Giang", "Mèo Vạc", "Đồng Văn", "Yên Minh", "Quản Bạ", "Bắc Mê"]
         )
         
         submitted = st.form_submit_button("Gửi Đăng Ký")
@@ -113,7 +122,7 @@ elif view_mode == "lanhdao":
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric(label="📍 Tổng điểm dự án (Cột D)", value=f"{len(DANH_SACH_DIEM_CHUAN)} điểm")
+        st.metric(label="📍 Tổng điểm danh mục Cột D", value=f"{len(DANH_SACH_DIEM_CHUAN)-1} điểm")
     with col2:
         st.metric(label="🚚 Tiến độ Giao hàng", value="4 / 4", delta="100% Hoàn thành")
     with col3:
@@ -122,8 +131,8 @@ elif view_mode == "lanhdao":
         st.metric(label="✅ Tỷ lệ Nghiệm thu", value="100.00%", delta="Đạt mục tiêu")
         
     st.markdown("---")
-    st.subheader(f"📋 Bảng Danh Sách Điểm Triển Khai ({len(DANH_SACH_DIEM_CHUAN)} Điểm Cột D)")
-    df_preview = pd.DataFrame({"STT": range(1, len(DANH_SACH_DIEM_CHUAN) + 1), "Địa điểm (Cột D)": DANH_SACH_DIEM_CHUAN})
+    st.subheader(f"📋 Bảng Danh Sách Điểm Triển Khai Cột D ({len(DANH_SACH_DIEM_CHUAN)-1} Điểm)")
+    df_preview = pd.DataFrame({"STT": range(1, len(DANH_SACH_DIEM_CHUAN)), "Địa điểm (Cột D)": DANH_SACH_DIEM_CHUAN[:-1]})
     st.dataframe(df_preview, use_container_width=True, hide_index=True)
 
 # ==============================================================================
@@ -137,10 +146,10 @@ else:
     with col_a:
         ma_da = st.selectbox("Mã dự án *", ["DA880", "Dự án khác"])
         
-        # Ô CHỌN ĐỘI: CHẠM VÀO GÕ NGAY, CÓ GỢI Ý ĐẦY ĐỦ (Y HỆT ẢNH 2)
+        # Ô CHỌN ĐỘI: CHẠM VÀO GÕ NGAY, CÓ GỢI Ý ĐẦY ĐỦ (INDEX=NONE)
         doi_thuc_hien_chon = st.selectbox(
             "Đội thực hiện *",
-            options=DANH_SACH_DOI_CHUAN + ["🔍 [Tự nhập tên đội khác...]"],
+            options=DANH_SACH_DOI_CHUAN,
             index=None,
             placeholder="🔎 Chạm vào để gõ tìm đội (VHH, NTH, 006...)",
             help="Chạm vào là danh sách gợi ý hiện lên, gõ để lọc nhanh."
@@ -149,29 +158,29 @@ else:
         if not doi_thuc_hien_chon:
             doi_thuc_hien = "VHH"
         elif "Tự nhập" in doi_thuc_hien_chon:
-            doi_thuc_hien = st.text_input("Gõ chính xác tên đội mới:", placeholder="Ví dụ: Đội KTV Hà Giang...")
+            doi_thuc_hien = st.text_input("Gõ chính xác tên đội mới:")
         else:
             doi_thuc_hien = doi_thuc_hien_chon
 
     with col_b:
-        # Ô CHỌN ĐIỂM: CHẠM VÀO GÕ NGAY, CÓ GỢI Ý CỘT D, KHÔNG BỊ "NO RESULTS"
+        # Ô CHỌN ĐIỂM: ĐÃ CÓ TOÀN BỘ CỘT D (GÕ "MÈO", "ĐỒNG VĂN", "MINH XUÂN" ĐỀU HIỆN NGAY)
         diem_duoc_chon = st.selectbox(
             "Điểm tác nghiệp (Chỉ hiển thị tên phường/xã) *",
-            options=DANH_SACH_DIEM_CHUAN + ["🔍 [Tự nhập điểm khác ngoài danh mục...]"],
+            options=DANH_SACH_DIEM_CHUAN,
             index=None,
-            placeholder="🔎 Chạm vào để gõ tìm phường/xã (Minh Xuân, Nhữ Khê...)",
-            help="Chạm vào là gợi ý các xã/phường Cột D hiện ra ngay."
+            placeholder="🔎 Chạm vào để gõ tìm (Mèo Vạc, Đồng Văn, Minh Xuân...)",
+            help="Chạm vào là gợi ý toàn bộ các xã/phường Cột D hiện ra ngay."
         )
         
-        # Xử lý khi thợ muốn nhập một địa bàn mới (như Hà Giang, thôn bản mới)
+        # Xử lý địa điểm thực tế
         if diem_duoc_chon == "🔍 [Tự nhập điểm khác ngoài danh mục...]":
-            diem_thuc_te = st.text_input("Gõ tên địa điểm tác nghiệp cụ thể:", placeholder="Ví dụ: Hà Giang, Phường Trần Phú, Thôn 3...")
+            diem_thuc_te = st.text_input("Gõ tên địa điểm tác nghiệp cụ thể:", placeholder="Gõ tên xã/phường hoặc thôn/xóm...")
         elif diem_duoc_chon:
             diem_thuc_te = diem_duoc_chon
         else:
-            diem_thuc_te = "Phường Minh Xuân"
+            diem_thuc_te = "Xã Mèo Vạc"
 
-        dia_chi_mac_dinh = f"{diem_thuc_te}, Tuyên Quang" if "Tuyên Quang" not in diem_thuc_te else diem_thuc_te
+        dia_chi_mac_dinh = f"{diem_thuc_te}"
 
         st.number_input(
             "Số lượng thiết bị định mức (Cố định phân bổ) - [KHÓA CỐ ĐỊNH]", 
