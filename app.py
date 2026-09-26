@@ -25,6 +25,23 @@ else:
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
 
 # ==============================================================================
+# DANH MỤC CÁC ĐỘI ĐÃ ĐƯỢC DUYỆT TRONG DỰ ÁN
+# ==============================================================================
+DANH_SACH_DOI_CHUAN = [
+    "VHH",
+    "Đội KTV 001",
+    "Đội KTV 002",
+    "Đội KTV 003",
+    "Đội KTV 004",
+    "Đội KTV 005",
+    "Đội KTV 006",
+    "Đội Vận Chuyển 01",
+    "Đội Vận Chuyển 02",
+    "Vỹ - Hạnh - Hiển (Nguyễn Văn A)",
+    "🔍 [Tự nhập tên đội khác...]"
+]
+
+# ==============================================================================
 # CƠ SỞ DỮ LIỆU ĐỊA BÀN & TUYẾN THEO SHEET DANH SÁCH ĐIỂM
 # ==============================================================================
 DANH_SACH_DIEM_CHI_TIET = {
@@ -68,8 +85,6 @@ DANH_SACH_DIEM_CHI_TIET = {
 }
 
 LIST_OPTIONS = list(DANH_SACH_DIEM_CHI_TIET.keys())
-
-# Tạo danh sách các chuỗi địa chỉ để gợi ý tìm kiếm
 DANH_SACH_GOI_Y = [f"{info['ten']}, {info['huyen']}, Tuyên Quang" for k, info in DANH_SACH_DIEM_CHI_TIET.items() if "Tự nhập" not in k]
 
 # ==============================================================================
@@ -183,16 +198,33 @@ else:
     col_a, col_b = st.columns(2)
     with col_a:
         ma_da = st.selectbox("Mã dự án *", ["DA880", "Dự án khác"])
-        doi_thuc_hien = st.selectbox(
-            "Đội thực hiện *", 
-            [
-                "VHH",
-                "Đội KTV 003", 
-                "Đội KTV 004", 
-                "Đội KTV 005",
-                "[DA880] Vỹ - Hạnh - Hiển (Nguyễn Văn A)"
-            ]
+        
+        # Ô GÕ TÌM ĐỘI CÓ GỢI Ý DANH SÁCH (CHẠM VÀO GÕ NGAY)
+        nhap_tim_doi = st.text_input(
+            "Đội thực hiện (Chạm vào gõ để tìm gợi ý đội) *",
+            value="",
+            placeholder="Gõ tên đội (Ví dụ: VHH, 003, 004...)",
+            help="Chạm tay vào là gõ được ngay. Hệ thống sẽ tự lọc các đội phù hợp bên dưới."
         )
+        
+        doi_da_loc = DANH_SACH_DOI_CHUAN
+        if nhap_tim_doi.strip():
+            tu_khoa_doi = nhap_tim_doi.strip().lower()
+            doi_da_loc = [d for d in DANH_SACH_DOI_CHUAN if tu_khoa_doi in d.lower()]
+            if not doi_da_loc:
+                doi_da_loc = [nhap_tim_doi.strip()] + DANH_SACH_DOI_CHUAN
+        
+        doi_thuc_hien_chon = st.selectbox(
+            "Chọn đội từ danh sách gợi ý:",
+            options=doi_da_loc,
+            index=0
+        )
+        
+        if "Tự nhập" in doi_thuc_hien_chon:
+            doi_thuc_hien = st.text_input("Gõ chính xác tên đội mới:")
+        else:
+            doi_thuc_hien = doi_thuc_hien_chon
+
     with col_b:
         muc_duoc_chon = st.selectbox(
             "📋 Danh sách điểm tác nghiệp (Bấm chọn điểm từ danh sách):", 
@@ -221,12 +253,11 @@ else:
 
     st.markdown("---")
 
-    # KHU VỰC VỊ TRÍ ĐẾN: CHẠM VÀO GÕ ĐƯỢC NGAY (AUTO-SELECT / PLACEHOLDER THÔNG MINH)
+    # KHU VỰC VỊ TRÍ ĐẾN (CHẠM VÀO GÕ TÌM ĐƯỢNG - CÓ GỢI Ý)
     st.markdown("### 🗺️ Tiện Ích Dẫn Đường & Định Vị Thực Địa")
     col_nav1, col_nav2 = st.columns([1.3, 1])
     
     with col_nav1:
-        # Ô nhập chữ mờ: Chạm vào là gõ được ngay lập tức mà không cần bấm xóa chữ cũ
         nhap_tim_duong = st.text_input(
             "📍 Vị trí đến (Chạm vào gõ ngay - có gợi ý điểm):",
             value="",
@@ -234,10 +265,8 @@ else:
             help="Chạm tay vào là gõ được ngay. Gõ tên xã, phường hoặc thôn/xóm bất kỳ."
         )
         
-        # Nếu thợ có gõ tìm kiếm thì ưu tiên lấy nội dung vừa gõ, nếu để trống thì lấy điểm đã chọn ở trên
         dia_chi_chi_duong = nhap_tim_duong.strip() if nhap_tim_duong.strip() else dia_chi_mac_dinh
         
-        # Danh sách gợi ý các điểm liên quan khi thợ gõ
         if nhap_tim_duong.strip():
             tu_khoa = nhap_tim_duong.strip().lower()
             goi_y_khop = [d for d in DANH_SACH_GOI_Y if tu_khoa in d.lower()]
@@ -313,7 +342,7 @@ else:
             }
             try:
                 resp = requests.post(WEBHOOK_URL, json=payload, timeout=15)
-                st.success(f"🎉 Đã gửi thành công! Trạng thái: {tinh_trang} tại {diem_thuc_te} ({so_luong_chuan} thiết bị). Dữ liệu đã tự động cập nhật về Google Sheets.")
+                st.success(f"🎉 Đã gửi thành công! Đội: {doi_thuc_hien} | Trạng thái: {tinh_trang} tại {diem_thuc_te} ({so_luong_chuan} thiết bị).")
                 st.balloons()
             except Exception as e:
                 st.warning("⚠️ Báo cáo đã ghi nhận, hệ thống đang đồng bộ về Google Sheets.")
