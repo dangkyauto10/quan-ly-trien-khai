@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 # ==============================================================================
-# 1. BỘ XỬ LÝ NHẬN DIỆN VÀ ĐỒNG BỘ ĐIỀU HƯỚNG TỪ URL (FIX LỖI ẢNH 2)
+# 1. BỘ XỬ LÝ ĐIỀU HƯỚNG TỪ URL & THANH CHUYỂN NHANH
 # ==============================================================================
 DANH_SACH_MENU = [
     "🛠️ Báo cáo hiện trường", 
@@ -21,7 +21,6 @@ DANH_SACH_MENU = [
     "📊 Giám sát lãnh đạo"
 ]
 
-# Đọc tham số URL
 query_view = st.query_params.get("view", "hientruong").lower().strip()
 
 target_index = 0
@@ -32,7 +31,6 @@ elif "dangky" in query_view:
 elif "lanhdao" in query_view:
     target_index = 3
 
-# Đồng bộ chuyển tab tức thì theo URL
 if "current_nav" not in st.session_state or st.session_state.get("last_query") != query_view:
     st.session_state.current_nav = DANH_SACH_MENU[target_index]
     st.session_state.last_query = query_view
@@ -61,24 +59,21 @@ DANH_SACH_DOI_CHUAN = [
 ]
 
 # ==============================================================================
-# DANH MỤC ĐỊA BÀN MỞ RỘNG (TUYÊN QUANG + TOÀN TUYẾN HÀ GIANG)
+# QUY CHIẾU 100% TOÀN BỘ CỘT D (ĐỊA ĐIỂM GIAO HÀNG VÀ LẮP ĐẶT - SHEET DANH_SACH_DIEM)
 # ==============================================================================
-DANH_SACH_DIA_BAN_DANG_KY = [
-    "TP Tuyên Quang", "H. Yên Sơn", "H. Sơn Dương", "H. Hàm Yên", "H. Chiêm Hóa", "H. Na Hang", "H. Lâm Bình",
-    "H. Mèo Vạc (Hà Giang)", "H. Đồng Văn (Hà Giang)", "H. Yên Minh (Hà Giang)", "H. Quản Bạ (Hà Giang)", 
-    "H. Bắc Mê (Hà Giang)", "H. Vị Xuyên (Hà Giang)", "TP Hà Giang"
-]
-
-DANH_SACH_DIEM_CHUAN = [
-    # --- TUYÊN QUANG ---
+DANH_SACH_DIEM_COT_D = [
+    # Tuyến T01: Tuyên Quang nội tỉnh
     "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
+    # Tuyến T02: Yên Sơn – phía Bắc/Đông
     "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân",
+    # Tuyến T03: Yên Sơn – Kiến Thiết
     "Xã Thái Bình", "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thọ",
+    # Tuyến T04: Sơn Dương
     "Xã Hồng Sơn", "Xã Trường Sinh", "Xã Phú Lương", "Xã Sơn Thủy", "Xã Minh Thanh",
     "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca", "Xã Sơn Dương",
+    # Tuyến T05: Chiêm Hóa
     "Xã Yên Nguyên", "Xã Kim Bình", "Xã Tri Phú",
-    
-    # --- HÀ GIANG ---
+    # Tuyến mở rộng Hà Giang trong Cột D
     "Xã Đường Hồng", "Xã Giáp Trung", "Xã Cán Tỷ", "Xã Lùng Tám", "Xã Quản Bạ",
     "Xã Tùng Vài", "Xã Nghĩa Thuận", "Xã Đông Hà", "Xã Quyết Tiến", "Xã Bát Đại Sơn",
     "Xã Bạch Đích", "Xã Thắng Mố", "Xã Yên Minh", "Xã Mậu Duệ", "Xã Du Già",
@@ -91,6 +86,11 @@ DANH_SACH_DIEM_CHUAN = [
     "Xã Yên Cường", "Xã Lạc Nông", "Xã Minh Sơn", "Xã Thượng Tân"
 ]
 
+# Danh mục địa bàn cho form đăng ký thành viên
+DANH_SACH_DANG_KY_DIA_BAN = [
+    "🌟 Toàn bộ các điểm (Toàn tuyến dự án)"
+] + DANH_SACH_DIEM_COT_D + ["🔍 [Tự nhập điểm khác ngoài danh mục...]"]
+
 if "cho_duyet" not in st.session_state:
     st.session_state.cho_duyet = []
 
@@ -101,7 +101,7 @@ st.markdown("---")
 # ==============================================================================
 if che_do_chon == "📱 Duyệt nhân sự (Admin)":
     st.title("📱 DUYỆT NHÂN SỰ MỚI (DÀNH CHO ADMIN)")
-    st.caption("Xem thông tin và phê duyệt thành viên mới trực tiếp ngay trên điện thoại")
+    st.caption("Xem thông tin, gán đội và phê duyệt thành viên mới trực tiếp ngay trên điện thoại")
     
     pin_admin = st.text_input("🔑 Nhập mã PIN Quản trị viên để mở khóa:", type="password", placeholder="Nhập mã PIN bảo mật...", key="pin_admin_input")
     
@@ -118,12 +118,18 @@ if che_do_chon == "📱 Duyệt nhân sự (Admin)":
                 with st.expander(f"👤 {user['ho_ten']} - {user['sdt']}", expanded=True):
                     st.write(f"**Chuyên môn / Vai trò:** `{user['vai_tro']}`")
                     st.write(f"**Phương tiện:** `{user.get('phuong_tien', 'Xe máy')}`")
-                    st.write(f"**Địa bàn nhận:** `{user['dia_ban']}`")
-                    st.write(f"**Đội nguyện vọng gán:** `{user.get('doi_gan', 'Chưa chọn')}`")
+                    st.write(f"**Địa bàn / Tuyến nhận:** `{user['dia_ban']}`")
+                    
+                    # ADMIN TỰ TAY GÁN ĐỘI CHO THÀNH VIÊN TẠI ĐÂY
+                    doi_duoc_gan = st.selectbox(
+                        "👉 Phân bổ gán vào Đội:",
+                        options=DANH_SACH_DOI_CHUAN[:-1],
+                        key=f"doi_gan_{idx}"
+                    )
                     
                     col_btn1, col_btn2 = st.columns(2)
                     with col_btn1:
-                        if st.button(f"✅ DUYỆT VÀO HỆ THỐNG", key=f"duyet_{idx}"):
+                        if st.button(f"✅ DUYỆT & GÁN VÀO ĐỘI", key=f"duyet_{idx}"):
                             payload_duyet = {
                                 "action": "duyet_thanh_vien",
                                 "ho_ten": user["ho_ten"],
@@ -131,14 +137,14 @@ if che_do_chon == "📱 Duyệt nhân sự (Admin)":
                                 "vai_tro": user["vai_tro"],
                                 "dia_ban": user["dia_ban"],
                                 "phuong_tien": user.get("phuong_tien", "Xe máy"),
-                                "doi_gan": user.get("doi_gan", "")
+                                "doi_gan": doi_duoc_gan
                             }
                             try:
                                 requests.post(WEBHOOK_URL, json=payload_duyet, timeout=15)
                             except Exception:
                                 pass
                             st.session_state.cho_duyet.pop(idx)
-                            st.success(f"Đã duyệt thành công nhân sự: {user['ho_ten']}!")
+                            st.success(f"Đã duyệt và gán thành công {user['ho_ten']} vào {doi_duoc_gan}!")
                             st.rerun()
                             
                     with col_btn2:
@@ -152,7 +158,7 @@ if che_do_chon == "📱 Duyệt nhân sự (Admin)":
         st.info("🔒 Vui lòng nhập mã PIN quản trị để xem và phê duyệt nhân sự.")
 
 # ==============================================================================
-# GIAO DIỆN 2: ĐĂNG KÝ THÀNH VIÊN (ĐÃ BỔ SUNG ĐẦY ĐỦ THEO ẢNH 1 & ẢNH 2)
+# GIAO DIỆN 2: ĐĂNG KÝ THÀNH VIÊN (ĐỒNG BỘ TOÀN BỘ CỘT D VÀO Ô CHỌN ĐỊA BÀN)
 # ==============================================================================
 elif che_do_chon == "📝 Đăng ký thành viên":
     st.title("📝 Đăng Ký Thành Viên Đội Thi Công")
@@ -179,18 +185,11 @@ elif che_do_chon == "📝 Đăng ký thành viên":
         
         phuong_tien = st.selectbox("Phương tiện di chuyển chính", ["Xe máy", "Xe bán tải / Ô tô", "Xe tải"])
         
-        # ĐỊA BÀN PHỤ TRÁCH ĐẦY ĐỦ CẢ TUYÊN QUANG VÀ HÀ GIANG
+        # Ô CHỌN ĐỊA BÀN: QUY CHIẾU TOÀN BỘ CỘT D SHEET DANH_SACH_DIEM
         dia_ban = st.multiselect(
-            "Địa bàn phụ trách có thể nhận *", 
-            options=DANH_SACH_DIA_BAN_DANG_KY,
-            placeholder="Bấm vào để chọn một hoặc nhiều huyện/thành phố..."
-        )
-        
-        # GỢI Ý ĐỘI GÁN (KHỚP THEO SHEET QUẢN LÝ ĐỘI)
-        doi_nguyen_vong = st.selectbox(
-            "Nguyện vọng tham gia Đội (Đội gán)",
-            options=["Chưa xác định (Admin tự phân bổ)"] + DANH_SACH_DOI_CHUAN[:-1],
-            index=0
+            "Địa bàn phụ trách có thể nhận (Chọn 'Toàn tuyến' hoặc chọn từng điểm theo Cột D) *", 
+            options=DANH_SACH_DANG_KY_DIA_BAN,
+            placeholder="Chạm vào để chọn Toàn bộ hoặc gõ tìm điểm (Minh Xuân, Mèo Vạc...)"
         )
         
         submitted = st.form_submit_button("GỬI ĐĂNG KÝ")
@@ -205,8 +204,7 @@ elif che_do_chon == "📝 Đăng ký thành viên":
                     "so_dien_thoai": so_dien_thoai,
                     "chuyen_mon": chuyen_mon_cuoi,
                     "phuong_tien": phuong_tien,
-                    "dia_ban": ", ".join(dia_ban),
-                    "doi_gan": doi_nguyen_vong if doi_nguyen_vong != "Chưa xác định (Admin tự phân bổ)" else ""
+                    "dia_ban": ", ".join(dia_ban)
                 }
                 
                 # Lưu vào bộ nhớ tạm duyệt trên app
@@ -215,15 +213,14 @@ elif che_do_chon == "📝 Đăng ký thành viên":
                     "sdt": so_dien_thoai,
                     "vai_tro": chuyen_mon_cuoi,
                     "phuong_tien": phuong_tien,
-                    "dia_ban": ", ".join(dia_ban),
-                    "doi_gan": doi_nguyen_vong
+                    "dia_ban": ", ".join(dia_ban)
                 })
                 
                 try:
                     requests.post(WEBHOOK_URL, json=payload, timeout=15)
                 except Exception:
                     pass
-                st.success(f"🎉 Đã gửi đăng ký thành công cho {ho_ten}! Quản trị viên sẽ phê duyệt và gán đội.")
+                st.success(f"🎉 Đã gửi đăng ký thành công cho {ho_ten}! Quản trị viên sẽ phê duyệt và phân bổ đội.")
 
 # ==============================================================================
 # GIAO DIỆN 3: GIÁM SÁT LÃNH ĐẠO (BẢO VỆ MÃ PIN)
@@ -240,7 +237,7 @@ elif che_do_chon == "📊 Giám sát lãnh đạo":
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric(label="📍 Tổng điểm danh mục Cột D", value=f"{len(DANH_SACH_DIEM_CHUAN)} điểm")
+            st.metric(label="📍 Tổng điểm danh mục Cột D", value=f"{len(DANH_SACH_DIEM_COT_D)} điểm")
         with col2:
             st.metric(label="🚚 Tiến độ Giao hàng", value="Đang cập nhật", delta="Live")
         with col3:
@@ -249,8 +246,8 @@ elif che_do_chon == "📊 Giám sát lãnh đạo":
             st.metric(label="✅ Tỷ lệ Nghiệm thu", value="Đang cập nhật", delta="Live")
             
         st.markdown("---")
-        st.subheader(f"📋 Bảng Chi Tiết Toàn Bộ {len(DANH_SACH_DIEM_CHUAN)} Điểm Triển Khai (Cột D)")
-        df_preview = pd.DataFrame({"STT": range(1, len(DANH_SACH_DIEM_CHUAN) + 1), "Địa bàn": DANH_SACH_DIEM_CHUAN})
+        st.subheader(f"📋 Bảng Chi Tiết Toàn Bộ {len(DANH_SACH_DIEM_COT_D)} Điểm Triển Khai (Cột D)")
+        df_preview = pd.DataFrame({"STT": range(1, len(DANH_SACH_DIEM_COT_D) + 1), "Địa bàn": DANH_SACH_DIEM_COT_D})
         st.dataframe(df_preview, use_container_width=True, hide_index=True)
     elif pin_lanhdao != "":
         st.error("❌ Mã PIN không chính xác! Vui lòng kiểm tra lại.")
@@ -286,7 +283,7 @@ else:
     with col_b:
         diem_duoc_chon = st.selectbox(
             "Điểm tác nghiệp (Chỉ hiển thị tên phường/xã) *",
-            options=DANH_SACH_DIEM_CHUAN + ["🔍 [Tự nhập điểm khác ngoài danh mục...]"],
+            options=DANH_SACH_DIEM_COT_D + ["🔍 [Tự nhập điểm khác ngoài danh mục...]"],
             index=None,
             placeholder="🔎 Chạm vào để gõ tìm (Mèo Vạc, Đồng Văn, Minh Xuân...)",
             help="Chạm vào là gợi ý các xã/phường Cột D hiện ra ngay."
