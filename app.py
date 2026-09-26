@@ -11,16 +11,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. BỘ XỬ LÝ ĐIỀU HƯỚNG
-try:
-    params = dict(st.query_params)
-    raw_view = params.get("view", "hientruong")
-    if isinstance(raw_view, list):
-        raw_view = raw_view[0]
-    raw_view = str(raw_view).split("]")[0].split("(")[0].strip().lower()
-except Exception:
-    raw_view = "hientruong"
-
+# ==============================================================================
+# 1. BỘ XỬ LÝ NHẬN DIỆN VÀ ĐỒNG BỘ ĐIỀU HƯỚNG TỪ URL (FIX LỖI ẢNH 2)
+# ==============================================================================
 DANH_SACH_MENU = [
     "🛠️ Báo cáo hiện trường", 
     "📱 Duyệt nhân sự (Admin)", 
@@ -28,26 +21,36 @@ DANH_SACH_MENU = [
     "📊 Giám sát lãnh đạo"
 ]
 
-index_mac_dinh = 0
-if "duyet" in raw_view:
-    index_mac_dinh = 1
-elif "dangky" in raw_view:
-    index_mac_dinh = 2
-elif "lanhdao" in raw_view:
-    index_mac_dinh = 3
+# Đọc tham số URL
+query_view = st.query_params.get("view", "hientruong").lower().strip()
+
+target_index = 0
+if "duyet" in query_view:
+    target_index = 1
+elif "dangky" in query_view:
+    target_index = 2
+elif "lanhdao" in query_view:
+    target_index = 3
+
+# Đồng bộ chuyển tab tức thì theo URL
+if "current_nav" not in st.session_state or st.session_state.get("last_query") != query_view:
+    st.session_state.current_nav = DANH_SACH_MENU[target_index]
+    st.session_state.last_query = query_view
 
 che_do_chon = st.radio(
     "📌 Chuyển nhanh giao diện:",
     options=DANH_SACH_MENU,
-    index=index_mac_dinh,
-    horizontal=True
+    index=DANH_SACH_MENU.index(st.session_state.current_nav),
+    horizontal=True,
+    key="nav_radio"
 )
+st.session_state.current_nav = che_do_chon
 
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
-ADMIN_PIN = "880880"  # Mã PIN bảo mật cho Quản trị viên & Lãnh đạo
+ADMIN_PIN = "880880"
 
 # ==============================================================================
-# DANH MỤC CÁC ĐỘI QUY CHIẾU THEO SHEET QUẢN LÝ ĐỘI
+# DANH MỤC CÁC ĐỘI THEO SHEET QUẢN LÝ ĐỘI
 # ==============================================================================
 DANH_SACH_DOI_CHUAN = [
     "VHH", "NTH", "Vinh Bắc Mê", "Nguyễn Văn A", "Trần Văn B",
@@ -58,8 +61,14 @@ DANH_SACH_DOI_CHUAN = [
 ]
 
 # ==============================================================================
-# QUY CHIẾU TOÀN BỘ CỘT D TRONG SHEET DANH SÁCH ĐIỂM
+# DANH MỤC ĐỊA BÀN MỞ RỘNG (TUYÊN QUANG + TOÀN TUYẾN HÀ GIANG)
 # ==============================================================================
+DANH_SACH_DIA_BAN_DANG_KY = [
+    "TP Tuyên Quang", "H. Yên Sơn", "H. Sơn Dương", "H. Hàm Yên", "H. Chiêm Hóa", "H. Na Hang", "H. Lâm Bình",
+    "H. Mèo Vạc (Hà Giang)", "H. Đồng Văn (Hà Giang)", "H. Yên Minh (Hà Giang)", "H. Quản Bạ (Hà Giang)", 
+    "H. Bắc Mê (Hà Giang)", "H. Vị Xuyên (Hà Giang)", "TP Hà Giang"
+]
+
 DANH_SACH_DIEM_CHUAN = [
     # --- TUYÊN QUANG ---
     "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
@@ -83,15 +92,12 @@ DANH_SACH_DIEM_CHUAN = [
 ]
 
 if "cho_duyet" not in st.session_state:
-    st.session_state.cho_duyet = [
-        {"ho_ten": "Hoàng Văn Tuấn", "sdt": "0988123456", "vai_tro": "KTV Lắp đặt thiết bị", "dia_ban": "Hà Giang, Mèo Vạc"},
-        {"ho_ten": "Đặng Quốc Việt", "sdt": "0912345678", "vai_tro": "Vận chuyển / Giao nhận", "dia_ban": "TP Tuyên Quang, Yên Sơn"}
-    ]
+    st.session_state.cho_duyet = []
 
 st.markdown("---")
 
 # ==============================================================================
-# GIAO DIỆN 1: DUYỆT NHÂN SỰ (CẦN MÃ PIN ADMIN)
+# GIAO DIỆN 1: DUYỆT NHÂN SỰ (ADMIN TRÊN ĐIỆN THOẠI)
 # ==============================================================================
 if che_do_chon == "📱 Duyệt nhân sự (Admin)":
     st.title("📱 DUYỆT NHÂN SỰ MỚI (DÀNH CHO ADMIN)")
@@ -111,7 +117,9 @@ if che_do_chon == "📱 Duyệt nhân sự (Admin)":
             for idx, user in enumerate(danh_sach):
                 with st.expander(f"👤 {user['ho_ten']} - {user['sdt']}", expanded=True):
                     st.write(f"**Chuyên môn / Vai trò:** `{user['vai_tro']}`")
+                    st.write(f"**Phương tiện:** `{user.get('phuong_tien', 'Xe máy')}`")
                     st.write(f"**Địa bàn nhận:** `{user['dia_ban']}`")
+                    st.write(f"**Đội nguyện vọng gán:** `{user.get('doi_gan', 'Chưa chọn')}`")
                     
                     col_btn1, col_btn2 = st.columns(2)
                     with col_btn1:
@@ -121,7 +129,9 @@ if che_do_chon == "📱 Duyệt nhân sự (Admin)":
                                 "ho_ten": user["ho_ten"],
                                 "so_dien_thoai": user["sdt"],
                                 "vai_tro": user["vai_tro"],
-                                "dia_ban": user["dia_ban"]
+                                "dia_ban": user["dia_ban"],
+                                "phuong_tien": user.get("phuong_tien", "Xe máy"),
+                                "doi_gan": user.get("doi_gan", "")
                             }
                             try:
                                 requests.post(WEBHOOK_URL, json=payload_duyet, timeout=15)
@@ -142,7 +152,7 @@ if che_do_chon == "📱 Duyệt nhân sự (Admin)":
         st.info("🔒 Vui lòng nhập mã PIN quản trị để xem và phê duyệt nhân sự.")
 
 # ==============================================================================
-# GIAO DIỆN 2: ĐĂNG KÝ THÀNH VIÊN
+# GIAO DIỆN 2: ĐĂNG KÝ THÀNH VIÊN (ĐÃ BỔ SUNG ĐẦY ĐỦ THEO ẢNH 1 & ẢNH 2)
 # ==============================================================================
 elif che_do_chon == "📝 Đăng ký thành viên":
     st.title("📝 Đăng Ký Thành Viên Đội Thi Công")
@@ -168,15 +178,25 @@ elif che_do_chon == "📝 Đăng ký thành viên":
         )
         
         phuong_tien = st.selectbox("Phương tiện di chuyển chính", ["Xe máy", "Xe bán tải / Ô tô", "Xe tải"])
+        
+        # ĐỊA BÀN PHỤ TRÁCH ĐẦY ĐỦ CẢ TUYÊN QUANG VÀ HÀ GIANG
         dia_ban = st.multiselect(
-            "Địa bàn phụ trách có thể nhận", 
-            ["TP Tuyên Quang", "Sơn Dương", "Yên Sơn", "Hàm Yên", "Chiêm Hóa", "Na Hang", "Lâm Bình", "Hà Giang", "Mèo Vạc", "Đồng Văn", "Yên Minh", "Quản Bạ", "Bắc Mê"]
+            "Địa bàn phụ trách có thể nhận *", 
+            options=DANH_SACH_DIA_BAN_DANG_KY,
+            placeholder="Bấm vào để chọn một hoặc nhiều huyện/thành phố..."
         )
         
-        submitted = st.form_submit_button("Gửi Đăng Ký")
+        # GỢI Ý ĐỘI GÁN (KHỚP THEO SHEET QUẢN LÝ ĐỘI)
+        doi_nguyen_vong = st.selectbox(
+            "Nguyện vọng tham gia Đội (Đội gán)",
+            options=["Chưa xác định (Admin tự phân bổ)"] + DANH_SACH_DOI_CHUAN[:-1],
+            index=0
+        )
+        
+        submitted = st.form_submit_button("GỬI ĐĂNG KÝ")
         if submitted:
-            if not ho_ten or not so_dien_thoai:
-                st.error("Vui lòng điền đầy đủ Họ và tên và Số điện thoại!")
+            if not ho_ten or not so_dien_thoai or not dia_ban:
+                st.error("Vui lòng điền đầy đủ: Họ tên, Số điện thoại và Địa bàn phụ trách!")
             else:
                 chuyen_mon_cuoi = chuyen_mon_tu_ghi.strip() if chuyen_mon_tu_ghi.strip() else lua_chon_vai_tro
                 payload = {
@@ -185,22 +205,28 @@ elif che_do_chon == "📝 Đăng ký thành viên":
                     "so_dien_thoai": so_dien_thoai,
                     "chuyen_mon": chuyen_mon_cuoi,
                     "phuong_tien": phuong_tien,
-                    "dia_ban": ", ".join(dia_ban)
+                    "dia_ban": ", ".join(dia_ban),
+                    "doi_gan": doi_nguyen_vong if doi_nguyen_vong != "Chưa xác định (Admin tự phân bổ)" else ""
                 }
+                
+                # Lưu vào bộ nhớ tạm duyệt trên app
                 st.session_state.cho_duyet.append({
                     "ho_ten": ho_ten,
                     "sdt": so_dien_thoai,
                     "vai_tro": chuyen_mon_cuoi,
-                    "dia_ban": ", ".join(dia_ban)
+                    "phuong_tien": phuong_tien,
+                    "dia_ban": ", ".join(dia_ban),
+                    "doi_gan": doi_nguyen_vong
                 })
+                
                 try:
                     requests.post(WEBHOOK_URL, json=payload, timeout=15)
                 except Exception:
                     pass
-                st.success(f"✅ Đã gửi đăng ký thành công cho {ho_ten}! Quản trị viên sẽ xem xét duyệt trên điện thoại.")
+                st.success(f"🎉 Đã gửi đăng ký thành công cho {ho_ten}! Quản trị viên sẽ phê duyệt và gán đội.")
 
 # ==============================================================================
-# GIAO DIỆN 3: GIÁM SÁT LÃNH ĐẠO (CẦN MÃ PIN LÃNH ĐẠO)
+# GIAO DIỆN 3: GIÁM SÁT LÃNH ĐẠO (BẢO VỆ MÃ PIN)
 # ==============================================================================
 elif che_do_chon == "📊 Giám sát lãnh đạo":
     st.title("📊 TRUNG TÂM GIÁM SÁT & ĐIỀU HÀNH DỰ ÁN (LÃNH ĐẠO)")
