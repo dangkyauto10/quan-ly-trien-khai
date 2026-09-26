@@ -10,20 +10,42 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. BỘ XỬ LÝ NHẬN DIỆN LINK
+# 1. BỘ XỬ LÝ ĐIỀU HƯỚNG LINH HOẠT (HỖ TRỢ CẢ LINK URL VÀ NÚT CHUYỂN TRÊN GIAO DIỆN)
 try:
     params = dict(st.query_params)
     raw_view = params.get("view", "hientruong")
+    if isinstance(raw_view, list):
+        raw_view = raw_view[0]
+    raw_view = str(raw_view).split("]")[0].split("(")[0].strip().lower()
 except Exception:
     raw_view = "hientruong"
 
-if isinstance(raw_view, list):
-    view_mode = raw_view[0] if len(raw_view) > 0 else "hientruong"
-else:
-    view_mode = str(raw_view).strip().lower()
+DANH_SACH_MENU = [
+    "🛠️ Báo cáo hiện trường", 
+    "📱 Duyệt nhân sự (Admin)", 
+    "📝 Đăng ký thành viên", 
+    "📊 Giám sát lãnh đạo"
+]
+
+# Tự động chọn tab tương ứng theo link URL nếu có
+index_mac_dinh = 0
+if "duyet" in raw_view:
+    index_mac_dinh = 1
+elif "dangky" in raw_view:
+    index_mac_dinh = 2
+elif "lanhdao" in raw_view:
+    index_mac_dinh = 3
+
+# THANH ĐIỀU HƯỚNG TRÊN ĐẦU TRANG CHO ĐIỆN THOẠI
+che_do_chon = st.radio(
+    "📌 Chuyển nhanh giao diện:",
+    options=DANH_SACH_MENU,
+    index=index_mac_dinh,
+    horizontal=True
+)
 
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
-ADMIN_PIN = "880880"  # Mã PIN bảo mật khi duyệt trên điện thoại
+ADMIN_PIN = "880880"  # Mã PIN bảo mật duyệt trên điện thoại
 
 # ==============================================================================
 # DANH MỤC CÁC ĐỘI QUY CHIẾU THEO SHEET QUẢN LÝ ĐỘI
@@ -61,17 +83,67 @@ DANH_SACH_DIEM_CHUAN = [
     "Xã Yên Cường", "Xã Lạc Nông", "Xã Minh Sơn", "Xã Thượng Tân"
 ]
 
-# Quản lý bộ nhớ tạm các yêu cầu đăng ký chờ duyệt
 if "cho_duyet" not in st.session_state:
     st.session_state.cho_duyet = [
         {"ho_ten": "Hoàng Văn Tuấn", "sdt": "0988123456", "vai_tro": "KTV Lắp đặt thiết bị", "dia_ban": "Hà Giang, Mèo Vạc"},
         {"ho_ten": "Đặng Quốc Việt", "sdt": "0912345678", "vai_tro": "Vận chuyển / Giao nhận", "dia_ban": "TP Tuyên Quang, Yên Sơn"}
     ]
 
+st.markdown("---")
+
 # ==============================================================================
-# NHÁNH 1: ĐĂNG KÝ THÀNH VIÊN (?view=dangky)
+# GIAO DIỆN 1: DUYỆT NHÂN SỰ (ADMIN TRÊN ĐIỆN THOẠI)
 # ==============================================================================
-if view_mode == "dangky":
+if che_do_chon == "📱 Duyệt nhân sự (Admin)":
+    st.title("📱 DUYỆT NHÂN SỰ MỚI (DÀNH CHO ADMIN)")
+    st.caption("Xem thông tin và phê duyệt thành viên mới trực tiếp ngay trên điện thoại")
+    
+    pin = st.text_input("🔑 Nhập mã PIN Quản trị viên để mở khóa:", type="password", placeholder="Nhập PIN admin...")
+    
+    if pin == ADMIN_PIN:
+        st.success("🔓 Đã xác thực thành công quyền Quản trị viên!")
+        
+        danh_sach = st.session_state.cho_duyet
+        st.subheader(f"📋 Yêu cầu chờ duyệt ({len(danh_sach)} nhân sự)")
+        
+        if len(danh_sach) == 0:
+            st.info("Hiện không có yêu cầu nào chờ duyệt.")
+        else:
+            for idx, user in enumerate(danh_sach):
+                with st.expander(f"👤 {user['ho_ten']} - {user['sdt']}", expanded=True):
+                    st.write(f"**Chuyên môn / Vai trò:** `{user['vai_tro']}`")
+                    st.write(f"**Địa bàn nhận:** `{user['dia_ban']}`")
+                    
+                    col_btn1, col_btn2 = st.columns(2)
+                    with col_btn1:
+                        if st.button(f"✅ DUYỆT VÀO HỆ THỐNG", key=f"duyet_{idx}"):
+                            payload_duyet = {
+                                "action": "duyet_thanh_vien",
+                                "ho_ten": user["ho_ten"],
+                                "so_dien_thoai": user["sdt"],
+                                "vai_tro": user["vai_tro"],
+                                "dia_ban": user["dia_ban"]
+                            }
+                            try:
+                                requests.post(WEBHOOK_URL, json=payload_duyet, timeout=15)
+                            except Exception:
+                                pass
+                            st.session_state.cho_duyet.pop(idx)
+                            st.success(f"Đã duyệt thành công nhân sự: {user['ho_ten']}!")
+                            st.rerun()
+                            
+                    with col_btn2:
+                        if st.button(f"❌ TỪ CHỐI", key=f"tuchoi_{idx}"):
+                            st.session_state.cho_duyet.pop(idx)
+                            st.warning(f"Đã từ chối nhân sự: {user['ho_ten']}!")
+                            st.rerun()
+    elif pin != "":
+        st.error("Mã PIN không đúng! Vui lòng kiểm tra lại.")
+
+# ==============================================================================
+# GIAO DIỆN 2: ĐĂNG KÝ THÀNH VIÊN
+# ==============================================================================
+elif che_do_chon == "📝 Đăng ký thành viên":
     st.title("📝 Đăng Ký Thành Viên Đội Thi Công")
     st.caption("Dành cho KTV, đội vận chuyển và đối tác đăng ký tham gia dự án")
     
@@ -114,7 +186,6 @@ if view_mode == "dangky":
                     "phuong_tien": phuong_tien,
                     "dia_ban": ", ".join(dia_ban)
                 }
-                # Thêm vào danh sách chờ duyệt
                 st.session_state.cho_duyet.append({
                     "ho_ten": ho_ten,
                     "sdt": so_dien_thoai,
@@ -128,59 +199,9 @@ if view_mode == "dangky":
                 st.success(f"✅ Đã gửi đăng ký thành công cho {ho_ten}! Quản trị viên sẽ xem xét duyệt trên điện thoại.")
 
 # ==============================================================================
-# NHÁNH 2: TRUNG TÂM DUYỆT THÀNH VIÊN TRÊN ĐIỆN THOẠI (?view=duyet)
+# GIAO DIỆN 3: GIÁM SÁT LÃNH ĐẠO
 # ==============================================================================
-elif view_mode == "duyet":
-    st.title("📱 DUYỆT NHÂN SỰ MỚI (DÀNH CHO ADMIN)")
-    st.caption("Xem và phê duyệt thành viên mới trực tiếp ngay trên điện thoại")
-    
-    pin = st.text_input("🔑 Nhập mã PIN Quản trị viên để duyệt:", type="password", placeholder="Nhập PIN admin...")
-    
-    if pin == ADMIN_PIN:
-        st.success("🔓 Đã xác thực quyền Quản trị viên!")
-        st.markdown("---")
-        
-        danh_sach = st.session_state.cho_duyet
-        st.subheader(f"📋 Yêu cầu chờ duyệt ({len(danh_sach)} nhân sự)")
-        
-        if len(danh_sach) == 0:
-            st.info("Hiện không có yêu cầu nào chờ duyệt.")
-        else:
-            for idx, user in enumerate(danh_sach):
-                with st.expander(f"👤 {user['ho_ten']} - {user['sdt']}", expanded=True):
-                    st.write(f"**Chuyên môn / Vai trò:** `{user['vai_tro']}`")
-                    st.write(f"**Địa bàn nhận:** `{user['dia_ban']}`")
-                    
-                    col_btn1, col_btn2 = st.columns(2)
-                    with col_btn1:
-                        if st.button(f"✅ DUYỆT VÀO HỆ THỐNG", key=f"duyet_{idx}"):
-                            payload_duyet = {
-                                "action": "duyet_thanh_vien",
-                                "ho_ten": user["ho_ten"],
-                                "so_dien_thoai": user["sdt"],
-                                "vai_tro": user["vai_tro"],
-                                "dia_ban": user["dia_ban"]
-                            }
-                            try:
-                                requests.post(WEBHOOK_URL, json=payload_duyet, timeout=15)
-                            except Exception:
-                                pass
-                            st.session_state.cho_duyet.pop(idx)
-                            st.success(f"Đã duyệt thành công nhân sự: {user['ho_ten']}!")
-                            st.rerun()
-                            
-                    with col_btn2:
-                        if st.button(f"❌ TỪ CHỐI", key=f"tuchoi_{idx}"):
-                            st.session_state.cho_duyet.pop(idx)
-                            st.warning(f"Đã từ chối nhân sự: {user['ho_ten']}!")
-                            st.rerun()
-    elif pin != "":
-        st.error("Mã PIN không đúng! Vui lòng kiểm tra lại.")
-
-# ==============================================================================
-# NHÁNH 3: TRUNG TÂM GIÁM SÁT DÀNH CHO LÃNH ĐẠO (?view=lanhdao)
-# ==============================================================================
-elif view_mode == "lanhdao":
+elif che_do_chon == "📊 Giám sát lãnh đạo":
     st.title("📊 TRUNG TÂM GIÁM SÁT & ĐIỀU HÀNH DỰ ÁN (LÃNH ĐẠO)")
     st.caption("Tổng hợp khối lượng danh mục, tiến độ vận chuyển và hoàn thành lắp đặt thực tế")
     
@@ -200,7 +221,7 @@ elif view_mode == "lanhdao":
     st.dataframe(df_preview, use_container_width=True, hide_index=True)
 
 # ==============================================================================
-# NHÁNH 4: BÁO CÁO TIẾN ĐỘ HIỆN TRƯỜNG (KỸ THUẬT VIÊN)
+# GIAO DIỆN 4: BÁO CÁO TIẾN ĐỘ HIỆN TRƯỜNG (KỸ THUẬT VIÊN)
 # ==============================================================================
 else:
     st.title("🛠️ BÁO CÁO TIẾN ĐỘ THỰC HIỆN DỰ ÁN")
@@ -210,7 +231,6 @@ else:
     with col_a:
         ma_da = st.selectbox("Mã dự án *", ["DA880", "Dự án khác"])
         
-        # Ô CHỌN ĐỘI: CHẠM VÀO GÕ NGAY, CÓ GỢI Ý ĐẦY ĐỦ (INDEX=NONE)
         doi_thuc_hien_chon = st.selectbox(
             "Đội thực hiện *",
             options=DANH_SACH_DOI_CHUAN,
@@ -227,7 +247,6 @@ else:
             doi_thuc_hien = doi_thuc_hien_chon
 
     with col_b:
-        # Ô CHỌN ĐIỂM: CHẠM VÀO GÕ NGAY (INDEX=NONE, TOÀN BỘ CỘT D)
         diem_duoc_chon = st.selectbox(
             "Điểm tác nghiệp (Chỉ hiển thị tên phường/xã) *",
             options=DANH_SACH_DIEM_CHUAN + ["🔍 [Tự nhập điểm khác ngoài danh mục...]"],
