@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. BỘ XỬ LÝ ĐIỀU HƯỚNG LINH HOẠT
+# 1. BỘ XỬ LÝ ĐIỀU HƯỚNG
 try:
     params = dict(st.query_params)
     raw_view = params.get("view", "hientruong")
@@ -44,7 +44,7 @@ che_do_chon = st.radio(
 )
 
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
-ADMIN_PIN = "880880"
+ADMIN_PIN = "880880"  # Mã PIN bảo mật cho Quản trị viên & Lãnh đạo
 
 # ==============================================================================
 # DANH MỤC CÁC ĐỘI QUY CHIẾU THEO SHEET QUẢN LÝ ĐỘI
@@ -91,16 +91,16 @@ if "cho_duyet" not in st.session_state:
 st.markdown("---")
 
 # ==============================================================================
-# GIAO DIỆN 1: DUYỆT NHÂN SỰ (ADMIN TRÊN ĐIỆN THOẠI)
+# GIAO DIỆN 1: DUYỆT NHÂN SỰ (CẦN MÃ PIN ADMIN)
 # ==============================================================================
 if che_do_chon == "📱 Duyệt nhân sự (Admin)":
     st.title("📱 DUYỆT NHÂN SỰ MỚI (DÀNH CHO ADMIN)")
     st.caption("Xem thông tin và phê duyệt thành viên mới trực tiếp ngay trên điện thoại")
     
-    pin = st.text_input("🔑 Nhập mã PIN Quản trị viên để mở khóa:", type="password", placeholder="Nhập PIN admin...")
+    pin_admin = st.text_input("🔑 Nhập mã PIN Quản trị viên để mở khóa:", type="password", placeholder="Nhập mã PIN bảo mật...", key="pin_admin_input")
     
-    if pin == ADMIN_PIN:
-        st.success("🔓 Đã xác thực thành công quyền Quản trị viên!")
+    if pin_admin == ADMIN_PIN:
+        st.success("🔓 Xác thực thành công! Đã mở quyền Quản trị viên.")
         
         danh_sach = st.session_state.cho_duyet
         st.subheader(f"📋 Yêu cầu chờ duyệt ({len(danh_sach)} nhân sự)")
@@ -136,8 +136,10 @@ if che_do_chon == "📱 Duyệt nhân sự (Admin)":
                             st.session_state.cho_duyet.pop(idx)
                             st.warning(f"Đã từ chối nhân sự: {user['ho_ten']}!")
                             st.rerun()
-    elif pin != "":
-        st.error("Mã PIN không đúng! Vui lòng kiểm tra lại.")
+    elif pin_admin != "":
+        st.error("❌ Mã PIN không chính xác! Vui lòng kiểm tra lại.")
+    else:
+        st.info("🔒 Vui lòng nhập mã PIN quản trị để xem và phê duyệt nhân sự.")
 
 # ==============================================================================
 # GIAO DIỆN 2: ĐĂNG KÝ THÀNH VIÊN
@@ -198,26 +200,36 @@ elif che_do_chon == "📝 Đăng ký thành viên":
                 st.success(f"✅ Đã gửi đăng ký thành công cho {ho_ten}! Quản trị viên sẽ xem xét duyệt trên điện thoại.")
 
 # ==============================================================================
-# GIAO DIỆN 3: GIÁM SÁT LÃNH ĐẠO
+# GIAO DIỆN 3: GIÁM SÁT LÃNH ĐẠO (CẦN MÃ PIN LÃNH ĐẠO)
 # ==============================================================================
 elif che_do_chon == "📊 Giám sát lãnh đạo":
     st.title("📊 TRUNG TÂM GIÁM SÁT & ĐIỀU HÀNH DỰ ÁN (LÃNH ĐẠO)")
-    st.caption("Tổng hợp khối lượng danh mục, tiến độ vận chuyển và hoàn thành lắp đặt thực tế")
+    st.caption("Báo cáo tiến độ và bảng điều hành chỉ số nội bộ")
     
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric(label="📍 Tổng điểm danh mục Cột D", value=f"{len(DANH_SACH_DIEM_CHUAN)} điểm")
-    with col2:
-        st.metric(label="🚚 Tiến độ Giao hàng", value="Đang cập nhật", delta="Live")
-    with col3:
-        st.metric(label="🔧 Tiến độ Lắp đặt", value="Đang cập nhật", delta="Live")
-    with col4:
-        st.metric(label="✅ Tỷ lệ Nghiệm thu", value="Đang cập nhật", delta="Live")
+    pin_lanhdao = st.text_input("🔑 Nhập mã PIN Lãnh đạo để xem báo cáo:", type="password", placeholder="Nhập mã PIN bảo mật...", key="pin_lanhdao_input")
+    
+    if pin_lanhdao == ADMIN_PIN:
+        st.success("🔓 Xác thực thành công! Đã mở quyền truy cập Báo cáo Lãnh đạo.")
+        st.markdown("---")
         
-    st.markdown("---")
-    st.subheader(f"📋 Bảng Chi Tiết Toàn Bộ {len(DANH_SACH_DIEM_CHUAN)} Điểm Triển Khai (Cột D)")
-    df_preview = pd.DataFrame({"STT": range(1, len(DANH_SACH_DIEM_CHUAN) + 1), "Địa bàn": DANH_SACH_DIEM_CHUAN})
-    st.dataframe(df_preview, use_container_width=True, hide_index=True)
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric(label="📍 Tổng điểm danh mục Cột D", value=f"{len(DANH_SACH_DIEM_CHUAN)} điểm")
+        with col2:
+            st.metric(label="🚚 Tiến độ Giao hàng", value="Đang cập nhật", delta="Live")
+        with col3:
+            st.metric(label="🔧 Tiến độ Lắp đặt", value="Đang cập nhật", delta="Live")
+        with col4:
+            st.metric(label="✅ Tỷ lệ Nghiệm thu", value="Đang cập nhật", delta="Live")
+            
+        st.markdown("---")
+        st.subheader(f"📋 Bảng Chi Tiết Toàn Bộ {len(DANH_SACH_DIEM_CHUAN)} Điểm Triển Khai (Cột D)")
+        df_preview = pd.DataFrame({"STT": range(1, len(DANH_SACH_DIEM_CHUAN) + 1), "Địa bàn": DANH_SACH_DIEM_CHUAN})
+        st.dataframe(df_preview, use_container_width=True, hide_index=True)
+    elif pin_lanhdao != "":
+        st.error("❌ Mã PIN không chính xác! Vui lòng kiểm tra lại.")
+    else:
+        st.info("🔒 Vui lòng nhập mã PIN bảo mật để xem báo cáo điều hành và số liệu dự án.")
 
 # ==============================================================================
 # GIAO DIỆN 4: BÁO CÁO TIẾN ĐỘ HIỆN TRƯỜNG (KỸ THUẬT VIÊN)
