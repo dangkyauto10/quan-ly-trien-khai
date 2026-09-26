@@ -23,6 +23,7 @@ else:
     view_mode = str(raw_view).strip().lower()
 
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyCY-kns_lnNkgC-005rSYquDgcUgvBhdylHormgQktnydC0qhAfp62Lmm_9qLvrU6xIQ/exec"
+ADMIN_PIN = "880880"  # Mã PIN bảo mật khi duyệt trên điện thoại
 
 # ==============================================================================
 # DANH MỤC CÁC ĐỘI QUY CHIẾU THEO SHEET QUẢN LÝ ĐỘI
@@ -60,34 +61,12 @@ DANH_SACH_DIEM_CHUAN = [
     "Xã Yên Cường", "Xã Lạc Nông", "Xã Minh Sơn", "Xã Thượng Tân"
 ]
 
-# Hàm xác định khu vực cấp Huyện/Thành phố dựa theo tên xã
-def xac_dinh_khu_vuc(ten_diem):
-    tq_tp = ["Minh Xuân", "Nông Tiến", "Bình Thuận", "An Tường", "Mỹ Lâm"]
-    tq_ys = ["Nhữ Khê", "Yên Sơn", "Tân Long", "Lực Hành", "Xuân Vân", "Thái Bình", "Hùng Lợi", "Trung Sơn", "Kiến Thiết", "Đông Thọ"]
-    tq_sd = ["Hồng Sơn", "Trường Sinh", "Phú Lương", "Sơn Thủy", "Minh Thanh", "Tân Trào", "Tân Thanh", "Bình Ca", "Sơn Dương"]
-    tq_ch = ["Yên Nguyên", "Kim Bình", "Tri Phú"]
-    hg_mv = ["Mèo Vạc", "Khâu Vai", "Sơn Vĩ", "Giàng Chu Phìn", "Lũng Pù", "Cán Chu Phìn", "Thượng Phùng", "Xín Cái", "Pả Vi", "Pải Lủng", "Tả Lủng", "Nậm Ban", "Niêm Tòng", "Tát Ngà"]
-    hg_dv = ["Đồng Văn", "Lũng Cú", "Sà Phìn", "Phố Bảng", "Ma Lé", "Sính Lủng"]
-    hg_ym = ["Yên Minh", "Bạch Đích", "Thắng Mố", "Mậu Duệ", "Du Già", "Đường Thượng", "Ngọc Long", "Lũng Phìn", "Niêm Sơn", "Sủng Máng"]
-    hg_qb = ["Quản Bạ", "Cán Tỷ", "Lùng Tám", "Tùng Vài", "Nghĩa Thuận", "Đông Hà", "Quyết Tiến", "Bát Đại Sơn"]
-    
-    for x in tq_tp:
-        if x in ten_diem: return "TP Tuyên Quang"
-    for x in tq_ys:
-        if x in ten_diem: return "H. Yên Sơn"
-    for x in tq_sd:
-        if x in ten_diem: return "H. Sơn Dương"
-    for x in tq_ch:
-        if x in ten_diem: return "H. Chiêm Hóa"
-    for x in hg_mv:
-        if x in ten_diem: return "H. Mèo Vạc"
-    for x in hg_dv:
-        if x in ten_diem: return "H. Đồng Văn"
-    for x in hg_ym:
-        if x in ten_diem: return "H. Yên Minh"
-    for x in hg_qb:
-        if x in ten_diem: return "H. Quản Bạ"
-    return "Huyện Bắc Mê / Khác"
+# Quản lý bộ nhớ tạm các yêu cầu đăng ký chờ duyệt
+if "cho_duyet" not in st.session_state:
+    st.session_state.cho_duyet = [
+        {"ho_ten": "Hoàng Văn Tuấn", "sdt": "0988123456", "vai_tro": "KTV Lắp đặt thiết bị", "dia_ban": "Hà Giang, Mèo Vạc"},
+        {"ho_ten": "Đặng Quốc Việt", "sdt": "0912345678", "vai_tro": "Vận chuyển / Giao nhận", "dia_ban": "TP Tuyên Quang, Yên Sơn"}
+    ]
 
 # ==============================================================================
 # NHÁNH 1: ĐĂNG KÝ THÀNH VIÊN (?view=dangky)
@@ -135,80 +114,93 @@ if view_mode == "dangky":
                     "phuong_tien": phuong_tien,
                     "dia_ban": ", ".join(dia_ban)
                 }
+                # Thêm vào danh sách chờ duyệt
+                st.session_state.cho_duyet.append({
+                    "ho_ten": ho_ten,
+                    "sdt": so_dien_thoai,
+                    "vai_tro": chuyen_mon_cuoi,
+                    "dia_ban": ", ".join(dia_ban)
+                })
                 try:
                     requests.post(WEBHOOK_URL, json=payload, timeout=15)
                 except Exception:
                     pass
-                st.success(f"✅ Đã gửi đăng ký thành công cho {ho_ten} với vai trò: '{chuyen_mon_cuoi}'! Quản trị viên sẽ phê duyệt trên Google Sheets.")
+                st.success(f"✅ Đã gửi đăng ký thành công cho {ho_ten}! Quản trị viên sẽ xem xét duyệt trên điện thoại.")
 
 # ==============================================================================
-# NHÁNH 2: TRUNG TÂM GIÁM SÁT DÀNH CHO LÃNH ĐẠO (?view=lanhdao)
+# NHÁNH 2: TRUNG TÂM DUYỆT THÀNH VIÊN TRÊN ĐIỆN THOẠI (?view=duyet)
+# ==============================================================================
+elif view_mode == "duyet":
+    st.title("📱 DUYỆT NHÂN SỰ MỚI (DÀNH CHO ADMIN)")
+    st.caption("Xem và phê duyệt thành viên mới trực tiếp ngay trên điện thoại")
+    
+    pin = st.text_input("🔑 Nhập mã PIN Quản trị viên để duyệt:", type="password", placeholder="Nhập PIN admin...")
+    
+    if pin == ADMIN_PIN:
+        st.success("🔓 Đã xác thực quyền Quản trị viên!")
+        st.markdown("---")
+        
+        danh_sach = st.session_state.cho_duyet
+        st.subheader(f"📋 Yêu cầu chờ duyệt ({len(danh_sach)} nhân sự)")
+        
+        if len(danh_sach) == 0:
+            st.info("Hiện không có yêu cầu nào chờ duyệt.")
+        else:
+            for idx, user in enumerate(danh_sach):
+                with st.expander(f"👤 {user['ho_ten']} - {user['sdt']}", expanded=True):
+                    st.write(f"**Chuyên môn / Vai trò:** `{user['vai_tro']}`")
+                    st.write(f"**Địa bàn nhận:** `{user['dia_ban']}`")
+                    
+                    col_btn1, col_btn2 = st.columns(2)
+                    with col_btn1:
+                        if st.button(f"✅ DUYỆT VÀO HỆ THỐNG", key=f"duyet_{idx}"):
+                            payload_duyet = {
+                                "action": "duyet_thanh_vien",
+                                "ho_ten": user["ho_ten"],
+                                "so_dien_thoai": user["sdt"],
+                                "vai_tro": user["vai_tro"],
+                                "dia_ban": user["dia_ban"]
+                            }
+                            try:
+                                requests.post(WEBHOOK_URL, json=payload_duyet, timeout=15)
+                            except Exception:
+                                pass
+                            st.session_state.cho_duyet.pop(idx)
+                            st.success(f"Đã duyệt thành công nhân sự: {user['ho_ten']}!")
+                            st.rerun()
+                            
+                    with col_btn2:
+                        if st.button(f"❌ TỪ CHỐI", key=f"tuchoi_{idx}"):
+                            st.session_state.cho_duyet.pop(idx)
+                            st.warning(f"Đã từ chối nhân sự: {user['ho_ten']}!")
+                            st.rerun()
+    elif pin != "":
+        st.error("Mã PIN không đúng! Vui lòng kiểm tra lại.")
+
+# ==============================================================================
+# NHÁNH 3: TRUNG TÂM GIÁM SÁT DÀNH CHO LÃNH ĐẠO (?view=lanhdao)
 # ==============================================================================
 elif view_mode == "lanhdao":
-    st.title("📊 TRUNG TÂM GIÁM SÁT & ĐIỀU HÀNH DỰ ÁN 880 (LÃNH ĐẠO)")
+    st.title("📊 TRUNG TÂM GIÁM SÁT & ĐIỀU HÀNH DỰ ÁN (LÃNH ĐẠO)")
     st.caption("Tổng hợp khối lượng danh mục, tiến độ vận chuyển và hoàn thành lắp đặt thực tế")
     
-    tong_so_diem = len(DANH_SACH_DIEM_CHUAN)
-    
-    # 4 Ô CHỈ SỐ KPI CHUẨN XÁC
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric(label="📍 Tổng điểm danh mục (Cột D)", value=f"{tong_so_diem} điểm")
+        st.metric(label="📍 Tổng điểm danh mục Cột D", value=f"{len(DANH_SACH_DIEM_CHUAN)} điểm")
     with col2:
-        st.metric(label="🚚 Tiến độ Giao hàng", value="Đang cập nhật", delta="Đồng bộ theo KTV")
+        st.metric(label="🚚 Tiến độ Giao hàng", value="Đang cập nhật", delta="Live")
     with col3:
-        st.metric(label="🔧 Tiến độ Lắp đặt", value="Đang cập nhật", delta="Đồng bộ theo KTV")
+        st.metric(label="🔧 Tiến độ Lắp đặt", value="Đang cập nhật", delta="Live")
     with col4:
-        st.metric(label="✅ Tỷ lệ Nghiệm thu", value="Đang cập nhật", delta="Theo thời gian thực")
+        st.metric(label="✅ Tỷ lệ Nghiệm thu", value="Đang cập nhật", delta="Live")
         
     st.markdown("---")
-    
-    # PHÂN TÍCH KHỐI LƯỢNG ĐIỂM THEO HUYỆN / KHU VỰC
-    st.subheader("📈 Phân Bổ Điểm Triển Khai Theo Khu Vực Địa Bàn")
-    
-    data_khu_vuc = []
-    for d in DANH_SACH_DIEM_CHUAN:
-        data_khu_vuc.append({
-            "Địa bàn": d,
-            "Khu vực": xac_dinh_khu_vuc(d),
-            "Thiết bị định mức": 5
-        })
-    df_all = pd.DataFrame(data_khu_vuc)
-    df_khuvuc = df_all.groupby("Khu vực").size().reset_index(name="Số lượng điểm")
-    
-    col_chart1, col_chart2 = st.columns(2)
-    with col_chart1:
-        st.write("**Số lượng điểm tác nghiệp theo từng địa bàn huyện/thành phố:**")
-        st.bar_chart(df_khuvuc.set_index("Khu vực"), color="#0d6efd")
-        
-    with col_chart2:
-        st.write("**Tỷ lệ phân bổ theo huyện/thị:**")
-        st.dataframe(df_khuvuc, use_container_width=True, hide_index=True)
-        
-    st.markdown("---")
-    
-    # BẢNG TỔNG HỢP TOÀN BỘ CÁC ĐIỂM CỦA DỰ ÁN
-    st.subheader(f"📋 Bảng Chi Tiết {tong_so_diem} Điểm Triển Khai Toàn Tuyến (Cột D)")
-    
-    # Bộ lọc nhanh cho lãnh đạo
-    khu_vuc_filter = st.selectbox(
-        "Lọc nhanh theo khu vực:",
-        options=["Tất cả khu vực"] + sorted(list(df_all["Khu vực"].unique()))
-    )
-    
-    if khu_vuc_filter != "Tất cả khu vực":
-        df_hienthi = df_all[df_all["Khu vực"] == khu_vuc_filter]
-    else:
-        df_hienthi = df_all
-        
-    st.dataframe(
-        df_hienthi[["Khu vực", "Địa bàn", "Thiết bị định mức"]], 
-        use_container_width=True, 
-        hide_index=True
-    )
+    st.subheader(f"📋 Bảng Chi Tiết Toàn Bộ {len(DANH_SACH_DIEM_CHUAN)} Điểm Triển Khai (Cột D)")
+    df_preview = pd.DataFrame({"STT": range(1, len(DANH_SACH_DIEM_CHUAN) + 1), "Địa bàn": DANH_SACH_DIEM_CHUAN})
+    st.dataframe(df_preview, use_container_width=True, hide_index=True)
 
 # ==============================================================================
-# NHÁNH 3: BÁO CÁO TIẾN ĐỘ HIỆN TRƯỜNG (KỸ THUẬT VIÊN)
+# NHÁNH 4: BÁO CÁO TIẾN ĐỘ HIỆN TRƯỜNG (KỸ THUẬT VIÊN)
 # ==============================================================================
 else:
     st.title("🛠️ BÁO CÁO TIẾN ĐỘ THỰC HIỆN DỰ ÁN")
@@ -235,7 +227,7 @@ else:
             doi_thuc_hien = doi_thuc_hien_chon
 
     with col_b:
-        # Ô CHỌN ĐIỂM: CHẠM VÀO GÕ NGAY (INDEX=NONE, ĐẦY ĐỦ TOÀN BỘ CỘT D)
+        # Ô CHỌN ĐIỂM: CHẠM VÀO GÕ NGAY (INDEX=NONE, TOÀN BỘ CỘT D)
         diem_duoc_chon = st.selectbox(
             "Điểm tác nghiệp (Chỉ hiển thị tên phường/xã) *",
             options=DANH_SACH_DIEM_CHUAN + ["🔍 [Tự nhập điểm khác ngoài danh mục...]"],
