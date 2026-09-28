@@ -8,7 +8,7 @@ import os
 # Cấu hình giao diện tối ưu (Wide mode)
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# Ép buộc xóa sạch bộ nhớ cache để cập nhật dữ liệu thời gian thực tươi mới 100%
+# Xóa hoàn toàn cache để ứng dụng không bị lưu vết dữ liệu cũ
 st.cache_resource.clear()
 
 @st.cache_resource
@@ -29,8 +29,8 @@ def init_connection():
 
 client = init_connection()
 
-# HÀM VÉT CẠN TRỰC TIẾP CỘT B (TÊN ĐỘI) - ĐẢM BẢO NHẬP THÊM BAO NHIÊU CŨNG HIỆN ĐỦ
-def get_doi_list_realtime():
+# HÀM LẤY TOÀN BỘ CỘT B (TÊN ĐỘI) CHUẨN XÁC 100% KHÔNG BỊ GIỚI HẠN DÒNG
+def get_doi_list_all():
     doi_list = []
     try:
         if client:
@@ -45,35 +45,39 @@ def get_doi_list_realtime():
             if not target_ws:
                 target_ws = sh.worksheets()[1]
             
-            # Vét cạn toàn bộ giá trị thô của Cột B (cột số 2)
-            col_b_raw = target_ws.col_values(2)
-            # Bỏ qua 2 dòng tiêu đề đầu tiên, lọc sạch các ô trống
-            for val in col_b_raw[2:]:
-                if val is not None and str(val).strip() != "":
-                    doi_list.append(str(val).strip())
+            # Lấy toàn bộ ma trận dữ liệu của sheet
+            rows = target_ws.get_all_values()
+            # Duyệt từ dòng thứ 3 trở đi (index 2) để lấy trọn vẹn Cột B (index 1)
+            for row in rows[2:]:
+                if len(row) >= 2:
+                    val = str(row[1]).strip()
+                    if val != "":
+                        doi_list.append(val)
     except Exception:
         pass
     
     if not doi_list:
-        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", "Nguyễn Văn C", "Hồ văn Hải", "Nguyễn Văn Ngu"]
+        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
     return doi_list
 
-# HÀM VÉT CẠN TRỰC TIẾP CỘT D (ĐỊA ĐIỂM) TỪ SHEET DANH_SACH_DIEM
-def get_diem_list_realtime():
+# HÀM LẤY TOÀN BỘ CỘT D (ĐỊA ĐIỂM) TỪ SHEET DANH_SACH_DIEM
+def get_diem_list_all():
     diem_list = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            col_d_raw = ws_diem.col_values(4) # Cột D
-            for val in col_d_raw[2:]:
-                if val is not None and str(val).strip() != "":
-                    diem_list.append(str(val).strip())
+            rows = ws_diem.get_all_values()
+            for row in rows[2:]:
+                if len(row) >= 4:
+                    val = str(row[3]).strip() # Cột D là index 3
+                    if val != "":
+                        diem_list.append(val)
     except Exception:
         pass
         
     if not diem_list:
-        diem_list = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
+        diem_list = ["Phường Minh Xuân", "Phường Nông Tiến"]
     return diem_list
 
 # -------------------------------------------------------------------------
@@ -90,7 +94,7 @@ with nav_col2:
 with nav_col3:
     btn_adduyet = st.button("🔵 AD Duyệt TVĐK", use_container_width=True)
 with nav_col4:
-    btn_baocaold = st.button("🔵 BÁO CÁO LĐ", use_container_width=True) # Chuẩn 100% tên tab LĐ
+    btn_baocaold = st.button("🔵 BÁO CÁO LĐ", use_container_width=True)
 
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "Báo cáo KTV&VC"
@@ -113,20 +117,20 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Lấy dữ liệu thời gian thực mới nhất từ Cột B và Cột D
-    current_doi_list = get_doi_list_realtime()
-    current_diem_list = get_diem_list_realtime()
+    # Lấy danh sách tươi mới chuẩn xác từ toàn bộ Cột B và Cột D
+    current_doi_list = get_doi_list_all()
+    current_diem_list = get_diem_list_all()
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Cán bộ / Đội trưởng thực hiện (Quy chiếu ĐỘNG từ Cột B, hiển thị đầy đủ tên mới nhập)
+        # Cán bộ / Đội trưởng thực hiện (Quy chiếu chuẩn 100% toàn bộ Cột B)
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
             current_doi_list
         )
         
-        # Chọn địa điểm vận chuyển / lắp đặt (Quy chiếu từ Cột D sheet DANH_SACH_DIEM)
+        # Chọn địa điểm vận chuyển / lắp đặt (Quy chiếu chuẩn từ Cột D)
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
             current_diem_list
