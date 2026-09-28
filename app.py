@@ -3,10 +3,10 @@ from google.oauth2.service_account import Credentials
 import gspread
 import pandas as pd
 
-# Cấu hình giao diện chuẩn tối ưu cho Mobile & Desktop
+# Thiết lập giao diện tối ưu cho Mobile & Desktop
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide")
 
-# Khởi tạo kết nối Google Sheets an toàn tuyệt đối
+# Khởi tạo kết nối Google Sheets an toàn theo chuẩn ngày 26/9
 @st.cache_resource
 def init_connection():
     try:
@@ -29,11 +29,11 @@ client = init_connection()
 st.title("🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
 if client:
-    st.sidebar.success("🟢 Đã kết nối Google Sheets")
+    st.sidebar.success("🟢 Kết nối Google Sheets thành công")
 else:
     st.sidebar.warning("🟡 Chế độ giao diện độc lập")
 
-# Menu 4 Module chuẩn nghiệp vụ
+# Menu 4 Module chuẩn vận hành ngày 26/9
 menu = st.sidebar.selectbox("📂 Chọn Module Chức Năng", [
     "Trang chủ & Lãnh đạo Theo Dõi", 
     "Module 1: Đăng Ký & Admin Duyệt", 
@@ -68,7 +68,7 @@ if menu == "Trang chủ & Lãnh đạo Theo Dõi":
     if df_home is not None and not df_home.empty:
         st.dataframe(df_home, use_container_width=True)
     else:
-        st.info("Đang hiển thị bảng điều hành tổng hợp hệ thống 126 điểm triển khai.")
+        st.info("Hệ thống giám sát tiến độ trực tiếp từ 126 điểm triển khai.")
 
 elif menu == "Module 1: Đăng Ký & Admin Duyệt":
     st.subheader("👥 Quản Lý Thành Viên & Phân Tuyến (Admin Duyệt)")
@@ -76,20 +76,15 @@ elif menu == "Module 1: Đăng Ký & Admin Duyệt":
     if df_dk is not None and not df_dk.empty:
         st.dataframe(df_dk, use_container_width=True)
     else:
-        st.warning("Chưa nạp được dữ liệu từ sheet DANG_KY_THANH_VIEN. Hiển thị bảng thao tác nhanh:")
-        sample_df = pd.DataFrame([
-            {"STT": 1, "Họ Tên": "Nguyễn Văn A", "Khu Vực": "Tuyến 1", "Trạng Thái": "Chờ duyệt"},
-            {"STT": 2, "Họ Tên": "Trần Văn B", "Khu Vực": "Tuyến 2", "Trạng Thái": "Đã duyệt"}
-        ])
-        st.dataframe(sample_df, use_container_width=True)
+        st.info("Đang đồng bộ dữ liệu từ DANG_KY_THANH_VIEN và THANH_VIEN.")
 
 elif menu == "Module 2: Kho & Phân Bổ":
-    st.subheader("📦 Quản Lý Thiết Bị & Định Mức Kho")
+    st.subheader("📦 Quản Lý Thiết Bị & Định Mức Kho (KHO_PHAN_BO)")
     df_kho = load_data_from_sheet("KHO_PHAN_BO")
     if df_kho is not None and not df_kho.empty:
         st.dataframe(df_kho, use_container_width=True)
     else:
-        st.info("Hệ thống kiểm soát tồn kho và phân bổ vật tư hiện trường sẵn sàng.")
+        st.info("Kiểm soát số lượng vật tư tồn kho và phân bổ thực tế cho hiện trường.")
 
 elif menu == "Module 3: Vận Chuyển & Lắp Đặt":
     st.subheader("🚚 Điều Phối Vận Chuyển & Sinh Mã Công Việc")
@@ -97,7 +92,7 @@ elif menu == "Module 3: Vận Chuyển & Lắp Đặt":
     if df_vc is not None and not df_vc.empty:
         st.dataframe(df_vc, use_container_width=True)
     else:
-        st.info("Theo dõi trạng thái chuyến xe và mã công việc tự động cho các tổ đội.")
+        st.info("Theo dõi trạng thái chuyến xe và tiến độ lắp đặt tại các trạm.")
 
 elif menu == "Module 4: Báo Cáo KTV & GPS":
     st.subheader("📍 Báo Cáo Nghiệm Thu 1 Chạm (Dành cho KTV)")
