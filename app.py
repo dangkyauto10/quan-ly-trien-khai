@@ -75,21 +75,21 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # 1. Đọc chuẩn xác danh sách Tên đội từ Cột B của sheet quản lý đội (tìm sheet phù hợp hoặc sheet đầu tiên)
+    # QUÉT ĐỘNG 100%: Lấy toàn bộ tên đội từ Cột B của sheet Quản lý đội (bỏ qua tiêu đề dòng 1, 2)
     doi_list = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            # Thử tìm tên sheet chứa danh sách đội
+            # Tìm chính xác sheet quản lý đội (chứa chữ QUAN_LY_DOI hoặc DOi)
             ws_doi = None
             for s in sh.worksheets():
-                if "DOI" in s.title.upper() or "KTV" in s.title.upper():
+                if "DOI" in s.title.upper():
                     ws_doi = s
                     break
             if not ws_doi:
-                ws_doi = sh.worksheets()[1] # Lấy sheet thứ 2 nếu không tìm thấy tên khớp chính xác
+                ws_doi = sh.worksheets()[1]
             
-            # Cột B là cột số 2 trong Google Sheets chứa Tên đội
+            # Đọc toàn bộ giá trị Cột B và lọc bỏ các ô trống
             col_b_values = ws_doi.col_values(2)
             doi_list = [val.strip() for val in col_b_values[2:] if val and val.strip() != ""]
     except Exception:
@@ -98,7 +98,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     if not doi_list:
         doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
 
-    # 2. Đọc danh sách Địa điểm từ Cột D của sheet DANH_SACH_DIEM
+    # QUÉT ĐỘNG 100%: Lấy danh sách Địa điểm từ Cột D của sheet DANH_SACH_DIEM
     diem_list = []
     try:
         if client:
@@ -115,13 +115,13 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Cán bộ / Đội trưởng thực hiện quy chiếu trực tiếp từ Cột B
+        # Hiển thị danh sách động (bao gồm cả Nguyễn Ngọc Hiền vừa thêm vào sheet)
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
             doi_list
         )
         
-        # Địa điểm lấy từ Cột D sheet DANH_SACH_DIEM
+        # Chọn địa điểm từ Cột D
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
             diem_list
