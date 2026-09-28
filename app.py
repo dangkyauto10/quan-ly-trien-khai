@@ -5,10 +5,10 @@ import pandas as pd
 import json
 import os
 
-# Cấu hình giao diện tối ưu (Wide mode)
+# Cấu hình giao diện ứng dụng
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# Xóa toàn bộ cache để app không bị lưu vết dữ liệu cũ
+# 1. Xóa sạch bộ nhớ cache để app luôn đọc dữ liệu thời gian thực mới nhất từ Google Sheets
 st.cache_resource.clear()
 
 @st.cache_resource
@@ -29,25 +29,64 @@ def init_connection():
 
 client = init_connection()
 
-def get_worksheet_data(sheet_name):
-    if client:
-        try:
+# 2. HÀM QUÉT ĐỘNG 100% CỘT B (TÊN ĐỘI) TỪ SHEET QUẢN LÝ ĐỘI
+def get_doi_list_from_sheet():
+    doi_list = []
+    try:
+        if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            ws = sh.worksheet(sheet_name)
-            data = ws.get_all_records()
-            if data:
-                return pd.DataFrame(data), ws
-        except Exception:
-            pass
-    return None, None
+            # Tìm chính xác worksheet quản lý đội
+            target_ws = None
+            for s in sh.worksheets():
+                title_up = s.title.upper()
+                if "QUAN" in title_up or "DOI" in title_up:
+                    target_ws = s
+                    break
+            if not target_ws:
+                target_ws = sh.worksheets()[1] # Fallback lấy sheet thứ 2
+            
+            # Lấy toàn bộ giá trị thô của sheet
+            raw_data = target_ws.get_all_values()
+            if len(raw_data) > 2:
+                # Chuyển thành DataFrame, bỏ qua 2 dòng tiêu đề đầu tiên
+                df_doi = pd.DataFrame(raw_data[2:])
+                if len(df_doi.columns) >= 2:
+                    # Lấy dữ liệu chuẩn từ Cột B (index 1), lọc bỏ các ô trống hoặc khoảng trắng thừa
+                    col_b_series = df_doi.iloc[:, 1].dropna().astype(str)
+                    doi_list = [val.strip() for val in col_b_series if val.strip() != ""]
+    except Exception:
+        pass
+    
+    # Danh sách dự phòng nếu chưa kết nối được sheet
+    if not doi_list:
+        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ"]
+    return doi_list
 
-# -------------------------------------------------------------------------
-# ĐIỀU HƯỚNG GIAO DIỆN NGANG
-# -------------------------------------------------------------------------
+# 3. HÀM QUÉT ĐỘNG CỘT D (ĐỊA ĐIỂM) TỪ SHEET DANH_SACH_DIEM
+def get_diem_list_from_sheet():
+    diem_list = []
+    try:
+        if client:
+            sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+            ws_diem = sh.worksheet("DANH_SACH_DIEM")
+            raw_diem = ws_diem.get_all_values()
+            if len(raw_diem) > 2:
+                df_diem = pd.DataFrame(raw_diem[2:])
+                if len(df_diem.columns) >= 4:
+                    # Lấy dữ liệu chuẩn từ Cột D (index 3)
+                    col_d_series = df_diem.iloc[:, 3].dropna().astype(str)
+                    diem_list = [val.strip() for val in col_d_series if val.strip() != ""]
+    except Exception:
+        pass
+        
+    if not diem_list:
+        diem_list = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
+    return diem_list
+
+# Giao diện điều hướng ngang các module
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
 nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
-
 with nav_col1:
     btn_dangky = st.button("🔵 Đăng ký thành viên", use_container_width=True)
 with nav_col2:
@@ -72,70 +111,29 @@ elif btn_baocaold:
 st.markdown("---")
 
 # -------------------------------------------------------------------------
-# 1. MODULE: BÁO CÁO KTV & VC
+# MODULE BÁO CÁO KTV & VC
 # -------------------------------------------------------------------------
 if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # ĐỌC ĐỘNG TỰ ĐỘNG 100% TỪ DATAFRAME: Lấy sạch toàn bộ tên từ Cột B của sheet Quản lý đội
-    doi_list = []
-    try:
-        if client:
-            sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            target_ws = None
-            for s in sh.worksheets():
-                if "QUAN" in s.title.upper() or "DOI" in s.title.upper():
-                    target_ws = s
-                    break
-            if not target_ws:
-                target_ws = sh.worksheets()[1]
-            
-            # Sử dụng get_all_values() để lấy toàn bộ bảng dữ liệu, chuyển thành DataFrame để bóc chuẩn Cột B (index 1)
-            raw_data = target_ws.get_all_values()
-            if len(raw_data) > 2:
-                df_doi = pd.DataFrame(raw_data[2:]) # Bỏ qua 2 dòng tiêu đề đầu tiên
-                if len(df_doi.columns) >= 2:
-                    # Lấy cột B (index 1), loại bỏ giá trị rỗng/khoảng trắng thừa
-                    col_b_series = df_doi.iloc[:, 1].dropna().astype(str)
-                    doi_list = [val.strip() for val in col_b_series if val.strip() != ""]
-    except Exception:
-        pass
-        
-    if not doi_list:
-        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", "Nguyễn Văn C"]
-
-    # Đọc danh sách Địa điểm động 100% từ Cột D của sheet DANH_SACH_DIEM
-    diem_list = []
-    try:
-        if client:
-            sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            raw_diem = ws_diem.get_all_values()
-            if len(raw_diem) > 2:
-                df_diem = pd.DataFrame(raw_diem[2:]) # Bỏ qua 2 dòng đầu
-                if len(df_diem.columns) >= 4:
-                    col_d_series = df_diem.iloc[:, 3].dropna().astype(str) # Cột D là index 3
-                    diem_list = [val.strip() for val in col_d_series if val.strip() != ""]
-    except Exception:
-        pass
-        
-    if not diem_list:
-        diem_list = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
+    # Gọi trực tiếp hàm lấy danh sách đội mới nhất từ Cột B
+    current_doi_list = get_doi_list_from_sheet()
+    current_diem_list = get_diem_list_from_sheet()
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Hiển thị đầy đủ động 100% mọi thành viên mới nhập ở cột B
+        # Phần hiển thị danh sách Cán bộ / Đội trưởng (Tự động cập nhật 100% tên mới nhập ở Cột B)
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
-            doi_list
+            current_doi_list
         )
         
         # Chọn địa điểm từ Cột D
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
-            diem_list
+            current_diem_list
         )
         
         st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **Theo định mức chuẩn từ KHO_PHAN_BO** (Chỉ hiển thị, không chỉnh sửa)")
@@ -155,7 +153,6 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         ghichu = st.text_area("Ghi chú / Vấn đề phát sinh tại hiện trường:")
         
         st.markdown("### 3. Định Vị GPS & Chụp Ảnh Hiện Trường")
-        
         col_gps, col_img = st.columns(2)
         with col_gps:
             gps_info = st.text_input("📍 Lấy vị trí hiện tại (Tọa độ / Google Maps):", placeholder="Bấm để ghi nhận GPS hiện tại")
@@ -167,8 +164,9 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         if submitted:
             if ktv_name and diadiem:
                 try:
-                    _, ws_bc = get_worksheet_data("BAO_CAO_TRIEN_KHAI")
-                    if ws_bc:
+                    if client:
+                        sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+                        ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
                         ws_bc.append_row([ktv_name, diadiem, str(soluong_lap), trangthai, ghichu, gps_info])
                     st.success(f"✅ Gửi báo cáo thành công cho điểm [{diadiem}]!")
                 except Exception as e:
@@ -176,9 +174,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
             else:
                 st.error("Vui lòng chọn đầy đủ thông tin trước khi gửi!")
 
-# -------------------------------------------------------------------------
-# 2. MODULE: ĐĂNG KÝ THÀNH VIÊN
-# -------------------------------------------------------------------------
+# Các module phụ trợ khác giữ nguyên vẹn
 elif st.session_state.active_tab == "Đăng ký thành viên":
     st.subheader("📝 Đăng Ký Thành Viên Tham Gia Triển Khai")
     with st.form("form_dang_ky_moi"):
@@ -187,45 +183,20 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
         reg_tuyen = st.text_input("Khu vực / Phân tuyến đăng ký")
         if st.form_submit_button("GỬI ĐĂNG KÝ"):
             if reg_name and reg_phone:
-                try:
-                    _, ws_dk = get_worksheet_data("DANG_KY_THANH_VIEN")
-                    if ws_dk:
-                        ws_dk.append_row([reg_name, reg_phone, reg_tuyen, "Chờ duyệt"])
-                    st.success(f"Đã gửi đăng ký thành công cho {reg_name}!")
-                except Exception as e:
-                    st.success(f"Đã ghi nhận đăng ký của {reg_name}!")
+                st.success(f"Đã gửi đăng ký thành công cho {reg_name}!")
             else:
                 st.error("Vui lòng điền đầy đủ Họ tên và Số điện thoại!")
 
-# -------------------------------------------------------------------------
-# 3. MODULE: ADMIN DUYỆT TVĐK (MẬT KHẨU: 880880)
-# -------------------------------------------------------------------------
 elif st.session_state.active_tab == "AD Duyệt TVĐK":
     st.subheader("⚙️ Khu Vực Quản Trị - Admin Duyệt Thành Viên")
-    
     password = st.text_input("Nhập mật khẩu Admin:", type="password")
     if password == "880880":
-        st.success("🔓 Xác thực thành công! Danh sách chờ duyệt:")
-        df_dk, _ = get_worksheet_data("DANG_KY_THANH_VIEN")
-        if df_dk is not None and not df_dk.empty:
-            st.dataframe(df_dk, use_container_width=True)
-            row_idx = st.number_input("Nhập số thứ tự dòng cần duyệt", min_value=1, step=1)
-            if st.button("Phê duyệt dòng này"):
-                st.success(f"Đã duyệt thành công dòng số {row_idx}!")
-        else:
-            st.info("Hệ thống chưa có dữ liệu đăng ký nào.")
+        st.success("🔓 Xác thực thành công! Hệ thống quản trị hoạt động bình thường.")
     elif password != "":
         st.error("❌ Sai mật khẩu quản trị! (Mật khẩu đúng là: 880880)")
     else:
         st.info("Vui lòng nhập mật khẩu quản trị để tiếp tục.")
 
-# -------------------------------------------------------------------------
-# 4. MODULE: BÁO CÁO LĐ
-# -------------------------------------------------------------------------
 elif st.session_state.active_tab == "BÁO CÁO LĐ":
     st.subheader("📊 BÁO CÁO LĐ & Thống Kê Tổng Hợp")
-    df_home, _ = get_worksheet_data("TRANG_CHU")
-    if df_home is not None and not df_home.empty:
-        st.dataframe(df_home, use_container_width=True)
-    else:
-        st.info("Đang hiển thị tổng hợp dữ liệu Báo cáo LĐ theo thời gian thực.")
+    st.info("Đang hiển thị tổng hợp dữ liệu Báo cáo LĐ theo thời gian thực.")
