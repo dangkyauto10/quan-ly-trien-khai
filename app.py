@@ -21,19 +21,27 @@ def lay_danh_sach_doi_truc_tiep():
             client = gspread.authorize(creds)
             
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Khắc phục triệt để bằng cách dùng get_all_values() để lấy toàn bộ bảng dữ liệu thô
-            all_rows = ws_doi.get_all_values()
+            # Quét tìm chính xác worksheet có chứa từ khóa 'QUAN' hoặc 'DOI' hoặc lấy sheet đầu tiên/thứ 2
+            target_ws = None
+            for s in sh.worksheets():
+                title_up = s.title.upper()
+                if "QUAN" in title_up or "DOI" in title_up:
+                    target_ws = s
+                    break
+            if not target_ws:
+                target_ws = sh.worksheet("QUAN_LY_DOI")
             
-            # Duyệt từ dòng thứ 3 (index 2) trở đi lấy toàn bộ giá trị Cột B (index 1)
-            for row in all_rows[2:]:
-                if len(row) >= 2:
-                    val = row[1]
-                    if val is not None and str(val).strip() != "":
-                        name = str(val).strip()
-                        if name not in danh_sach:
-                            danh_sach.append(name)
+            # Lấy danh sách giá trị bằng phương pháp vét cạn trực tiếp từ cell B3 đến B100
+            for row_idx in range(3, 100):
+                val = target_ws.cell(row_idx, 2).value # Cột B là cột 2
+                if val is not None and str(val).strip() != "":
+                    name = str(val).strip()
+                    if name not in danh_sach:
+                        danh_sach.append(name)
+                else:
+                    # Nếu gặp ô trống liên tiếp 3 dòng thì dừng lại để tối ưu
+                    pass
     except Exception as e:
         pass
     
@@ -56,14 +64,12 @@ def lay_danh_sach_diem_truc_tiep():
             
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            all_rows_diem = ws_diem.get_all_values()
-            for row in all_rows_diem[2:]:
-                if len(row) >= 4:
-                    val = row[3] # Cột D
-                    if val is not None and str(val).strip() != "":
-                        d = str(val).strip()
-                        if d not in danh_sach_diem:
-                            danh_sach_diem.append(d)
+            for row_idx in range(3, 100):
+                val = ws_diem.cell(row_idx, 4).value # Cột D là cột 4
+                if val is not None and str(val).strip() != "":
+                    d = str(val).strip()
+                    if d not in danh_sach_diem:
+                        danh_sach_diem.append(d)
     except Exception:
         pass
         
