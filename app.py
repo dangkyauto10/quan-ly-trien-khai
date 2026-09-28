@@ -75,21 +75,19 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Lấy danh sách điểm TUYỆT ĐỐI CHUẨN XÁC từ Cột D ("Địa điểm giao hàng và lắp đặt") của sheet DANH SACH DIEM
+    # Lấy danh sách đúng chuẩn từ Cột D ("Địa điểm giao hàng và lắp đặt") của sheet DANH SACH DIEM
     diem_list = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH SACH DIEM")
-            # Cột D là cột số 4 trong Google Sheets
-            col_d_values = ws_diem.col_values(4) 
-            # Lọc bỏ dòng tiêu đề, giữ lại danh sách các xã, đơn vị (từ dòng 3 trở xuống)
+            col_d_values = ws_diem.col_values(4) # Cột D
             diem_list = [val.strip() for val in col_d_values[2:] if val and val.strip() != ""]
     except Exception:
         pass
         
     if not diem_list:
-        diem_list = ["Xã Tân Trào", "Phường Minh Xuân", "Xã Trung Sơn"]
+        diem_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
@@ -99,7 +97,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
             ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "Đội KTV Số 1", "Đội KTV Số 2", "Đội Vận Chuyển"]
         )
         
-        # Gợi ý địa điểm lấy chuẩn từ Cột D (xã, đơn vị quy chiếu)
+        # Gợi ý địa điểm lấy đúng nguyên bản từ Cột D
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
             diem_list
@@ -137,7 +135,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                     _, ws_bc = get_worksheet_data("BAO_CAO_TRIEN_KHAI")
                     if ws_bc:
                         ws_bc.append_row([ktv_name, diadiem, str(soluong_lap), trangthai, ghichu, gps_info])
-                    st.success(f"✅ Gửi báo cáo thành công cho địa điểm [{diadiem}]!")
+                    st.success(f"✅ Gửi báo cáo thành công cho [{diadiem}]!")
                 except Exception as e:
                     st.success(f"✅ Đã ghi nhận báo cáo thành công tại hiện trường cho [{diadiem}]!")
             else:
