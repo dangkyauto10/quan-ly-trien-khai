@@ -39,7 +39,7 @@ def get_worksheet_data(sheet_name):
     return None, None
 
 # -------------------------------------------------------------------------
-# ĐIỀU HƯỚNG GIAO DIỆN NGANG (CHUẨN 100% THEO CHÚ THÍCH ẢNH)
+# ĐIỀU HƯỚNG GIAO DIỆN NGANG
 # -------------------------------------------------------------------------
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -52,7 +52,7 @@ with nav_col2:
 with nav_col3:
     btn_adduyet = st.button("🔵 AD Duyệt TVĐK", use_container_width=True)
 with nav_col4:
-    btn_baocaold = st.button("🔵 BÁO CÁO LĐ", use_container_width=True) # Sửa chuẩn BÁO CÁO LĐ
+    btn_baocaold = st.button("🔵 BÁO CÁO LĐ", use_container_width=True)
 
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "Báo cáo KTV&VC"
@@ -75,58 +75,59 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # 1. Lấy danh sách Đội từ Cột B trong sheet QUAN_LY_DOI
+    # 1. Đọc chuẩn xác danh sách Tên đội từ Cột B của sheet quản lý đội (tìm sheet phù hợp hoặc sheet đầu tiên)
     doi_list = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            ws_doi = sh.worksheet("QUAN_LY_DOI")
-            col_b_doi = ws_doi.col_values(2) # Cột B
-            doi_list = [val.strip() for val in col_b_doi[1:] if val and val.strip() != ""]
+            # Thử tìm tên sheet chứa danh sách đội
+            ws_doi = None
+            for s in sh.worksheets():
+                if "DOI" in s.title.upper() or "KTV" in s.title.upper():
+                    ws_doi = s
+                    break
+            if not ws_doi:
+                ws_doi = sh.worksheets()[1] # Lấy sheet thứ 2 nếu không tìm thấy tên khớp chính xác
+            
+            # Cột B là cột số 2 trong Google Sheets chứa Tên đội
+            col_b_values = ws_doi.col_values(2)
+            doi_list = [val.strip() for val in col_b_values[2:] if val and val.strip() != ""]
     except Exception:
         pass
+        
     if not doi_list:
-        doi_list = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "Đội KTV Số 1", "Đội Vận Chuyển"]
+        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
 
-    # 2. Lấy danh sách Địa điểm (xã, đơn vị) từ Cột D trong sheet DANH_SACH_DIEM
+    # 2. Đọc danh sách Địa điểm từ Cột D của sheet DANH_SACH_DIEM
     diem_list = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            col_d_diem = ws_diem.col_values(4) # Cột D
-            diem_list = [val.strip() for val in col_d_diem[2:] if val and val.strip() != ""]
+            col_d_values = ws_diem.col_values(4) # Cột D
+            diem_list = [val.strip() for val in col_d_values[2:] if val and val.strip() != ""]
     except Exception:
         pass
+        
     if not diem_list:
-        diem_list = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
+        diem_list = ["Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận"]
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Quy chiếu Cột B trong sheet QUAN_LY_DOI
+        # Cán bộ / Đội trưởng thực hiện quy chiếu trực tiếp từ Cột B
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
             doi_list
         )
         
-        # Quy chiếu Cột D trong sheet DANH_SACH_DIEM
+        # Địa điểm lấy từ Cột D sheet DANH_SACH_DIEM
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
             diem_list
         )
         
-        # Số lượng thiết bị lấy từ sheet KHO_PHAN_BO (Chỉ hiển thị, không chỉnh sửa)
-        phanbo_info = "5 thiết bị (Định mức chuẩn)"
-        try:
-            if client:
-                sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-                ws_kho = sh.worksheet("KHO_PHAN_BO")
-                # Có thể tra cứu theo địa điểm nếu cần, tạm hiển thị text cố định hoặc đọc động
-        except Exception:
-            pass
-
-        st.info(f"📦 Số lượng thiết bị được phân bổ cho điểm này: **{phanbo_info}** (Chỉ hiển thị, không chỉnh sửa)")
+        st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **Theo định mức chuẩn từ KHO_PHAN_BO** (Chỉ hiển thị, không chỉnh sửa)")
         
         soluong_lap = st.number_input("Số lượng thiết bị thực tế lắp đặt / giao hàng:", min_value=1, value=1, step=1)
         
@@ -148,8 +149,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         with col_gps:
             gps_info = st.text_input("📍 Lấy vị trí hiện tại (Tọa độ / Google Maps):", placeholder="Bấm để ghi nhận GPS hiện tại")
         with col_img:
-            # Cho phép chụp ảnh trực tiếp từ camera hoặc tải ảnh lên (hỗ trợ camera trước/sau trên mobile)
-            uploaded_image = st.file_uploader("📷 Bấm vào máy ảnh để chọn camera chụp/tải ảnh báo cáo thực tế", type=["jpg", "jpeg", "png"], accept_multiple_files=False)
+            uploaded_image = st.file_uploader("📷 Bấm vào máy ảnh để chọn camera chụp/tải ảnh báo cáo thực tế", type=["jpg", "jpeg", "png"])
         
         submitted = st.form_submit_button("📍 GỬI BÁO CÁO NGHIỆM THU NGAY")
         
@@ -209,7 +209,7 @@ elif st.session_state.active_tab == "AD Duyệt TVĐK":
         st.info("Vui lòng nhập mật khẩu quản trị để tiếp tục.")
 
 # -------------------------------------------------------------------------
-# 4. MODULE: BÁO CÁO LĐ (ĐÚNG THEO YÊU CẦU)
+# 4. MODULE: BÁO CÁO LĐ
 # -------------------------------------------------------------------------
 elif st.session_state.active_tab == "BÁO CÁO LĐ":
     st.subheader("📊 BÁO CÁO LĐ & Thống Kê Tổng Hợp")
