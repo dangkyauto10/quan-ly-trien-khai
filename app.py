@@ -7,7 +7,6 @@ import os
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# KHÔNG DÙNG CACHE NỮA - ÉP TẢI MỚI TOÀN BỘ MỖI KHI F5 HOẶC CHUYỂN TAB
 def lay_danh_sach_doi_truc_tiep():
     danh_sach = []
     try:
@@ -21,23 +20,25 @@ def lay_danh_sach_doi_truc_tiep():
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             client = gspread.authorize(creds)
             
-            # Mở file trực tiếp
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Đọc toàn bộ giá trị Cột B không qua bất kỳ trung gian nào
-            col_b = ws_doi.col_values(2)
+            # Khắc phục triệt để bằng cách dùng get_all_values() để lấy toàn bộ bảng dữ liệu thô
+            all_rows = ws_doi.get_all_values()
             
-            for item in col_b[2:]: # Bỏ qua 2 dòng tiêu đề
-                if item is not None and str(item).strip() != "":
-                    name = str(item).strip()
-                    if name not in danh_sach:
-                        danh_sach.append(name)
+            # Duyệt từ dòng thứ 3 (index 2) trở đi lấy toàn bộ giá trị Cột B (index 1)
+            for row in all_rows[2:]:
+                if len(row) >= 2:
+                    val = row[1]
+                    if val is not None and str(val).strip() != "":
+                        name = str(val).strip()
+                        if name not in danh_sach:
+                            danh_sach.append(name)
     except Exception as e:
         pass
     
     if not danh_sach:
-        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Trần Thanh Tâm"]
     return danh_sach
 
 def lay_danh_sach_diem_truc_tiep():
@@ -55,12 +56,14 @@ def lay_danh_sach_diem_truc_tiep():
             
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            col_d = ws_diem.col_values(4)
-            for item in col_d[2:]:
-                if item is not None and str(item).strip() != "":
-                    d = str(item).strip()
-                    if d not in danh_sach_diem:
-                        danh_sach_diem.append(d)
+            all_rows_diem = ws_diem.get_all_values()
+            for row in all_rows_diem[2:]:
+                if len(row) >= 4:
+                    val = row[3] # Cột D
+                    if val is not None and str(val).strip() != "":
+                        d = str(val).strip()
+                        if d not in danh_sach_diem:
+                            danh_sach_diem.append(d)
     except Exception:
         pass
         
@@ -99,7 +102,6 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Lấy danh sách tươi mới mỗi lần tải trang
     danh_sach_doi = lay_danh_sach_doi_truc_tiep()
     danh_sach_diem = lay_danh_sach_diem_truc_tiep()
 
