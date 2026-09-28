@@ -8,7 +8,7 @@ import os
 # Cấu hình giao diện tối ưu (Wide mode)
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# Xóa toàn bộ cache để app luôn đọc dữ liệu thời gian thực mới nhất từ Google Sheets
+# Xóa toàn bộ cache để app không bị lưu vết dữ liệu cũ
 st.cache_resource.clear()
 
 @st.cache_resource
@@ -78,7 +78,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # ĐỌC TOÀN BỘ ĐỘNG 100%: Quét toàn bộ Cột B, loại bỏ ô trống và lấy sạch tất cả các dòng có tên thành viên
+    # ĐỌC ĐỘNG TỰ ĐỘNG 100% TỪ DATAFRAME: Lấy sạch toàn bộ tên từ Cột B của sheet Quản lý đội
     doi_list = []
     try:
         if client:
@@ -91,23 +91,32 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
             if not target_ws:
                 target_ws = sh.worksheets()[1]
             
-            # Lấy toàn bộ giá trị Cột B (lọc bỏ tiêu đề dòng 1, 2 và các ô trống bất kỳ)
-            col_b_values = target_ws.col_values(2)
-            doi_list = [val.strip() for val in col_b_values[2:] if val is not None and str(val).strip() != ""]
+            # Sử dụng get_all_values() để lấy toàn bộ bảng dữ liệu, chuyển thành DataFrame để bóc chuẩn Cột B (index 1)
+            raw_data = target_ws.get_all_values()
+            if len(raw_data) > 2:
+                df_doi = pd.DataFrame(raw_data[2:]) # Bỏ qua 2 dòng tiêu đề đầu tiên
+                if len(df_doi.columns) >= 2:
+                    # Lấy cột B (index 1), loại bỏ giá trị rỗng/khoảng trắng thừa
+                    col_b_series = df_doi.iloc[:, 1].dropna().astype(str)
+                    doi_list = [val.strip() for val in col_b_series if val.strip() != ""]
     except Exception:
         pass
         
     if not doi_list:
-        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ"]
+        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", "Nguyễn Văn C"]
 
-    # Đọc danh sách Địa điểm từ Cột D của sheet DANH_SACH_DIEM
+    # Đọc danh sách Địa điểm động 100% từ Cột D của sheet DANH_SACH_DIEM
     diem_list = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            col_d_values = ws_diem.col_values(4) # Cột D
-            diem_list = [val.strip() for val in col_d_values[2:] if val is not None and str(val).strip() != ""]
+            raw_diem = ws_diem.get_all_values()
+            if len(raw_diem) > 2:
+                df_diem = pd.DataFrame(raw_diem[2:]) # Bỏ qua 2 dòng đầu
+                if len(df_diem.columns) >= 4:
+                    col_d_series = df_diem.iloc[:, 3].dropna().astype(str) # Cột D là index 3
+                    diem_list = [val.strip() for val in col_d_series if val.strip() != ""]
     except Exception:
         pass
         
@@ -117,7 +126,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Hiển thị đầy đủ tất cả thành viên trong Cột B (bao gồm cả Trần Đình Vỹ và các thành viên thêm sau này)
+        # Hiển thị đầy đủ động 100% mọi thành viên mới nhập ở cột B
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
             doi_list
@@ -204,7 +213,7 @@ elif st.session_state.active_tab == "AD Duyệt TVĐK":
             if st.button("Phê duyệt dòng này"):
                 st.success(f"Đã duyệt thành công dòng số {row_idx}!")
         else:
-            st.info("Chưa có dữ liệu đăng ký nào.")
+            st.info("Hệ thống chưa có dữ liệu đăng ký nào.")
     elif password != "":
         st.error("❌ Sai mật khẩu quản trị! (Mật khẩu đúng là: 880880)")
     else:
