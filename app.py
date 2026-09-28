@@ -1,56 +1,44 @@
-// --- 1. HÀM PHÂN BỔ DANH MỤC CHUẨN (phanBoDmChuan) ---
-function phanBoDmChuan() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetDm = ss.getSheetByName("DM_CHUAN");
-  var sheetKho = ss.getSheetByName("KHO_PHAN_BO");
-  
-  if (!sheetDm || !sheetKho) {
-    SpreadsheetApp.getUi().alert("Không tìm thấy sheet DM_CHUAN hoặc KHO_PHAN_BO!");
-    return;
-  }
-  
-  // Logic xử lý phân bổ và kiểm soát giá trị không âm (tránh lỗi -10)
-  // Thực hiện đồng bộ số liệu giữa kho và danh mục chuẩn
-  var lastRowDm = sheetDm.getLastRow();
-  if (lastRowDm < 3) return;
-  
-  // Đảm bảo các ràng buộc dữ liệu được giữ nguyên vẹn
-  SpreadsheetApp.getUi().alert("Đã kích hoạt lệnh phân bổ chuẩn thành công!");
-}
+import streamlit as st
+import gspread
+from google.oauth2.service_account import Credentials
 
-// --- 2. HÀM TẠO DROPDOWN CỘT F (taoDropdownCotF) ---
-function taoDropdownCotF() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetDm = ss.getSheetByName("DM_CHUAN");
-  var sheetDiem = ss.getSheetByName("DANH_SACH_DIEM");
-  
-  if (!sheetDm) return;
-  
-  var lastRowDm = sheetDm.getLastRow();
-  if (lastRowDm < 3) return;
-  
-  // Lấy danh sách điểm từ Cột D sheet DANH_SACH_DIEM để làm nguồn dropdown cho Cột F sheet DM_CHUAN
-  var danhSachDiem = [];
-  if (sheetDiem) {
-    var lastRowDiem = sheetDiem.getLastRow();
-    if (lastRowDiem >= 3) {
-      var dataDiem = sheetDiem.getRange(3, 4, lastRowDiem - 2, 1).getValues(); // Cột D là cột 4
-      for (var i = 0; i < dataDiem.length; i++) {
-        var diem = dataDiem[i][0] ? dataDiem[i][0].toString().trim() : "";
-        if (diem !== "") {
-          danhSachDiem.push(diem);
-        }
-      }
-    }
-  }
-  
-  // Nếu có danh sách điểm, tạo quy tắc xác thực dữ liệu (Dropdown) cho Cột F từ hàng 3 trở xuống
-  if (danhSachDiem.length > 0) {
-    var rule = SpreadsheetApp.DataValidationFactory()
-      .requireValueInList(danhSachDiem, true)
-      .setAllowInvalid(false)
-      .build();
-      
-    sheetDm.getRange(3, 6, lastRowDm - 2, 1).setDataValidation(rule); // Cột F là cột 6
-  }
-}
+st.set_page_config(page_title="Quản Lý Triển Khai", layout="wide")
+
+@st.cache_data(ttl=10)
+def lay_danh_sach_doi_tu_sheet():
+    try:
+        scope = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        else:
+            creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
+            
+        client = gspread.authorize(creds)
+        spreadsheet = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+        sheet = spreadsheet.worksheet("QUAN_LY_DOI")
+        
+        col_b_values = sheet.col_values(2)
+        danh_sach = []
+        for val in col_b_values[2:]:
+            v = str(val).strip()
+            if v and v.upper() != "TÊN ĐỘI":
+                danh_sach.append(v)
+                
+        return danh_sach if danh_sach else ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+    except Exception as e:
+        return ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+
+# --- GIAO DIỆN CHÍNH STREAMLIT ---
+st.title("QUẢN LÝ TRIỂN KHAI - HỆ THỐNG ĐIỀU HÀNH")
+
+danh_sach_doi = lay_danh_sach_doi_tu_sheet()
+
+st.subheader("Báo cáo tiến độ thực hiện dự án")
+ma_du_an = st.selectbox("Mã dự án *", ["DA880"])
+doi_thuc_hiện = st.selectbox("Đội thực hiện *", danh_sach_doi)
+
+st.success(f"Hệ thống đã kết nối thành công danh sách đội từ Cột B (QUAN_LY_DOI): {danh_sach_doi}")
