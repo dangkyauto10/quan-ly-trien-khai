@@ -1,33 +1,42 @@
-# ĐOẠN CODE PYTHON ĐỌC TRỰC TIẾP DANH SÁCH ĐỘI TỪ CỘT B SHEET QUAN_LY_DOI
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import streamlit as st
+from google.oauth2.service_account import Credentials
 
-def get_danh_sach_doi_tu_sheets():
+@st.cache_data(ttl=10) # Tự động cập nhật dữ liệu mới từ Google Sheets mỗi khi reload trang
+def lay_danh_sach_doi_tu_sheet():
     try:
-        # Sử dụng thông tin xác thực Google Cloud Service Account sẵn có của dự án
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        # Đảm bảo credentials trỏ đúng cấu hình Service Account hiện tại của anh
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope) # Hoặc dùng st.secrets tùy cấu hình app của anh
+        scope = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        
+        # Xác thực thông qua Service Account đã cấu hình trên Streamlit Cloud (hoặc credentials.json)
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        else:
+            creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
+            
         client = gspread.authorize(creds)
         
-        # Mở Google Sheet theo tên hoặc ID hiện tại của hệ thống
-        sheet = client.open("Tên_Google_Sheet_Của_Anh").worksheet("QUAN_LY_DOI")
+        # Mở Google Sheet chính của hệ thống và trỏ đến sheet QUAN_LY_DOI
+        spreadsheet = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+        sheet = spreadsheet.worksheet("QUAN_LY_DOI")
         
-        # Đọc dữ liệu từ Cột B (từ hàng 3 đến hết)
-        # Cột B tương ứng với index cột là 2 trong gspread
-        col_values = sheet.col_values(2) # Lấy toàn bộ cột B
+        # Lấy toàn bộ dữ liệu Cột B (Tên đội), từ hàng 3 trở xuống
+        col_b_values = sheet.col_values(2) 
         
-        danh_sach_doi = []
-        for val in col_values[2:]:  # Bỏ qua dòng 1 và dòng 2 (tiêu đề)
-            val_str = str(val).strip()
-            if val_str and val_str.upper() != "TÊN ĐỘI":
-                danh_sach_doi.append(val_str)
+        danh_sach = []
+        for val in col_b_values[2:]: # Bỏ qua dòng tiêu đề 1 và 2
+            v = str(val).strip()
+            if v and v.upper() != "TÊN ĐỘI":
+                danh_sach.append(v)
                 
-        return danh_sach_doi if danh_sach_doi else ["VHH", "NTH"] # Fallback nếu trống
+        return danh_sach if danh_sach else ["VHH", "NTH"]
     except Exception as e:
-        # Nếu có lỗi kết nối, trả về danh sách an toàn không làm crash app
+        # Fallback an toàn tuyệt đối giúp app không bị crash nếu mất mạng tạm thời
         return ["VHH", "NTH", "Vinh Bắc Mê", "Nguyễn Văn A"]
 
-# Sử dụng hàm này trực tiếp vàoselectbox hoặc multiselect của Streamlit:
-# danh_sach_doi_hien_tai = get_danh_sach_doi_tu_sheets()
+# Đưa vào ô chọn trên giao diện Streamlit (Ví dụ cho Đội thực hiện / Đội nhận TB):
+# danh_sach_doi_hien_tai = lay_danh_sach_doi_tu_sheet()
 # doi_thuc_hien = st.selectbox("Đội thực hiện *", danh_sach_doi_hien_tai)
