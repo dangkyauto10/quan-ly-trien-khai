@@ -5,10 +5,8 @@ import pandas as pd
 import json
 import os
 
-# Cấu hình giao diện tối ưu (Wide mode)
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# Xóa toàn bộ cache để app luôn quét dữ liệu mới nhất từ Google Sheets
 st.cache_resource.clear()
 
 @st.cache_resource
@@ -24,68 +22,53 @@ def init_connection():
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"Lỗi xác thực: {e}")
+        pass
     return None
 
 client = init_connection()
 
-# -------------------------------------------------------------------------
-# HÀM LẤY CHUẨN 100% TỪ CỘT B (TÊN ĐỘI) TRONG SHEET QUẢN LÝ ĐỘI
-# -------------------------------------------------------------------------
 def lay_danh_sach_doi_chuan():
     danh_sach = []
     try:
         if client:
-            # Mở file Google Sheets chính xác theo tên của anh
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+            ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Truy cập chuẩn xác vào sheet QUAN_LY_DOI (hoặc sheet quản lý đội)
-            ws_doi = None
-            for s in sh.worksheets():
-                if "QUAN_LY_DOI" in s.title.replace(" ", "_").upper() or "QUAN" in s.title.upper():
-                    ws_doi = s
-                    break
-            if not ws_doi:
-                ws_doi = sh.worksheet("QUAN_LY_DOI") # Gọi trực tiếp tên chuẩn
-            
-            # Lấy toàn bộ dữ liệu thô của Cột B (cột số 2)
+            # Lấy toàn bộ giá trị của cột B mà không bị giới hạn bất kỳ vùng dữ liệu cứng nào
             col_b_data = ws_doi.col_values(2)
             
-            # Bỏ qua tiêu đề (dòng 1 và dòng 2), lấy từ dòng 3 trở xuống, loại bỏ ô trống
+            # Lọc sạch từ dòng 3 trở xuống (bỏ dòng 1 và 2), loại bỏ hoàn toàn ô trống
             for val in col_b_data[2:]:
                 if val is not None and str(val).strip() != "":
-                    danh_sach.append(str(val).strip())
+                    name = str(val).strip()
+                    if name not in danh_sach:
+                        danh_sach.append(name)
     except Exception:
         pass
     
-    # Danh sách dự phòng an toàn nếu mất kết nối sheet
     if not danh_sach:
-        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", "Nguyễn Văn C", "Hồ văn Hải", "Nguyễn Văn Ngu", "Ngu như Lợn", "Hồ Hữu Chánh"]
+        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Hồ Hưu Tâm"]
     return danh_sach
 
-# -------------------------------------------------------------------------
-# HÀM LẤY CHUẨN 100% TỪ CỘT D TRONG SHEET DANH_SACH_DIEM
-# -------------------------------------------------------------------------
 def lay_danh_sach_diem_chuan():
     danh_sach_diem = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            col_d_data = ws_diem.col_values(4) # Cột D là cột số 4
+            col_d_data = ws_diem.col_values(4)
             for val in col_d_data[2:]:
                 if val is not None and str(val).strip() != "":
-                    danh_sach_diem.append(str(val).strip())
+                    d = str(val).strip()
+                    if d not in danh_sach_diem:
+                        danh_sach_diem.append(d)
     except Exception:
         pass
         
     if not danh_sach_diem:
-        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
+        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
     return danh_sach_diem
 
-# -------------------------------------------------------------------------
-# ĐIỀU HƯỚNG GIAO DIỆN NGANG
-# -------------------------------------------------------------------------
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
 nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
@@ -97,7 +80,7 @@ with nav_col2:
 with nav_col3:
     btn_adduyet = st.button("🔵 AD Duyệt TVĐK", use_container_width=True)
 with nav_col4:
-    btn_baocaold = st.button("🔵 BÁO CÁO LĐ", use_container_width=True) # Tab chuẩn BÁO CÁO LĐ
+    btn_baocaold = st.button("🔵 BÁO CÁO LĐ", use_container_width=True)
 
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "Báo cáo KTV&VC"
@@ -113,27 +96,21 @@ elif btn_baocaold:
 
 st.markdown("---")
 
-# -------------------------------------------------------------------------
-# 1. MODULE: BÁO CÁO KTV & VC
-# -------------------------------------------------------------------------
 if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Lấy dữ liệu động trực tiếp từ Cột B và Cột D
     danh_sach_doi = lay_danh_sach_doi_chuan()
     danh_sach_diem = lay_danh_sach_diem_chuan()
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Cán bộ / Đội trưởng thực hiện: Quy chiếu động 100% từ Cột B (Tên đội)
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
             danh_sach_doi
         )
         
-        # Địa điểm: Quy chiếu từ Cột D sheet DANH_SACH_DIEM
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
             danh_sach_diem
@@ -178,9 +155,6 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
             else:
                 st.error("Vui lòng chọn đầy đủ thông tin trước khi gửi!")
 
-# -------------------------------------------------------------------------
-# 2. MODULE: ĐĂNG KÝ THÀNH VIÊN
-# -------------------------------------------------------------------------
 elif st.session_state.active_tab == "Đăng ký thành viên":
     st.subheader("📝 Đăng Ký Thành Viên Tham Gia Triển Khai")
     with st.form("form_dang_ky_moi"):
@@ -200,15 +174,11 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
             else:
                 st.error("Vui lòng điền đầy đủ Họ tên và Số điện thoại!")
 
-# -------------------------------------------------------------------------
-# 3. MODULE: ADMIN DUYỆT TVĐK (MẬT KHẨU: 880880)
-# -------------------------------------------------------------------------
 elif st.session_state.active_tab == "AD Duyệt TVĐK":
     st.subheader("⚙️ Khu Vực Quản Trị - Admin Duyệt Thành Viên")
-    
     password = st.text_input("Nhập mật khẩu Admin:", type="password")
     if password == "880880":
-        st.success("🔓 Xác thực thành công! Danh sách chờ duyệt:")
+        st.success("🔓 Xác thực thành công!")
         try:
             if client:
                 sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
@@ -216,18 +186,11 @@ elif st.session_state.active_tab == "AD Duyệt TVĐK":
                 data_dk = ws_dk.get_all_records()
                 if data_dk:
                     st.dataframe(pd.DataFrame(data_dk), use_container_width=True)
-                else:
-                    st.info("Chưa có dữ liệu đăng ký.")
         except Exception:
-            st.info("Đang hiển thị quản trị dữ liệu.")
+            pass
     elif password != "":
         st.error("❌ Sai mật khẩu quản trị! (Mật khẩu đúng là: 880880)")
-    else:
-        st.info("Vui lòng nhập mật khẩu quản trị để tiếp tục.")
 
-# -------------------------------------------------------------------------
-# 4. MODULE: BÁO CÁO LĐ
-# -------------------------------------------------------------------------
 elif st.session_state.active_tab == "BÁO CÁO LĐ":
     st.subheader("📊 BÁO CÁO LĐ & Thống Kê Tổng Hợp")
     try:
@@ -237,7 +200,5 @@ elif st.session_state.active_tab == "BÁO CÁO LĐ":
             data_home = ws_home.get_all_records()
             if data_home:
                 st.dataframe(pd.DataFrame(data_home), use_container_width=True)
-            else:
-                st.info("Chưa có dữ liệu tổng hợp.")
     except Exception:
         st.info("Đang hiển thị tổng hợp dữ liệu Báo cáo LĐ theo thời gian thực.")
