@@ -8,7 +8,7 @@ import os
 # Cấu hình giao diện tối ưu (Wide mode)
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# Xóa hoàn toàn cache để ứng dụng không bị lưu vết dữ liệu cũ
+# Xóa toàn bộ cache để app luôn quét dữ liệu mới nhất từ Google Sheets
 st.cache_resource.clear()
 
 @st.cache_resource
@@ -29,56 +29,59 @@ def init_connection():
 
 client = init_connection()
 
-# HÀM LẤY TOÀN BỘ CỘT B (TÊN ĐỘI) CHUẨN XÁC 100% KHÔNG BỊ GIỚI HẠN DÒNG
-def get_doi_list_all():
-    doi_list = []
+# -------------------------------------------------------------------------
+# HÀM LẤY CHUẨN 100% TỪ CỘT B (TÊN ĐỘI) TRONG SHEET QUẢN LÝ ĐỘI
+# -------------------------------------------------------------------------
+def lay_danh_sach_doi_chuan():
+    danh_sach = []
     try:
         if client:
+            # Mở file Google Sheets chính xác theo tên của anh
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            # Tìm sheet quản lý đội
-            target_ws = None
-            for s in sh.worksheets():
-                title_up = s.title.upper()
-                if "QUAN" in title_up or "DOI" in title_up:
-                    target_ws = s
-                    break
-            if not target_ws:
-                target_ws = sh.worksheets()[1]
             
-            # Lấy toàn bộ ma trận dữ liệu của sheet
-            rows = target_ws.get_all_values()
-            # Duyệt từ dòng thứ 3 trở đi (index 2) để lấy trọn vẹn Cột B (index 1)
-            for row in rows[2:]:
-                if len(row) >= 2:
-                    val = str(row[1]).strip()
-                    if val != "":
-                        doi_list.append(val)
+            # Truy cập chuẩn xác vào sheet QUAN_LY_DOI (hoặc sheet quản lý đội)
+            ws_doi = None
+            for s in sh.worksheets():
+                if "QUAN_LY_DOI" in s.title.replace(" ", "_").upper() or "QUAN" in s.title.upper():
+                    ws_doi = s
+                    break
+            if not ws_doi:
+                ws_doi = sh.worksheet("QUAN_LY_DOI") # Gọi trực tiếp tên chuẩn
+            
+            # Lấy toàn bộ dữ liệu thô của Cột B (cột số 2)
+            col_b_data = ws_doi.col_values(2)
+            
+            # Bỏ qua tiêu đề (dòng 1 và dòng 2), lấy từ dòng 3 trở xuống, loại bỏ ô trống
+            for val in col_b_data[2:]:
+                if val is not None and str(val).strip() != "":
+                    danh_sach.append(str(val).strip())
     except Exception:
         pass
     
-    if not doi_list:
-        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
-    return doi_list
+    # Danh sách dự phòng an toàn nếu mất kết nối sheet
+    if not danh_sach:
+        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", "Nguyễn Văn C", "Hồ văn Hải", "Nguyễn Văn Ngu", "Ngu như Lợn", "Hồ Hữu Chánh"]
+    return danh_sach
 
-# HÀM LẤY TOÀN BỘ CỘT D (ĐỊA ĐIỂM) TỪ SHEET DANH_SACH_DIEM
-def get_diem_list_all():
-    diem_list = []
+# -------------------------------------------------------------------------
+# HÀM LẤY CHUẨN 100% TỪ CỘT D TRONG SHEET DANH_SACH_DIEM
+# -------------------------------------------------------------------------
+def lay_danh_sach_diem_chuan():
+    danh_sach_diem = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            rows = ws_diem.get_all_values()
-            for row in rows[2:]:
-                if len(row) >= 4:
-                    val = str(row[3]).strip() # Cột D là index 3
-                    if val != "":
-                        diem_list.append(val)
+            col_d_data = ws_diem.col_values(4) # Cột D là cột số 4
+            for val in col_d_data[2:]:
+                if val is not None and str(val).strip() != "":
+                    danh_sach_diem.append(str(val).strip())
     except Exception:
         pass
         
-    if not diem_list:
-        diem_list = ["Phường Minh Xuân", "Phường Nông Tiến"]
-    return diem_list
+    if not danh_sach_diem:
+        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
+    return danh_sach_diem
 
 # -------------------------------------------------------------------------
 # ĐIỀU HƯỚNG GIAO DIỆN NGANG
@@ -94,7 +97,7 @@ with nav_col2:
 with nav_col3:
     btn_adduyet = st.button("🔵 AD Duyệt TVĐK", use_container_width=True)
 with nav_col4:
-    btn_baocaold = st.button("🔵 BÁO CÁO LĐ", use_container_width=True)
+    btn_baocaold = st.button("🔵 BÁO CÁO LĐ", use_container_width=True) # Tab chuẩn BÁO CÁO LĐ
 
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "Báo cáo KTV&VC"
@@ -117,23 +120,23 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Lấy danh sách tươi mới chuẩn xác từ toàn bộ Cột B và Cột D
-    current_doi_list = get_doi_list_all()
-    current_diem_list = get_diem_list_all()
+    # Lấy dữ liệu động trực tiếp từ Cột B và Cột D
+    danh_sach_doi = lay_danh_sach_doi_chuan()
+    danh_sach_diem = lay_danh_sach_diem_chuan()
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Cán bộ / Đội trưởng thực hiện (Quy chiếu chuẩn 100% toàn bộ Cột B)
+        # Cán bộ / Đội trưởng thực hiện: Quy chiếu động 100% từ Cột B (Tên đội)
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
-            current_doi_list
+            danh_sach_doi
         )
         
-        # Chọn địa điểm vận chuyển / lắp đặt (Quy chiếu chuẩn từ Cột D)
+        # Địa điểm: Quy chiếu từ Cột D sheet DANH_SACH_DIEM
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
-            current_diem_list
+            danh_sach_diem
         )
         
         st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **Theo định mức chuẩn từ KHO_PHAN_BO** (Chỉ hiển thị, không chỉnh sửa)")
@@ -169,7 +172,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                         sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                         ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
                         ws_bc.append_row([ktv_name, diadiem, str(soluong_lap), trangthai, ghichu, gps_info])
-                    st.success(f"✅ Gửi báo cáo thành công cho điểm [{diadiem}]!")
+                    st.success(f"✅ Gửi báo cáo thành công cho cán bộ [{ktv_name}] tại [{diadiem}]!")
                 except Exception as e:
                     st.success(f"✅ Đã ghi nhận báo cáo thành công tại hiện trường cho [{diadiem}]!")
             else:
