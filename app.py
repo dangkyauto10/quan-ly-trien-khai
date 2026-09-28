@@ -8,7 +8,7 @@ import os
 # Cấu hình giao diện ứng dụng
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# 1. Xóa sạch bộ nhớ cache để app luôn đọc dữ liệu thời gian thực mới nhất từ Google Sheets
+# Xóa toàn bộ cache để ép app cập nhật tươi mới liên tục
 st.cache_resource.clear()
 
 @st.cache_resource
@@ -29,13 +29,13 @@ def init_connection():
 
 client = init_connection()
 
-# 2. HÀM QUÉT ĐỘNG 100% CỘT B (TÊN ĐỘI) TỪ SHEET QUẢN LÝ ĐỘI
-def get_doi_list_from_sheet():
+# HÀM VÉT CẠN TRỰC TIẾP TỪNG Ô CỘT B (TÊN ĐỘI) - ĐẢM BẢO NHẬP BAO NHIÊU HIỆN BẤY NHIÊU
+def get_doi_list_direct():
     doi_list = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            # Tìm chính xác worksheet quản lý đội
+            # Tìm sheet Quản lý đội
             target_ws = None
             for s in sh.worksheets():
                 title_up = s.title.upper()
@@ -43,39 +43,32 @@ def get_doi_list_from_sheet():
                     target_ws = s
                     break
             if not target_ws:
-                target_ws = sh.worksheets()[1] # Fallback lấy sheet thứ 2
+                target_ws = sh.worksheets()[1]
             
-            # Lấy toàn bộ giá trị thô của sheet
-            raw_data = target_ws.get_all_values()
-            if len(raw_data) > 2:
-                # Chuyển thành DataFrame, bỏ qua 2 dòng tiêu đề đầu tiên
-                df_doi = pd.DataFrame(raw_data[2:])
-                if len(df_doi.columns) >= 2:
-                    # Lấy dữ liệu chuẩn từ Cột B (index 1), lọc bỏ các ô trống hoặc khoảng trắng thừa
-                    col_b_series = df_doi.iloc[:, 1].dropna().astype(str)
-                    doi_list = [val.strip() for val in col_b_series if val.strip() != ""]
+            # Lấy thẳng toàn bộ giá trị thuần túy của Cột B (Cột số 2) từ Google Sheets
+            col_b_raw = target_ws.col_values(2)
+            # Bỏ qua dòng 1 và dòng 2 (tiêu đề), lọc sạch các ô trống
+            for val in col_b_raw[2:]:
+                if val is not None and str(val).strip() != "":
+                    doi_list.append(str(val).strip())
     except Exception:
         pass
     
-    # Danh sách dự phòng nếu chưa kết nối được sheet
     if not doi_list:
-        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ"]
+        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ", "Hồ văn Hải"]
     return doi_list
 
-# 3. HÀM QUÉT ĐỘNG CỘT D (ĐỊA ĐIỂM) TỪ SHEET DANH_SACH_DIEM
-def get_diem_list_from_sheet():
+# HÀM VÉT CẠN TRỰC TIẾP CỘT D (ĐỊA ĐIỂM) TỪ SHEET DANH_SACH_DIEM
+def get_diem_list_direct():
     diem_list = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            raw_diem = ws_diem.get_all_values()
-            if len(raw_diem) > 2:
-                df_diem = pd.DataFrame(raw_diem[2:])
-                if len(df_diem.columns) >= 4:
-                    # Lấy dữ liệu chuẩn từ Cột D (index 3)
-                    col_d_series = df_diem.iloc[:, 3].dropna().astype(str)
-                    diem_list = [val.strip() for val in col_d_series if val.strip() != ""]
+            col_d_raw = ws_diem.col_values(4) # Cột D
+            for val in col_d_raw[2:]:
+                if val is not None and str(val).strip() != "":
+                    diem_list.append(str(val).strip())
     except Exception:
         pass
         
@@ -117,14 +110,14 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Gọi trực tiếp hàm lấy danh sách đội mới nhất từ Cột B
-    current_doi_list = get_doi_list_from_sheet()
-    current_diem_list = get_diem_list_from_sheet()
+    # Lấy danh sách tươi mới trực tiếp từ sheet
+    current_doi_list = get_doi_list_direct()
+    current_diem_list = get_diem_list_direct()
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Phần hiển thị danh sách Cán bộ / Đội trưởng (Tự động cập nhật 100% tên mới nhập ở Cột B)
+        # Hiển thị dropdown cán bộ (tự động nhận diện mọi thành viên mới nhập ở Cột B)
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
             current_doi_list
@@ -172,9 +165,9 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                 except Exception as e:
                     st.success(f"✅ Đã ghi nhận báo cáo thành công tại hiện trường cho [{diadiem}]!")
             else:
-                st.error("Vui lòng chọn đầy đủ thông tin trước khi gửi!")
+                st.error("Vui lòng điền đầy đủ thông tin trước khi gửi!")
 
-# Các module phụ trợ khác giữ nguyên vẹn
+# Các module phụ trợ
 elif st.session_state.active_tab == "Đăng ký thành viên":
     st.subheader("📝 Đăng Ký Thành Viên Tham Gia Triển Khai")
     with st.form("form_dang_ky_moi"):
