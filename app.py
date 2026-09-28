@@ -2,14 +2,12 @@ import streamlit as st
 from google.oauth2.service_account import Credentials
 import gspread
 
-# Thiết lập tiêu đề trang
+# Thiết lập giao diện
 st.set_page_config(page_title="Quản Lý Triển Khai", layout="wide")
 
-# Hàm kết nối Google Sheets sử dụng Streamlit Secrets bảo mật
 @st.cache_resource
 def init_connection():
     try:
-        # Lấy thông tin xác thực từ Streamlit Secrets
         creds_dict = dict(st.secrets["gcp_service_account"])
         scopes = [
             "https://www.googleapis.com/auth/spreadsheets",
@@ -24,9 +22,7 @@ def init_connection():
 
 client = init_connection()
 
-# Giao diện chính của ứng dụng
 st.title("Ứng dụng Quản Lý Triển Khai")
-st.write("Hệ thống kết nối dữ liệu Google Sheets thành công!")
 
 if client:
     st.success("Đã kết nối thành công với Google Cloud & Google Sheets!")
