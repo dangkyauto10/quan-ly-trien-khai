@@ -34,11 +34,10 @@ def lay_danh_sach_doi_chuan():
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Lấy thẳng toàn bộ giá trị thô của cột B từ API Google Sheets
-            col_b_data = ws_doi.col_values(2)
-            
-            # Duyệt từ dòng 3 (index 2) đến hết cột B, lấy tất cả không bỏ sót dòng nào
-            for val in col_b_data[2:]:
+            # Đọc trực tiếp dải ô từ B3 đến B1000 để vét sạch mọi dòng mới nhập mà không bị giới hạn vùng dữ liệu
+            cell_list = ws_doi.range('B3:B1000')
+            for cell in cell_list:
+                val = cell.value
                 if val is not None and str(val).strip() != "":
                     name = str(val).strip()
                     if name not in danh_sach:
@@ -47,7 +46,7 @@ def lay_danh_sach_doi_chuan():
         pass
     
     if not danh_sach:
-        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", "Nguyễn Văn C", "Hồ văn Hải", "Nguyễn Văn Ngu", "Ngu như Lợn", "Hồ Hữu Chánh", "Hồ Hưu Tâm"]
+        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Trần Thanh Tâm"]
     return danh_sach
 
 def lay_danh_sach_diem_chuan():
@@ -56,8 +55,9 @@ def lay_danh_sach_diem_chuan():
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            col_d_data = ws_diem.col_values(4)
-            for val in col_d_data[2:]:
+            cell_list_d = ws_diem.range('D3:D1000') # Đọc dải ô Cột D
+            for cell in cell_list_d:
+                val = cell.value
                 if val is not None and str(val).strip() != "":
                     d = str(val).strip()
                     if d not in danh_sach_diem:
