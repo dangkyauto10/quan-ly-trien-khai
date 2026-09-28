@@ -34,10 +34,10 @@ def lay_danh_sach_doi_chuan():
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Lấy toàn bộ giá trị của cột B mà không bị giới hạn bất kỳ vùng dữ liệu cứng nào
+            # Lấy thẳng toàn bộ giá trị thô của cột B từ API Google Sheets
             col_b_data = ws_doi.col_values(2)
             
-            # Lọc sạch từ dòng 3 trở xuống (bỏ dòng 1 và 2), loại bỏ hoàn toàn ô trống
+            # Duyệt từ dòng 3 (index 2) đến hết cột B, lấy tất cả không bỏ sót dòng nào
             for val in col_b_data[2:]:
                 if val is not None and str(val).strip() != "":
                     name = str(val).strip()
@@ -47,7 +47,7 @@ def lay_danh_sach_doi_chuan():
         pass
     
     if not danh_sach:
-        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Hồ Hưu Tâm"]
+        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", "Nguyễn Văn C", "Hồ văn Hải", "Nguyễn Văn Ngu", "Ngu như Lợn", "Hồ Hữu Chánh", "Hồ Hưu Tâm"]
     return danh_sach
 
 def lay_danh_sach_diem_chuan():
