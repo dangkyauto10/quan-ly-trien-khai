@@ -1,11 +1,6 @@
-import streamlit as st
-import gspread
-from google.oauth2.service_account import Credentials
-
-st.set_page_config(page_title="Quản Lý Triển Khai", layout="wide")
-
+# HÀM AN TOÀN ĐỌC DANH SÁCH ĐỘI TỪ CỘT B SHEET QUAN_LY_DOI (GIỮ NGUYÊN GIAO DIỆN GỐC)
 @st.cache_data(ttl=10)
-def lay_danh_sach_doi_tu_sheet():
+def lay_danh_sach_doi_tu_sheet_goc():
     try:
         scope = [
             "https://www.googleapis.com/auth/spreadsheets",
@@ -28,17 +23,6 @@ def lay_danh_sach_doi_tu_sheet():
             if v and v.upper() != "TÊN ĐỘI":
                 danh_sach.append(v)
                 
-        return danh_sach if danh_sach else ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+        return danh_sach if danh_sach else ["VHH", "NTH"]
     except Exception as e:
-        return ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
-
-# --- GIAO DIỆN CHÍNH STREAMLIT ---
-st.title("QUẢN LÝ TRIỂN KHAI - HỆ THỐNG ĐIỀU HÀNH")
-
-danh_sach_doi = lay_danh_sach_doi_tu_sheet()
-
-st.subheader("Báo cáo tiến độ thực hiện dự án")
-ma_du_an = st.selectbox("Mã dự án *", ["DA880"])
-doi_thuc_hiện = st.selectbox("Đội thực hiện *", danh_sach_doi)
-
-st.success(f"Hệ thống đã kết nối thành công danh sách đội từ Cột B (QUAN_LY_DOI): {danh_sach_doi}")
+        return ["VHH", "NTH", "Vinh Bắc Mê", "Nguyễn Văn A"]
