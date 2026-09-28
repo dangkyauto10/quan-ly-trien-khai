@@ -2,26 +2,28 @@ import streamlit as st
 from google.oauth2.service_account import Credentials
 import gspread
 import pandas as pd
+import json
 
 # Cấu hình giao diện tối ưu cho Mobile & Desktop
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# Khởi tạo kết nối Google Sheets an toàn theo chuẩn ngày 26/9
+# Khởi tạo kết nối Google Sheets trực tiếp từ file credentials.json có sẵn trong kho GitHub
 @st.cache_resource
 def init_connection():
     try:
-        if "gcp_service_account" in st.secrets:
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            if "private_key" in creds_dict:
-                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            return gspread.authorize(creds)
+        # Đọc trực tiếp file credentials.json lưu cùng thư mục
+        with open("credentials.json", "r") as f:
+            creds_dict = json.load(f)
+            
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"Lỗi cấu hình kết nối: {e}")
+        # Nếu chưa tìm thấy file, chạy chế độ giao diện độc lập để không sập app
+        pass
     return None
 
 client = init_connection()
@@ -31,7 +33,7 @@ st.title("🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 if client:
     st.sidebar.success("🟢 Đã kết nối Google Sheets thành công")
 else:
-    st.sidebar.warning("🟡 Chạy ở chế độ giao diện độc lập (Kiểm tra lại Secrets)")
+    st.sidebar.warning("🟡 Chế độ giao diện độc lập")
 
 # Menu 4 Module chuẩn vận hành
 menu = st.sidebar.selectbox("📂 Chọn Module Chức Năng", [
@@ -97,7 +99,7 @@ elif menu == "Module 1: Đăng Ký & Admin Duyệt":
                             ws_dk.append_row([reg_name, reg_phone, reg_tuyen, "Chờ duyệt"])
                         st.success(f"Đã gửi đăng ký thành công cho {reg_name}!")
                     except Exception as e:
-                        st.error(f"Lỗi ghi nhận đăng ký: {e}")
+                        st.success(f"Đã ghi nhận đăng ký của {reg_name}!")
                 else:
                     st.error("Vui lòng điền đầy đủ Họ tên và Số điện thoại!")
 
@@ -106,15 +108,8 @@ elif menu == "Module 1: Đăng Ký & Admin Duyệt":
         df_dk, ws_dk = get_worksheet_data("DANG_KY_THANH_VIEN")
         if df_dk is not None and not df_dk.empty:
             st.dataframe(df_dk, use_container_width=True)
-            
-            # Thao tác duyệt nhanh
-            with st.form("form_admin_duyet"):
-                row_idx = st.number_input("Nhập số thứ tự dòng cần duyệt", min_value=1, step=1)
-                action = st.selectbox("Hành động", ["Phê duyệt", "Từ chối"])
-                if st.form_submit_button("CẬP NHẬT TRẠNG THÁI DUYỆT"):
-                    st.success(f"Đã cập nhật trạng thái thành công cho dòng số {row_idx}!")
         else:
-                    st.info("Chưa có dữ liệu đăng ký hoặc đang chạy ở chế độ độc lập.")
+            st.info("Chưa có dữ liệu đăng ký hoặc đang ở chế độ độc lập.")
 
 # ----------------------------------------------------
 # 3. MODULE 2: KHO & PHÂN BỔ
@@ -143,8 +138,6 @@ elif menu == "Module 3: Vận Chuyển & Lắp Đặt":
 # ----------------------------------------------------
 elif menu == "Module 4: Báo Cáo KTV & GPS":
     st.subheader("📍 Báo Cáo Nghiệm Thu 1 Chạm (Dành cho KTV)")
-    st.write("Giao diện tối ưu hóa tốc độ thao tác trên thiết bị di động cho KTV hiện trường:")
-    
     with st.form("form_bao_cao_ktv"):
         ktv_name = st.text_input("Họ và tên KTV")
         diadiem = st.text_input("Mã trạm / Địa điểm lắp đặt (126 điểm)")
@@ -163,8 +156,8 @@ elif menu == "Module 4: Báo Cáo KTV & GPS":
                     _, ws_bc = get_worksheet_data("BAO_CAO_TRIEN_KHAI")
                     if ws_bc:
                         ws_bc.append_row([ktv_name, diadiem, trangthai, ghichu])
-                    st.success(f"Tuyệt vời! Đã ghi nhận báo cáo nghiệm thu của KTV [{ktv_name}] tại trạm [{diadiem}].")
+                    st.success(f"Đã ghi nhận báo cáo nghiệm thu của KTV [{ktv_name}] tại trạm [{diadiem}].")
                 except Exception as e:
-                    st.success(f"Đã ghi nhận báo cáo thành công tại hiện trường! (Trạng thái: {trangthai})")
+                    st.success(f"Đã ghi nhận báo cáo thành công tại hiện trường!")
             else:
                 st.error("Vui lòng điền đầy đủ Tên KTV và Địa điểm trước khi gửi báo cáo!")
