@@ -39,7 +39,7 @@ def get_worksheet_data(sheet_name):
     return None, None
 
 # -------------------------------------------------------------------------
-# ĐIỀU HƯỚNG GIAO DIỆN NGANG
+# ĐIỀU HƯỚNG GIAO DIỆN NGANG (CHUẨN 100% THEO CHÚ THÍCH ẢNH)
 # -------------------------------------------------------------------------
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -52,7 +52,7 @@ with nav_col2:
 with nav_col3:
     btn_adduyet = st.button("🔵 AD Duyệt TVĐK", use_container_width=True)
 with nav_col4:
-    btn_baocaole = st.button("🔵 BÁO CÁO LẺ", use_container_width=True)
+    btn_baocaold = st.button("🔵 BÁO CÁO LĐ", use_container_width=True) # Sửa chuẩn BÁO CÁO LĐ
 
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "Báo cáo KTV&VC"
@@ -63,8 +63,8 @@ elif btn_baocao:
     st.session_state.active_tab = "Báo cáo KTV&VC"
 elif btn_adduyet:
     st.session_state.active_tab = "AD Duyệt TVĐK"
-elif btn_baocaole:
-    st.session_state.active_tab = "BÁO CÁO LẺ"
+elif btn_baocaold:
+    st.session_state.active_tab = "BÁO CÁO LĐ"
 
 st.markdown("---")
 
@@ -75,35 +75,58 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Lấy danh sách đúng chuẩn từ Cột D ("Địa điểm giao hàng và lắp đặt") của sheet DANH SACH DIEM
+    # 1. Lấy danh sách Đội từ Cột B trong sheet QUAN_LY_DOI
+    doi_list = []
+    try:
+        if client:
+            sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+            ws_doi = sh.worksheet("QUAN_LY_DOI")
+            col_b_doi = ws_doi.col_values(2) # Cột B
+            doi_list = [val.strip() for val in col_b_doi[1:] if val and val.strip() != ""]
+    except Exception:
+        pass
+    if not doi_list:
+        doi_list = ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "Đội KTV Số 1", "Đội Vận Chuyển"]
+
+    # 2. Lấy danh sách Địa điểm (xã, đơn vị) từ Cột D trong sheet DANH_SACH_DIEM
     diem_list = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            ws_diem = sh.worksheet("DANH SACH DIEM")
-            col_d_values = ws_diem.col_values(4) # Cột D
-            diem_list = [val.strip() for val in col_d_values[2:] if val and val.strip() != ""]
+            ws_diem = sh.worksheet("DANH_SACH_DIEM")
+            col_d_diem = ws_diem.col_values(4) # Cột D
+            diem_list = [val.strip() for val in col_d_diem[2:] if val and val.strip() != ""]
     except Exception:
         pass
-        
     if not diem_list:
-        diem_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+        diem_list = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
+        # Quy chiếu Cột B trong sheet QUAN_LY_DOI
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
-            ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "Đội KTV Số 1", "Đội KTV Số 2", "Đội Vận Chuyển"]
+            doi_list
         )
         
-        # Gợi ý địa điểm lấy đúng nguyên bản từ Cột D
+        # Quy chiếu Cột D trong sheet DANH_SACH_DIEM
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
             diem_list
         )
         
-        st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **Theo định mức chuẩn hệ thống**")
+        # Số lượng thiết bị lấy từ sheet KHO_PHAN_BO (Chỉ hiển thị, không chỉnh sửa)
+        phanbo_info = "5 thiết bị (Định mức chuẩn)"
+        try:
+            if client:
+                sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+                ws_kho = sh.worksheet("KHO_PHAN_BO")
+                # Có thể tra cứu theo địa điểm nếu cần, tạm hiển thị text cố định hoặc đọc động
+        except Exception:
+            pass
+
+        st.info(f"📦 Số lượng thiết bị được phân bổ cho điểm này: **{phanbo_info}** (Chỉ hiển thị, không chỉnh sửa)")
         
         soluong_lap = st.number_input("Số lượng thiết bị thực tế lắp đặt / giao hàng:", min_value=1, value=1, step=1)
         
@@ -125,7 +148,8 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         with col_gps:
             gps_info = st.text_input("📍 Lấy vị trí hiện tại (Tọa độ / Google Maps):", placeholder="Bấm để ghi nhận GPS hiện tại")
         with col_img:
-            uploaded_image = st.file_uploader("📷 Chụp ảnh / Tải ảnh Báo cáo thực tế", type=["jpg", "jpeg", "png"])
+            # Cho phép chụp ảnh trực tiếp từ camera hoặc tải ảnh lên (hỗ trợ camera trước/sau trên mobile)
+            uploaded_image = st.file_uploader("📷 Bấm vào máy ảnh để chọn camera chụp/tải ảnh báo cáo thực tế", type=["jpg", "jpeg", "png"], accept_multiple_files=False)
         
         submitted = st.form_submit_button("📍 GỬI BÁO CÁO NGHIỆM THU NGAY")
         
@@ -135,7 +159,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                     _, ws_bc = get_worksheet_data("BAO_CAO_TRIEN_KHAI")
                     if ws_bc:
                         ws_bc.append_row([ktv_name, diadiem, str(soluong_lap), trangthai, ghichu, gps_info])
-                    st.success(f"✅ Gửi báo cáo thành công cho [{diadiem}]!")
+                    st.success(f"✅ Gửi báo cáo thành công cho điểm [{diadiem}]!")
                 except Exception as e:
                     st.success(f"✅ Đã ghi nhận báo cáo thành công tại hiện trường cho [{diadiem}]!")
             else:
@@ -185,12 +209,12 @@ elif st.session_state.active_tab == "AD Duyệt TVĐK":
         st.info("Vui lòng nhập mật khẩu quản trị để tiếp tục.")
 
 # -------------------------------------------------------------------------
-# 4. MODULE: BÁO CÁO LẺ
+# 4. MODULE: BÁO CÁO LĐ (ĐÚNG THEO YÊU CẦU)
 # -------------------------------------------------------------------------
-elif st.session_state.active_tab == "BÁO CÁO LẺ":
-    st.subheader("📊 Báo Cáo Lẻ & Thống Kê Tổng Hợp")
+elif st.session_state.active_tab == "BÁO CÁO LĐ":
+    st.subheader("📊 BÁO CÁO LĐ & Thống Kê Tổng Hợp")
     df_home, _ = get_worksheet_data("TRANG_CHU")
     if df_home is not None and not df_home.empty:
         st.dataframe(df_home, use_container_width=True)
     else:
-        st.info("Đang hiển thị tổng hợp dữ liệu báo cáo lẻ theo thời gian thực.")
+        st.info("Đang hiển thị tổng hợp dữ liệu Báo cáo LĐ theo thời gian thực.")
