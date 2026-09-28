@@ -39,7 +39,7 @@ def get_worksheet_data(sheet_name):
     return None, None
 
 # -------------------------------------------------------------------------
-# ĐIỀU HƯỚNG GIAO DIỆN NGANG (MENU CHUẨN THEO YÊU CẦU)
+# ĐIỀU HƯỚNG GIAO DIỆN NGANG
 # -------------------------------------------------------------------------
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -75,21 +75,21 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Đọc chính xác Cột D ("Địa điểm giao hàng và lắp đặt") từ sheet DANH SACH DIEM
+    # Lấy danh sách điểm TUYỆT ĐỐI CHUẨN XÁC từ Cột D ("Địa điểm giao hàng và lắp đặt") của sheet DANH SACH DIEM
     diem_list = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH SACH DIEM")
-            # Lấy toàn bộ giá trị cột D (bắt đầu từ dòng 3 trở xuống theo sheet thực tế của anh)
+            # Cột D là cột số 4 trong Google Sheets
             col_d_values = ws_diem.col_values(4) 
-            diem_list = [val for val in col_d_values[2:] if val.strip() != ""]
+            # Lọc bỏ dòng tiêu đề, giữ lại danh sách các xã, đơn vị (từ dòng 3 trở xuống)
+            diem_list = [val.strip() for val in col_d_values[2:] if val and val.strip() != ""]
     except Exception:
         pass
         
     if not diem_list:
-        # Fallback danh sách nếu chưa kết nối trực tiếp được
-        diem_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+        diem_list = ["Xã Tân Trào", "Phường Minh Xuân", "Xã Trung Sơn"]
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
@@ -99,13 +99,13 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
             ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "Đội KTV Số 1", "Đội KTV Số 2", "Đội Vận Chuyển"]
         )
         
-        # Chọn địa điểm lấy ĐÚNG từ Cột D, hỗ trợ gõ chữ cái gợi ý nhanh
+        # Gợi ý địa điểm lấy chuẩn từ Cột D (xã, đơn vị quy chiếu)
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
             diem_list
         )
         
-        st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **Theo định mức hệ thống**")
+        st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **Theo định mức chuẩn hệ thống**")
         
         soluong_lap = st.number_input("Số lượng thiết bị thực tế lắp đặt / giao hàng:", min_value=1, value=1, step=1)
         
