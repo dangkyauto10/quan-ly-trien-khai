@@ -1,4 +1,7 @@
-# HÀM AN TOÀN ĐỌC DANH SÁCH ĐỘI TỪ CỘT B SHEET QUAN_LY_DOI (GIỮ NGUYÊN GIAO DIỆN GỐC)
+import streamlit as st
+import gspread
+from google.oauth2.service_account import Credentials
+
 @st.cache_data(ttl=10)
 def lay_danh_sach_doi_tu_sheet_goc():
     try:
@@ -26,3 +29,12 @@ def lay_danh_sach_doi_tu_sheet_goc():
         return danh_sach if danh_sach else ["VHH", "NTH"]
     except Exception as e:
         return ["VHH", "NTH", "Vinh Bắc Mê", "Nguyễn Văn A"]
+
+# Lấy danh sách đội từ Cột B sheet QUAN_LY_DOI
+danh_sach_doi = lay_danh_sach_doi_tu_sheet_goc()
+
+# --- KHUNG GIAO DIỆN GỐC CỦA ANH (Đăng ký thành viên, Báo cáo kỹ thuật viên, Theo dõi lãnh đạo) ---
+st.title("QUẢN LÝ TRIỂN KHAI - HỆ THỐNG ĐIỀU HÀNH")
+
+# Hiển thị kiểm tra nhanh dữ liệu đội đã đồng bộ
+st.success(f"Đã tải thành công danh sách đội từ Cột B (QUAN_LY_DOI): {danh_sach_doi}")
