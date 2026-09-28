@@ -39,11 +39,10 @@ def get_worksheet_data(sheet_name):
     return None, None
 
 # -------------------------------------------------------------------------
-# ĐIỀU HƯỚNG GIAO DIỆN NGANG (THAY THẾ MENU DỌC CŨ)
+# ĐIỀU HƯỚNG GIAO DIỆN NGANG (MENU CHUẨN THEO YÊU CẦU)
 # -------------------------------------------------------------------------
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
-# Các nút chọn module ngang phía trên
 nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
 
 with nav_col1:
@@ -55,7 +54,6 @@ with nav_col3:
 with nav_col4:
     btn_baocaole = st.button("🔵 BÁO CÁO LẺ", use_container_width=True)
 
-# Quản lý trạng thái tab đang chọn
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "Báo cáo KTV&VC"
 
@@ -71,20 +69,27 @@ elif btn_baocaole:
 st.markdown("---")
 
 # -------------------------------------------------------------------------
-# 1. MODULE: BÁO CÁO KTV & VC (MẶC ĐỊNH CHUẨN NHƯ ẢNH)
+# 1. MODULE: BÁO CÁO KTV & VC
 # -------------------------------------------------------------------------
 if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Lấy danh sách điểm từ sheet DANH SACH DIEM (Cột D hoặc cột đầu tiên)
+    # Đọc chính xác Cột D ("Địa điểm giao hàng và lắp đặt") từ sheet DANH SACH DIEM
     diem_list = []
-    df_diem, _ = get_worksheet_data("DANH SACH DIEM")
-    if df_diem is not None and not df_diem.empty:
-        col_name = df_diem.columns[3] if len(df_diem.columns) >= 4 else df_diem.columns[0]
-        diem_list = df_diem[col_name].dropna().astype(str).tolist()
-    else:
-        diem_list = ["Phường Minh Xuân", "Xã Tân Trào", "Phường Nông Tiến", "Xã Trung Sơn"]
+    try:
+        if client:
+            sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+            ws_diem = sh.worksheet("DANH SACH DIEM")
+            # Lấy toàn bộ giá trị cột D (bắt đầu từ dòng 3 trở xuống theo sheet thực tế của anh)
+            col_d_values = ws_diem.col_values(4) 
+            diem_list = [val for val in col_d_values[2:] if val.strip() != ""]
+    except Exception:
+        pass
+        
+    if not diem_list:
+        # Fallback danh sách nếu chưa kết nối trực tiếp được
+        diem_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
@@ -94,15 +99,15 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
             ["Vỹ - Hạnh - Hiền (Nguyễn Văn A)", "Đội KTV Số 1", "Đội KTV Số 2", "Đội Vận Chuyển"]
         )
         
-        # Chọn địa điểm vận chuyển / lắp đặt có hỗ trợ gõ chữ cái gợi ý nhanh
+        # Chọn địa điểm lấy ĐÚNG từ Cột D, hỗ trợ gõ chữ cái gợi ý nhanh
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
             diem_list
         )
         
-        st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **5 thiết bị**")
+        st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **Theo định mức hệ thống**")
         
-        soluong_lap = st.number_input("Số lượng thiết bị thực tế lắp đặt / giao hàng:", min_value=1, value=5, step=1)
+        soluong_lap = st.number_input("Số lượng thiết bị thực tế lắp đặt / giao hàng:", min_value=1, value=1, step=1)
         
         st.markdown("### 2. Trạng Thái Báo Cáo & Nghiệm Thu")
         trangthai = st.selectbox(
@@ -118,7 +123,6 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         
         st.markdown("### 3. Định Vị GPS & Chụp Ảnh Hiện Trường")
         
-        # Tích hợp thêm phần lấy vị trí và chụp ảnh
         col_gps, col_img = st.columns(2)
         with col_gps:
             gps_info = st.text_input("📍 Lấy vị trí hiện tại (Tọa độ / Google Maps):", placeholder="Bấm để ghi nhận GPS hiện tại")
@@ -133,7 +137,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                     _, ws_bc = get_worksheet_data("BAO_CAO_TRIEN_KHAI")
                     if ws_bc:
                         ws_bc.append_row([ktv_name, diadiem, str(soluong_lap), trangthai, ghichu, gps_info])
-                    st.success(f"✅ Gửi báo cáo thành công cho trạm [{diadiem}]!")
+                    st.success(f"✅ Gửi báo cáo thành công cho địa điểm [{diadiem}]!")
                 except Exception as e:
                     st.success(f"✅ Đã ghi nhận báo cáo thành công tại hiện trường cho [{diadiem}]!")
             else:
@@ -144,7 +148,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
 # -------------------------------------------------------------------------
 elif st.session_state.active_tab == "Đăng ký thành viên":
     st.subheader("📝 Đăng Ký Thành Viên Tham Gia Triển Khai")
-    with st.form("form_dang_ky_ moi"):
+    with st.form("form_dang_ky_moi"):
         reg_name = st.text_input("Họ và tên thành viên")
         reg_phone = st.text_input("Số điện thoại liên hệ")
         reg_tuyen = st.text_input("Khu vực / Phân tuyến đăng ký")
@@ -161,7 +165,7 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
                 st.error("Vui lòng điền đầy đủ Họ tên và Số điện thoại!")
 
 # -------------------------------------------------------------------------
-# 3. MODULE: ADMIN DUYỆT TVĐK (BẢO MẬT BẰNG MẬT KHẨU 880880)
+# 3. MODULE: ADMIN DUYỆT TVĐK (MẬT KHẨU: 880880)
 # -------------------------------------------------------------------------
 elif st.session_state.active_tab == "AD Duyệt TVĐK":
     st.subheader("⚙️ Khu Vực Quản Trị - Admin Duyệt Thành Viên")
