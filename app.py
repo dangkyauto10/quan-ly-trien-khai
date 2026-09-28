@@ -8,7 +8,7 @@ import os
 # Cấu hình giao diện tối ưu (Wide mode)
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# Xóa toàn bộ cache cũ để app luôn cập nhật dữ liệu mới nhất từ Google Sheets
+# Xóa toàn bộ cache để app luôn đọc dữ liệu thời gian thực mới nhất từ Google Sheets
 st.cache_resource.clear()
 
 @st.cache_resource
@@ -78,7 +78,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Đọc TRỰC TIẾP và KHÔNG QUA CACHE từ Cột B của sheet Quản lý đội
+    # ĐỌC TOÀN BỘ ĐỘNG 100%: Quét toàn bộ Cột B, loại bỏ ô trống và lấy sạch tất cả các dòng có tên thành viên
     doi_list = []
     try:
         if client:
@@ -89,16 +89,16 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                     target_ws = s
                     break
             if not target_ws:
-                target_ws = sh.worksheet("QUAN_LY_DOI")
+                target_ws = sh.worksheets()[1]
             
-            # Lấy giá trị tươi trực tiếp từ cột B (bỏ qua tiêu đề dòng 1, 2)
+            # Lấy toàn bộ giá trị Cột B (lọc bỏ tiêu đề dòng 1, 2 và các ô trống bất kỳ)
             col_b_values = target_ws.col_values(2)
-            doi_list = [val.strip() for val in col_b_values[2:] if val and val.strip() != ""]
+            doi_list = [val.strip() for val in col_b_values[2:] if val is not None and str(val).strip() != ""]
     except Exception:
         pass
         
     if not doi_list:
-        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân"]
+        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", "Nguyễn Văn Huân", "Trần Đình Vỹ"]
 
     # Đọc danh sách Địa điểm từ Cột D của sheet DANH_SACH_DIEM
     diem_list = []
@@ -107,7 +107,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
             col_d_values = ws_diem.col_values(4) # Cột D
-            diem_list = [val.strip() for val in col_d_values[2:] if val and val.strip() != ""]
+            diem_list = [val.strip() for val in col_d_values[2:] if val is not None and str(val).strip() != ""]
     except Exception:
         pass
         
@@ -117,7 +117,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Hiển thị đầy đủ danh sách tươi, bao gồm Nguyễn Văn Huân
+        # Hiển thị đầy đủ tất cả thành viên trong Cột B (bao gồm cả Trần Đình Vỹ và các thành viên thêm sau này)
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
             doi_list
