@@ -75,30 +75,30 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # QUÉT ĐỘNG 100%: Lấy toàn bộ tên đội từ Cột B của sheet Quản lý đội (bỏ qua tiêu đề dòng 1, 2)
+    # Đọc ĐỘNG 100% từ Cột B của sheet QUAN_LY_DOI (hoặc sheet quản lý đội)
     doi_list = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            # Tìm chính xác sheet quản lý đội (chứa chữ QUAN_LY_DOI hoặc DOi)
-            ws_doi = None
+            # Quét tìm sheet Quản lý đội
+            target_ws = None
             for s in sh.worksheets():
-                if "DOI" in s.title.upper():
-                    ws_doi = s
+                if "QUAN" in s.title.upper() or "DOI" in s.title.upper():
+                    target_ws = s
                     break
-            if not ws_doi:
-                ws_doi = sh.worksheets()[1]
+            if not target_ws:
+                target_ws = sh.worksheet("QUAN_LY_DOI") # Gọi trực tiếp theo tên chuẩn
             
-            # Đọc toàn bộ giá trị Cột B và lọc bỏ các ô trống
-            col_b_values = ws_doi.col_values(2)
+            # Lấy toàn bộ giá trị Cột B (từ dòng 3 trở xuống để bỏ tiêu đề)
+            col_b_values = target_ws.col_values(2)
             doi_list = [val.strip() for val in col_b_values[2:] if val and val.strip() != ""]
     except Exception:
         pass
         
     if not doi_list:
-        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+        doi_list = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền"]
 
-    # QUÉT ĐỘNG 100%: Lấy danh sách Địa điểm từ Cột D của sheet DANH_SACH_DIEM
+    # Đọc ĐỘNG 100% danh sách Địa điểm từ Cột D của sheet DANH_SACH_DIEM
     diem_list = []
     try:
         if client:
@@ -115,7 +115,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Hiển thị danh sách động (bao gồm cả Nguyễn Ngọc Hiền vừa thêm vào sheet)
+        # Hiển thị đầy đủ danh sách động bao gồm Nguyễn Ngọc Hiền
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
             doi_list
