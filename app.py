@@ -6,7 +6,7 @@ from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# KẾT NỐI BẢO MẬT NỘI BỘ QUA SERVICE ACCOUNT
+# KHỞI TẠO KẾT NỐI BẢO MẬT NỘI BỘ
 def get_secure_client():
     try:
         if os.path.exists("credentials.json"):
@@ -19,11 +19,11 @@ def get_secure_client():
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
     except Exception as e:
-        st.sidebar.error(f"Lỗi bảo mật: {e}")
+        st.sidebar.error(f"Lỗi kết nối: {e}")
     return None
 
-# HÀM ĐỌC VÉT CẠN THÔNG MINH: CỨ CÓ CHỮ Ở CỘT ĐÓ LÀ LẤY, KHÔNG BAO GIỜ BỊ CỤT NGỌN
-def doc_du_lieu_vet_can(worksheet_name, col_num):
+# HÀM ĐỌC VÉT CẠN CỘT B CHUẨN XÁC 100% CHO CẢ 2 SHEET (KHÔNG BAO GIỜ BỊ SÓT HOẶC CỤT DÒNG)
+def doc_cot_b_chuan(worksheet_name):
     danh_sach = []
     try:
         client = get_secure_client()
@@ -32,23 +32,22 @@ def doc_du_lieu_vet_can(worksheet_name, col_num):
             ws = sh.worksheet(worksheet_name)
             rows = ws.get_all_values()
             
-            # Quét từ dòng thứ 3 trở xuống (bỏ qua 2 dòng tiêu đề)
+            # Quét từ dòng thứ 3 trở xuống (bỏ qua tiêu đề dòng 1 và 2), lấy chính xác Cột B (index 1)
             for row in rows[2:]:
-                if len(row) >= col_num:
-                    val = row[col_num - 1]
+                if len(row) >= 2:
+                    val = row[1]
                     if val is not None and str(val).strip() != "":
                         text = str(val).strip()
                         if text not in danh_sach:
                             danh_sach.append(text)
-    except Exception as e:
+    except Exception:
         pass
     return danh_sach
 
-# LẤY TRỰC TIẾP TỪ CỘT B (QUAN_LY_DOI - INDEX 2) VÀ CỘT D (DANH_SACH_DIEM - INDEX 4)
-danh_sach_doi = doc_du_lieu_vet_can("QUAN_LY_DOI", 2)
-danh_sach_diem = doc_du_lieu_vet_can("DANH_SACH_DIEM", 4)
+# LẤY DỮ LIỆU ĐỘNG: CÁN BỘ LẤY TỪ CỘT B SHEET QUAN_LY_DOI, ĐỊA ĐIỂM LẤY TỪ CỘT B SHEET DANH_SACH_DIEM
+danh_sach_doi = doc_cot_b_chuan("QUAN_LY_DOI")
+danh_sach_diem = doc_cot_b_chuan("DANH_SACH_DIEM")
 
-# Nếu sheet trống hoàn toàn mới dùng mảng dự phòng tối thiểu
 if not danh_sach_doi:
     danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
 
@@ -94,12 +93,12 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
         ktv_name = st.selectbox(
-            "Cán bộ / Đội trưởng thực hiện:",
+            "Cán bộ / Đội trưởng thực hiện (Lấy từ Cột B - QUAN_LY_DOI):",
             danh_sach_doi
         )
         
         diadiem = st.selectbox(
-            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
+            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Lấy từ Cột B - DANH_SACH_DIEM):",
             danh_sach_diem
         )
         
@@ -125,7 +124,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         with col_gps:
             gps_info = st.text_input("📍 Lấy vị trí hiện tại (Tọa độ / Google Maps):", placeholder="Bấm để ghi nhận GPS hiện tại")
         with col_img:
-            uploaded_image = st.file_uploader("📷 Bấm vào máy ảnh để chọn camera chụp/tải ảnh báo cáo thực tế", type=["jpg", "jpeg", "png"])
+            uploaded_image = st.camera_input("📷 Chụp ảnh hiện trường (Bấm máy ảnh để chụp trực tiếp qua camera)")
         
         submitted = st.form_submit_button("📍 GỬI BÁO CÁO NGHIỆM THU NGAY")
         
