@@ -24,9 +24,8 @@ def get_secure_client():
         pass
     return None
 
-# HÀM QUY CHIẾU THẲNG TẮP VÀO CỘT B (CỘT THỨ 2) TỪ DÒNG 3 XUỐNG DƯỚI
-@st.cache_data(ttl=1)
-def lay_chuan_100_cot_b():
+# HÀM ĐỌC THỰC TẾ TRỰC TIẾP TỪ CỘT B CỦA GOOGLE SHEETS
+def lay_danh_sach_chuan_tu_sheets():
     danh_sach_doi = []
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
     try:
@@ -34,31 +33,30 @@ def lay_chuan_100_cot_b():
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_doi = sh.worksheet("QUAN_LY_DOI")
-            
-            # Lấy toàn bộ giá trị của Cột B chuẩn xác
+            # Lấy toàn bộ giá trị của Cột B
             col_b_values = ws_doi.col_values(2)
-            
-            # Quét từ dòng thứ 3 (index 2) trở đi, lấy sạch không sót dòng nào
+            # Quét từ dòng thứ 3 (index 2) trở đi
             for val in col_b_values[2:]:
                 if val is not None:
                     txt = str(val).strip()
                     if txt != "" and txt not in danh_sach_doi:
                         danh_sach_doi.append(txt)
-    except Exception as e:
-        st.error(f"Lỗi kết nối: {e}")
-        
-    # Danh sách dự phòng nếu không kết nối được sheet
+    except Exception:
+        pass
+
+    # Nếu Google Sheets có dữ liệu, dùng hoàn toàn dữ liệu từ Sheets
+    # Nếu không kết nối được, fallback về danh sách gốc đầy đủ
     if not danh_sach_doi:
         danh_sach_doi = [
             "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", 
             "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé", 
             "Hết Bình Tĩnh", "Như Con Cạc", "Chắc Ôn Rồi", "Quá Đi Nhé", 
-            "ơn giời", "Qua Không?"
+            "ơn giời", "Qua Không?", "lần 2"
         ]
         
     return danh_sach_doi, danh_sach_diem
 
-danh_sach_doi, danh_sach_diem = lay_chuan_100_cot_b()
+danh_sach_doi, danh_sach_diem = lay_danh_sach_chuan_tu_sheets()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -90,9 +88,6 @@ st.markdown("---")
 if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
-
-    # Hiển thị log kiểm chứng trực tiếp mảng lấy từ Cột B
-    st.caption(f"📌 [QUY CHIẾU CỘT B] Đã nhận diện {len(danh_sach_doi)} giá trị: {danh_sach_doi}")
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
