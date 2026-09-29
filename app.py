@@ -8,22 +8,8 @@ import os
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
 def lay_danh_sach_doi_truc_tiep():
-    # Danh sách đầy đủ mặc định bao gồm tất cả các tên anh đã nhập
-    danh_sach = [
-        "Nguyễn Văn Thiện", 
-        "Nguyễn Văn Hải", 
-        "Nguyễn Ngọc Hiền", 
-        "Nguyễn Văn Huân", 
-        "Trần Đình Vỹ", 
-        "Trần Hữu H", 
-        "Nguyễn Văn C", 
-        "Hồ văn Hải", 
-        "Nguyễn Văn Ngu", 
-        "Ngu như Lợn", 
-        "Hồ Hữu Chánh", 
-        "Hồ Hưu Tâm", 
-        "Trần Thanh Tâm"
-    ]
+    # CHỈ LẤY ĐÚNG DỮ LIỆU THỰC TẾ TỪ GOOGLE SHEETS CỘT B (QUAN_LY_DOI)
+    danh_sach = []
     try:
         if os.path.exists("credentials.json"):
             with open("credentials.json", "r") as f:
@@ -38,18 +24,24 @@ def lay_danh_sach_doi_truc_tiep():
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Sử dụng get_all_values() để lấy toàn bộ dữ liệu thô từ sheet
+            # Lấy toàn bộ ma trận dữ liệu thô
             rows = ws_doi.get_all_values()
-            for row in rows[2:]: # Bỏ qua 2 dòng tiêu đề đầu tiên
+            
+            # Duyệt từ dòng thứ 3 (index 2) trở đi để lấy chính xác toàn bộ Cột B (index 1)
+            # Thêm hoặc xoá tên trong sheet thì app tự động cập nhật đúng y hệt 100%
+            for row in rows[2:]:
                 if len(row) >= 2:
-                    val = row[1] # Cột B là index 1
+                    val = row[1]
                     if val is not None and str(val).strip() != "":
                         name = str(val).strip()
                         if name not in danh_sach:
                             danh_sach.append(name)
     except Exception as e:
         pass
-        
+    
+    # Dự phòng tối thiểu nếu lỗi kết nối mạng
+    if not danh_sach:
+        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
     return danh_sach
 
 def lay_danh_sach_diem_truc_tiep():
