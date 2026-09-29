@@ -25,65 +25,45 @@ def get_gspread_client():
 
 client = get_gspread_client()
 
-# HÀM LẤY ĐỘNG AN TOÀN 100%: LUÔN CÓ DỮ LIỆU ĐỂ KHÔNG BAO GIỜ BỊ "NO OPTIONS TO SELECT"
-def lay_danh_sach_doi_an_toan():
-    # Danh sách mặc định đầy đủ để giao diện luôn hoạt động ổn định
-    danh_sach = [
-        "Nguyễn Văn Thiện", 
-        "Nguyễn Văn Hải", 
-        "Nguyễn Ngọc Hiền", 
-        "Nguyễn Văn Huân", 
-        "Trần Đình Vỹ", 
-        "Trần Hữu H", 
-        "Nguyễn Văn C", 
-        "Hồ văn Hải", 
-        "Nguyễn Văn Ngu", 
-        "Ngu như Lợn", 
-        "Hồ Hữu Chánh", 
-        "Hồ Hưu Tâm", 
-        "Trần Thanh Tâm",
-        "Nhu Nhu Cạc"
-    ]
+# HÀM ĐỘNG 100% THUẦN TÚY - ĐỌC TRỰC TIẾP TỪ CỘT B KHÔNG CÓ BẤT KỲ MẢNG CỨNG NÀO
+def lay_danh_sach_doi_thuc_te():
+    danh_sach = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Đọc toàn bộ giá trị thô từ Cột B
+            # Lấy toàn bộ giá trị thô của Cột B
             col_b = ws_doi.col_values(2)
             
-            danh_sach_sheet = []
-            for val in col_b[2:]: # Bỏ qua 2 dòng tiêu đề đầu
+            # Quét từ dòng thứ 3 (index 2) trở xuống đến hết bảng
+            for val in col_b[2:]:
                 if val is not None and str(val).strip() != "":
                     name = str(val).strip()
-                    if name not in danh_sach_sheet:
-                        danh_sach_sheet.append(name)
-            
-            # Nếu đọc được từ sheet, ưu tiên lấy hoàn toàn danh sách từ sheet
-            if len(danh_sach_sheet) > 0:
-                return danh_sach_sheet
+                    if name not in danh_sach:
+                        danh_sach.append(name)
     except Exception as e:
         pass
-        
+    
     return danh_sach
 
-def lay_danh_sach_diem_an_toan():
-    danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
+def lay_danh_sach_diem_thuc_te():
+    danh_sach_diem = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
             col_d = ws_diem.col_values(4)
-            d_sheet = []
             for val in col_d[2:]:
                 if val is not None and str(val).strip() != "":
                     d = str(val).strip()
-                    if d not in d_sheet:
-                        d_sheet.append(d)
-            if len(d_sheet) > 0:
-                return d_sheet
+                    if d not in danh_sach_diem:
+                        danh_sach_diem.append(d)
     except Exception:
         pass
+        
+    if not danh_sach_diem:
+        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
     return danh_sach_diem
 
 # GIAO DIỆN ĐIỀU HƯỚNG NGANG
@@ -121,13 +101,12 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    danh_sach_doi = lay_danh_sach_doi_an_toan()
-    danh_sach_diem = lay_danh_sach_diem_an_toan()
+    danh_sach_doi = lay_danh_sach_doi_thuc_te()
+    danh_sach_diem = lay_danh_sach_diem_thuc_te()
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Đảm bảo dropdown luôn có dữ liệu, không bao giờ bị lỗi No options
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
             danh_sach_doi
