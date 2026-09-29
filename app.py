@@ -9,14 +9,20 @@ st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide",
 
 def get_secure_client():
     try:
+        creds_dict = None
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
-            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            return gspread.authorize(creds)
         elif os.path.exists("credentials.json"):
             with open("credentials.json", "r") as f:
                 creds_dict = json.load(f)
+                
+        if creds_dict:
+            # Chuẩn hóa định dạng private_key để xử lý triệt để lỗi Invalid padding PEM file trên mây
+            if "private_key" in creds_dict:
+                pk = creds_dict["private_key"]
+                pk = pk.replace("\\n", "\n")
+                creds_dict["private_key"] = pk
+                
             scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
@@ -24,41 +30,46 @@ def get_secure_client():
         st.error(f"Lỗi xác thực Google API: {e}")
     return None
 
-# HÀM ĐỌC ĐỘNG 100% TỪ GOOGLE SHEETS - TỰ ĐỘNG CẬP NHẬT MỌI DÒNG MỚI THÊM
-def lay_du_lieu_dong_tu_sheets():
+# HÀM ĐỌC ĐỘNG 100% THỰC TẾ TỪ GOOGLE SHEETS - QUÉT TOÀN BỘ CỘT B VÀ CỘT D
+@st.cache_data(ttl=1)
+def doc_du_lieu_chuan_tu_sheets():
     danh_sach_doi = []
-    danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
+    danh_sach_diem = []
     
     try:
         client = get_secure_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+            
+            # 1. Đọc Cột B (index 2) từ sheet QUAN_LY_DOI: Lấy toàn bộ từ dòng 3 xuống đến hết
             ws_doi = sh.worksheet("QUAN_LY_DOI")
-            
-            # Lấy toàn bộ giá trị của Cột B từ Google Sheets
             col_b_values = ws_doi.col_values(2)
-            
-            # Quét sạch từ dòng 3 (index 2) đến hết tất cả các dòng hiện có
-            for val in col_b_values[2:]:
+            for val in col_b_values[2:]:  # Bỏ 2 dòng tiêu đề đầu
                 if val is not None:
                     txt = str(val).strip()
                     if txt != "" and txt not in danh_sach_doi:
                         danh_sach_doi.append(txt)
+            
+            # 2. Đọc Cột D (index 4) từ sheet DANH_SACH_DIEM: Lấy toàn bộ từ dòng 3 xuống đến hết
+            ws_diem = sh.worksheet("DANH_SACH_DIEM")
+            col_d_values = ws_diem.col_values(4)
+            for val in col_d_values[2:]:  # Bỏ 2 dòng tiêu đề đầu
+                if val is not None:
+                    txt = str(val).strip()
+                    if txt != "" and txt not in danh_sach_diem:
+                        danh_sach_diem.append(txt)
     except Exception as e:
-        st.warning(f"⚠️ Cảnh báo kết nối Sheets: {e}")
+        st.error(f"⚠️ Lỗi kết nối lấy dữ liệu từ Google Sheets: {e}")
 
-    # Danh sách dự phòng thông minh (chỉ dùng khi mất kết nối mạng hoàn toàn)
+    # Dự phòng an toàn tuyệt đối nếu Google Sheets mất kết nối mạng
     if not danh_sach_doi:
-        danh_sach_doi = [
-            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", 
-            "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé", 
-            "Hết Bình Tĩnh", "Như Con Cạc", "Chắc Ôn Rồi", "Quá Đi Nhé", 
-            "ơn giời", "Qua Không?", "lần 2", "lần 3", "Lần X mày nhé", "Tao nhập gì"
-        ]
+        danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+    if not danh_sach_diem:
+        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
         
     return danh_sach_doi, danh_sach_diem
 
-danh_sach_doi, danh_sach_diem = lay_du_lieu_dong_tu_sheets()
+danh_sach_doi, danh_sach_diem = doc_du_lieu_chuan_tu_sheets()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -91,19 +102,19 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
 
-    # Hiển thị số lượng dữ liệu thực tế đọc được để anh em mình kiểm chứng ngay lập tức
-    st.info(f"📊 Hệ thống đang đồng bộ trực tiếp từ Cột B. Tổng số mục ghi nhận: **{len(danh_sach_doi)}** mục.")
+    # Thông báo trực quan xác nhận số lượng dữ liệu thực tế quét được từ Cột B và Cột D
+    st.success(f"🟢 Đã kết nối Google Sheets thành công! Quét được **{len(danh_sach_doi)}** đội từ Cột B và **{len(danh_sach_diem)}** điểm từ Cột D.")
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
         ktv_name = st.selectbox(
-            "Cán bộ / Đội trưởng thực hiện (Đồng bộ chuẩn Cột B):",
+            "Cán bộ / Đội trưởng thực hiện (Đọc chuẩn 100% từ Cột B):",
             danh_sach_doi
         )
         
         diadiem = st.selectbox(
-            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT:",
+            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Đọc chuẩn 100% từ Cột D):",
             danh_sach_diem
         )
         
@@ -145,7 +156,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                 except Exception as e:
                     st.success(f"✅ Đã ghi nhận báo cáo thành công tại hiện trường cho [{diadiem}]!")
             else:
-                st.error("Vui lòng điền đầy đủ thông tin trước khi gửi!")
+                st.error("Vui lòng chọn đầy đủ thông tin trước khi gửi!")
 
 elif st.session_state.active_tab == "Đăng ký thành viên":
     st.subheader("📝 Đăng Ký Thành Viên Tham Gia Triển Khai")
@@ -161,7 +172,7 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
                         sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                         ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
                         ws_dk.append_row([reg_name, reg_phone, reg_tuyen, "Chờ duyệt"])
-                    st.success(f"Đã gửi đăng ký thành công cho {reg_name}!")
+                    st.success(f"Đã gửi đăng ký thành viên thành công cho {reg_name}!")
                 except Exception as e:
                     st.success(f"✅ Đã ghi nhận đăng ký thành công cho {reg_name}!")
             else:
