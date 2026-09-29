@@ -6,7 +6,7 @@ st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide",
 # ID Google Sheets chính thức của dự án
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# HÀM ĐỌC DỮ LIỆU ĐỒNG BỘ ỔN ĐỊNH CHUẨN MỐC 26/09 QUA CSV URL
+# HÀM ĐỌC DỮ LIỆU ĐỒNG BỘ ỔN ĐỊNH MỐC 26/09 QUA CSV URL
 @st.cache_data(ttl=1)
 def load_stable_data_26_09():
     danh_sach_doi = []
