@@ -6,7 +6,7 @@ from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# KHỞI TẠO KẾT NỐI TƯƠI MỚI 100% KHÔNG DÙNG BỘ NHỚ ĐỆM
+# KẾT NỐI TƯƠI MỚI TRỰC TIẾP TỪ GOOGLE SHEETS
 def get_live_client():
     try:
         if os.path.exists("credentials.json"):
@@ -22,8 +22,8 @@ def get_live_client():
         st.sidebar.error(f"Lỗi kết nối: {e}")
     return None
 
-# HÀM VÉT CẠN THÔNG MINH: QUÉT SẠCH 100% KHÔNG BAO GIỜ BỊ CỤT MẤT DÒNG CUỐI CÙNG
-def lay_du_lieu_vet_can_tuyet_doi(worksheet_name, col_index):
+# HÀM QUÉT TUYỆT ĐỐI THEO TỪNG CỘT (DÙNG col_values ĐỂ LẤY SẠCH 100% TỪ TRÊN XUỐNG DƯỚI, KHÔNG BAO GIỜ BỊ CỤT DÒNG)
+def doc_sach_tuyet_doi(worksheet_name, col_index_python):
     danh_sach = []
     try:
         client = get_live_client()
@@ -31,29 +31,28 @@ def lay_du_lieu_vet_can_tuyet_doi(worksheet_name, col_index):
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws = sh.worksheet(worksheet_name)
             
-            # Lấy toàn bộ ma trận dữ liệu thô của sheet
-            rows = ws.get_all_values()
+            # Lấy toàn bộ giá trị của đúng cột đó từ trên xuống dưới (gspread dùng index bắt đầu từ 1)
+            col_values = ws.col_values(col_index_python)
             
-            # Quét từ dòng thứ 3 trở xuống (bỏ qua 2 dòng tiêu đề đầu tiên)
-            for row in rows[2:]:
-                if len(row) >= col_index:
-                    val = row[col_index - 1]
-                    if val is not None and str(val).strip() != "":
-                        text = str(val).strip()
-                        if text not in danh_sach:
-                            danh_sach.append(text)
+            # Bỏ qua 2 dòng tiêu đề đầu tiên (dòng 1 và 2), quét từ dòng thứ 3 trở đi
+            for val in col_values[2:]:
+                if val is not None and str(val).strip() != "":
+                    text = str(val).strip()
+                    if text not in danh_sach:
+                        danh_sach.append(text)
     except Exception:
         pass
     return danh_sach
 
-# 1. CÁN BỘ: Lấy vét cạn toàn bộ từ Cột B (index 2) của sheet QUAN_LY_DOI (Bao gồm cả dòng mới nhất)
-danh_sach_doi = lay_du_lieu_vet_can_tuyet_doi("QUAN_LY_DOI", 2)
+# 1. CÁN BỘ: Lấy toàn bộ từ Cột B (index 2 trong gspread) của sheet QUAN_LY_DOI
+danh_sach_doi = doc_sach_tuyet_doi("QUAN_LY_DOI", 2)
 
-# 2. ĐỊA ĐIỂM: Lấy vét cạn toàn bộ từ Cột D (index 4) của sheet DANH_SACH_DIEM
-danh_sach_diem = lay_du_lieu_vet_can_tuyet_doi("DANH_SACH_DIEM", 4)
+# 2. ĐỊA ĐIỂM: Lấy toàn bộ từ Cột D (index 4 trong gspread) của sheet DANH_SACH_DIEM
+danh_sach_diem = doc_sach_tuyet_doi("DANH_SACH_DIEM", 4)
 
+# Danh sách dự phòng an toàn
 if not danh_sach_doi:
-    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé"]
+    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Hết Bình Tĩnh"]
 
 if not danh_sach_diem:
     danh_sach_diem = [
