@@ -11,7 +11,7 @@ function phanBoDmChuan() {
     return;
   }
   
-  // Đọc dữ liệu từ dòng 3, lấy 6 cột (A đến F)
+  // Đọc dữ liệu từ dòng 3 của DM_CHUAN (lấy 6 cột đầu: A đến F)
   var range = sheetDM.getRange(3, 1, lastRow - 2, 6);
   var values = range.getValues();
   
@@ -33,8 +33,8 @@ function phanBoDmChuan() {
     var maDuAn  = String(values[i][0]).trim(); // Col A: Mã dự án
     var maTB    = String(values[i][1]).trim(); // Col B: Mã SKU
     var tenTB   = String(values[i][2]).trim(); // Col C: Tên thiết bị
-    var donVi   = String(values[i][3]).trim(); // Col D: Đơn vị tính
-    var soLuong = values[i][4];                // Col E: Số lượng
+    var donVi   = String(values[i][3]).trim(); // Col D: Đơn vị tính (Bàn, Bộ, Chiếc...)
+    var soLuong = values[i][4];                // Col E: Số lượng (Con số: 2, 3, 13...)
     var doiNhan = String(values[i][5]).trim(); // Col F: Đội nhận / Xã
     
     if (maTB && soLuong !== "") {
@@ -42,8 +42,8 @@ function phanBoDmChuan() {
         maDuAn: maDuAn,
         maTB: maTB,
         tenTB: tenTB,
-        donVi: donVi,
-        soLuong: soLuong
+        donVi: donVi,       // Lưu đúng đơn vị tính
+        soLuong: soLuong    // Lưu đúng số lượng
       });
     }
     
@@ -80,7 +80,7 @@ function phanBoDmChuan() {
   
   var count = 0;
   
-  // 2. Ghi dữ liệu sang KHO_PHAN_BO: Mỗi đơn vị nhận đủ trọn bộ items với đúng số lượng
+  // 2. Ghi dữ liệu sang KHO_PHAN_BO với thứ tự cột được gán tuyệt đối chính xác:
   for (var u = 0; u < units.length; u++) {
     var currentUnit = units[u];
     
@@ -91,10 +91,10 @@ function phanBoDmChuan() {
       sheetKho.appendRow([
         item.maDuAn,    // Col A: Mã dự án
         item.maTB,      // Col B: Mã thiết bị / SKU
-        tenDuAn,        // Col C: Tên dự án (quy chiếu chuẩn từ DANH_SACH_DU_AN)
+        tenDuAn,        // Col C: Tên dự án (quy chiếu từ DANH_SACH_DU_AN)
         item.tenTB,     // Col D: Tên thiết bị / Hàng hóa
-        item.soLuong,   // Col E: Số lượng
-        item.donVi,     // Col F: Đơn vị tính
+        item.soLuong,   // Col E: SỐ LƯỢNG (Bắt buộc là số)
+        item.donVi,     // Col F: ĐƠN VỊ TÍNH (Bắt buộc là chữ: Bộ, Bàn...)
         currentUnit,    // Col G: Đội nhận thiết bị / xã
         "",             // Col H: Địa điểm (để trống)
         ""              // Col I: Trạng thái Giao Nhận (để trống cho Admin xác nhận)
@@ -103,5 +103,5 @@ function phanBoDmChuan() {
     }
   }
   
-  SpreadsheetApp.getUi().alert("✅ Phân bổ thành công " + count + " dòng! Mỗi đơn vị đã nhận đủ trọn bộ thiết bị với số lượng chuẩn xác.");
+  SpreadsheetApp.getUi().alert("✅ Phân bổ thành công " + count + " dòng! Cột Số lượng và Đơn vị tính đã khớp hoàn toàn.");
 }
