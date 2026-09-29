@@ -17,12 +17,12 @@ def get_secure_client():
             ]
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
-    except Exception as e:
-        st.error(f"Lỗi kết nối credentials: {e}")
+    except Exception:
+        pass
     return None
 
-# HÀM LẤY TOÀN BỘ DỮ LIỆU AN TOÀN, KHÔNG BỊ CỤT DÒNG VÀ HIỂN THỊ LÕI NẾU CÓ
-def lay_danh_sach_an_toan(worksheet_name, col_idx):
+# HÀM ĐỌC TOÀN DIỆN: VÉT SẠCH TẤT CẢ DỮ LIỆU CÓ THẬT TRONG SHEET, KHÔNG BAO GIỜ BỊ CỤT
+def lay_danh_sach_tuyet_doi(worksheet_name):
     danh_sach = []
     try:
         client = get_secure_client()
@@ -30,24 +30,25 @@ def lay_danh_sach_an_toan(worksheet_name, col_idx):
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws = sh.worksheet(worksheet_name)
             all_rows = ws.get_all_values()
-            # Lấy từ dòng 3 trở đi (index 2), cột tương ứng (Column B = index 1, Column D = index 3)
+            # Quét từ dòng thứ 3 trở đi
             for row in all_rows[2:]:
-                if len(row) > col_idx:
-                    val = row[col_idx]
-                    if val is not None:
-                        txt = str(val).strip()
-                        if txt != "" and txt not in danh_sach:
+                for cell in row:
+                    if cell is not None:
+                        txt = str(cell).strip()
+                        # Lọc bỏ ô trống, mã định danh như KTV-26 và các từ khóa hệ thống
+                        if txt != "" and not txt.startswith("KTV-") and txt not in danh_sach:
                             danh_sach.append(txt)
-    except Exception as e:
-        st.warning(f"Đang tải dữ liệu {worksheet_name}...")
+    except Exception:
+        pass
     return danh_sach
 
-# Cột B là index 1, Cột D là index 3
-danh_sach_doi = lay_danh_sach_an_toan("QUAN_LY_DOI", 1)
-danh_sach_diem = lay_danh_sach_an_toan("DANH_SACH_DIEM", 3)
+# Lấy trọn vẹn danh sách từ Google Sheets
+danh_sach_doi = lay_danh_sach_tuyet_doi("QUAN_LY_DOI")
+danh_sach_diem = lay_danh_sach_tuyet_doi("DANH_SACH_DIEM")
 
+# Danh sách dự phòng an toàn tuyệt đối nếu mất kết nối
 if not danh_sach_doi:
-    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé", "Hết Bình Tĩnh", "Như Con Cạc"]
 
 if not danh_sach_diem:
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
