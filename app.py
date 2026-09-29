@@ -6,8 +6,7 @@ from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# ÉP KẾT NỐI TƯƠI MỚI KHÔNG DÙNG CACHE
-def get_force_client():
+def get_secure_client():
     try:
         if os.path.exists("credentials.json"):
             with open("credentials.json", "r") as f:
@@ -22,17 +21,15 @@ def get_force_client():
         pass
     return None
 
-# HÀM ÉP QUÉT MẠNH TAY: ĐỌC SẠCH TOÀN BỘ CỘT, KHÔNG LỌC LẰNG NHẰNG
-def ep_lay_danh_sach(worksheet_name, col_index):
+def lay_danh_sach_nguyen_ban(worksheet_name, col_index):
     danh_sach = []
     try:
-        client = get_force_client()
+        client = get_secure_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws = sh.worksheet(worksheet_name)
-            # Lấy thẳng tắp cột theo index gspread (1 là A, 2 là B, 4 là D)
             cot = ws.col_values(col_index)
-            for v in cot[2:]: # Bỏ 2 dòng đầu
+            for v in cot[2:]:
                 if v is not None:
                     txt = str(v).strip()
                     if txt != "" and txt not in danh_sach:
@@ -41,27 +38,16 @@ def ep_lay_danh_sach(worksheet_name, col_index):
         pass
     return danh_sach
 
-# ÉP LẤY DANH SÁCH THỰC TẾ TỪ GOOGLE SHEETS
-danh_sach_doi = ep_lay_danh_sach("QUAN_LY_DOI", 2)
-danh_sach_diem = ep_lay_danh_sach("DANH_SACH_DIEM", 4)
+# Đọc nguyên bản chuẩn ngày 26-9
+danh_sach_doi = lay_danh_sach_nguyen_ban("QUAN_LY_DOI", 2)
+danh_sach_diem = lay_danh_sach_nguyen_ban("DANH_SACH_DIEM", 4)
 
-# Danh sách dự phòng cứng đề phòng lỗi kết nối
 if not danh_sach_doi:
-    danh_sach_doi = [
-        "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", 
-        "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé", "Hết Bình Tĩnh"
-    ]
+    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
 
 if not danh_sach_diem:
-    danh_sach_diem = [
-        "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
-        "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình", "Xã Hùng Lợi",
-        "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thọ", "Xã Hồng Sơn", "Xã Trường Sinh", "Xã Phú Lương",
-        "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca", "Xã Sơn Dương",
-        "Xã Yên Nguyên", "Xã Kim Bình", "Xã Tri Phú"
-    ]
+    danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
 
-# GIAO DIỆN ĐIỀU HƯỚNG NGANG
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
 nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
@@ -89,9 +75,6 @@ elif btn_baocaold:
 
 st.markdown("---")
 
-# -------------------------------------------------------------------------
-# MODULE 1: BÁO CÁO KTV & VC
-# -------------------------------------------------------------------------
 if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
@@ -138,7 +121,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         if submitted:
             if ktv_name and diadiem:
                 try:
-                    client = get_force_client()
+                    client = get_secure_client()
                     if client:
                         sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                         ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
@@ -149,9 +132,6 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
             else:
                 st.error("Vui lòng chọn đầy đủ thông tin trước khi gửi!")
 
-# -------------------------------------------------------------------------
-# MODULE 2: ĐĂNG KÝ THÀNH VIÊN
-# -------------------------------------------------------------------------
 elif st.session_state.active_tab == "Đăng ký thành viên":
     st.subheader("📝 Đăng Ký Thành Viên Tham Gia Triển Khai")
     with st.form("form_dang_ky_moi"):
@@ -161,7 +141,7 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
         if st.form_submit_button("GỬI ĐĂNG KÝ"):
             if reg_name and reg_phone:
                 try:
-                    client = get_force_client()
+                    client = get_secure_client()
                     if client:
                         sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                         ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
@@ -172,17 +152,13 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
             else:
                 st.error("Vui lòng điền đầy đủ Họ tên và Số điện thoại!")
 
-# -------------------------------------------------------------------------
-# MODULE 3: ADMIN DUYỆT TVĐK (MẬT KHẨU: 880880)
-# -------------------------------------------------------------------------
 elif st.session_state.active_tab == "AD Duyệt TVĐK":
     st.subheader("⚙️ Khu Vực Quản Trị - Admin Duyệt Thành Viên")
-    
     password = st.text_input("Nhập mật khẩu Admin:", type="password")
     if password == "880880":
         st.success("🔓 Xác thực thành công! Danh sách chờ duyệt:")
         try:
-            client = get_force_client()
+            client = get_secure_client()
             if client:
                 sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                 ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
@@ -198,13 +174,10 @@ elif st.session_state.active_tab == "AD Duyệt TVĐK":
     else:
         st.info("Vui lòng nhập mật khẩu quản trị để tiếp tục.")
 
-# -------------------------------------------------------------------------
-# MODULE 4: BÁO CÁO LĐ
-# -------------------------------------------------------------------------
 elif st.session_state.active_tab == "BÁO CÁO LĐ":
     st.subheader("📊 BÁO CÁO LĐ & Thống Kê Tổng Hợp")
     try:
-        client = get_force_client()
+        client = get_secure_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_home = sh.worksheet("TRANG_CHU")
