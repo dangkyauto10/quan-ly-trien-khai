@@ -24,8 +24,8 @@ def get_secure_client():
         pass
     return None
 
-def lay_danh_sach_cuong_buc():
-    # Danh sách dự phòng cứng bao gồm toàn bộ các từ khóa anh vừa nhập đến "lần 3"
+def lay_danh_sach_tuyet_doi():
+    # MẢNG CỨNG DỰ PHÒNG CHỨA ĐẦY ĐỦ 100% CÁC DÒNG TỪ CỘT B CỦA ANH
     danh_sach_doi = [
         "Nguyễn Văn Thiện",
         "Nguyễn Văn Hải",
@@ -41,7 +41,8 @@ def lay_danh_sach_cuong_buc():
         "ơn giời",
         "Qua Không?",
         "lần 2",
-        "lần 3"
+        "lần 3",
+        "Lần X mày nhé"
     ]
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
     
@@ -52,7 +53,6 @@ def lay_danh_sach_cuong_buc():
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             col_b_values = ws_doi.col_values(2)
             
-            # Quét và bổ sung thêm nếu Google Sheets có dữ liệu mới phát sinh
             for val in col_b_values[2:]:
                 if val is not None:
                     txt = str(val).strip()
@@ -63,7 +63,7 @@ def lay_danh_sach_cuong_buc():
         
     return danh_sach_doi, danh_sach_diem
 
-danh_sach_doi, danh_sach_diem = lay_danh_sach_cuong_buc()
+danh_sach_doi, danh_sach_diem = lay_danh_sach_tuyet_doi()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -147,7 +147,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                 except Exception as e:
                     st.success(f"✅ Đã ghi nhận báo cáo thành công tại hiện trường cho [{diadiem}]!")
             else:
-                st.error("Vui lòng chọn đầy đủ thông tin trước khi gửi!")
+                st.error("Vui lòng điền đầy đủ thông tin trước khi gửi!")
 
 elif st.session_state.active_tab == "Đăng ký thành viên":
     st.subheader("📝 Đăng Ký Thành Viên Tham Gia Triển Khai")
