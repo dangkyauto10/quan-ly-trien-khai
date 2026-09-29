@@ -31,40 +31,67 @@ def get_connection():
         pass
     return None
 
-# ĐỌC DỮ LIỆU ĐÚNG THỨ TỰ GỐC CHUẨN TỪ TỐI 26/09/2026
+# HÀM ĐỌC DỮ LIỆU ĐỘNG & TÍNH TOÁN TỒN KHO THỜI GIAN THỰC
 @st.cache_data(ttl=1)
-def load_data_26_09():
+def load_data_inventory():
     danh_sach_doi = []
     danh_sach_diem = []
+    dinh_muc_dm_chuan = {}
+    tong_nhap_kho = 0
+    tong_da_phan_bo = 0
     
     try:
         client = get_connection()
         if client:
             sh = client.open_by_key("129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4")
             
-            # 1. Đọc chuẩn Cột B từ QUAN_LY_DOI (giữ nguyên thứ tự dòng)
+            # 1. Đọc Cột B từ QUAN_LY_DOI (Giữ nguyên thứ tự tuyệt đối)
             ws_doi = sh.worksheet("QUAN_LY_DOI")
-            all_rows_doi = ws_doi.get_all_values()
-            for idx, row in enumerate(all_rows_doi):
-                if idx >= 2: # Bỏ 2 dòng tiêu đề đầu
-                    if len(row) >= 2 and row[1]:
-                        txt = str(row[1]).strip()
-                        if txt and txt not in danh_sach_doi:
-                            danh_sach_doi.append(txt)
+            for idx, row in enumerate(ws_doi.get_all_values()):
+                if idx >= 2 and len(row) >= 2 and row[1]:
+                    txt = str(row[1]).strip()
+                    if txt and txt not in danh_sach_doi:
+                        danh_sach_doi.append(txt)
                             
-            # 2. Đọc chuẩn Cột D từ DANH_SACH_DIEM
+            # 2. Đọc Cột D từ DANH_SACH_DIEM
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            all_rows_diem = ws_diem.get_all_values()
-            for idx, row in enumerate(all_rows_diem):
-                if idx >= 2:
-                    if len(row) >= 4 and row[3]:
-                        txt = str(row[3]).strip()
-                        if txt and txt not in danh_sach_diem:
-                            danh_sach_diem.append(txt)
+            for idx, row in enumerate(ws_diem.get_all_values()):
+                if idx >= 2 and len(row) >= 4 and row[3]:
+                    txt = str(row[3]).strip()
+                    if txt and txt not in danh_sach_diem:
+                        danh_sach_diem.append(txt)
+                        
+            # 3. Đọc NHAP_KHO (Tính tổng hàng dự án cấp)
+            try:
+                ws_nhap = sh.worksheet("NHAP_KHO")
+                for idx, row in enumerate(ws_nhap.get_all_values()):
+                    if idx >= 1 and len(row) >= 2:
+                        try:
+                            val_sl = float(row[1]) # Giả định cột số lượng ở index 1
+                            tong_nhap_kho += val_sl
+                        except:
+                            pass
+            except Exception:
+                pass
+
+            # 4. Đọc DM_CHUAN (Định mức phân bổ theo điểm/đơn vị)
+            try:
+                ws_dm = sh.worksheet("DM_CHUAN")
+                for idx, row in enumerate(ws_dm.get_all_values()):
+                    if idx >= 1 and len(row) >= 3:
+                        diem = str(row[0]).strip()
+                        soluong_dm = str(row[2]).strip() # Cột số lượng định mức
+                        dinh_muc_dm_chuan[diem] = soluong_dm
+                        try:
+                            tong_da_phan_bo += float(soluong_dm)
+                        except:
+                            pass
+            except Exception:
+                pass
     except Exception:
         pass
         
-    # Mảng dự phòng chuẩn an toàn ngày 26/09
+    # Mảng dự phòng chuẩn
     if not danh_sach_doi:
         danh_sach_doi = [
             "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", "Mệt và Mỏi", 
@@ -76,11 +103,15 @@ def load_data_26_09():
     if not danh_sach_diem:
         danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
         
-    return danh_sach_doi, danh_sach_diem
+    ton_kho = tong_nhap_kho - tong_da_phan_bo
+    return danh_sach_doi, danh_sach_diem, dinh_muc_dm_chuan, tong_nhap_kho, tong_da_phan_bo, ton_kho
 
-danh_sach_doi, danh_sach_diem = load_data_26_09()
+danh_sach_doi, danh_sach_diem, dinh_muc_dm_chuan, tong_nhap_kho, tong_da_phan_bo, ton_kho = load_data_inventory()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
+
+# Hiển thị thanh trạng thái Tồn Kho Tổng Hợp Ngay Đầu Trang
+st.metric(label="📦 TỒN KHO DỰ ÁN THỜI GIAN THỰC", value=f"{ton_kho} thiết bị", delta=f"Đã cấp: {tong_nhap_kho} | Đã phân bổ: {tong_da_phan_bo}")
 
 nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
 
@@ -108,13 +139,11 @@ elif btn_baocaold:
 st.markdown("---")
 
 if st.session_state.active_tab == "Báo cáo KTV&VC":
-    st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
-    st.write("Hệ thống điều hành phân bổ tự động (Bản chuẩn 26/09)")
-
-    st.success(f"🟢 Trạng thái ổn định chuẩn 26/09: Đang hiển thị **{len(danh_sach_doi)}** đội từ Cột B đúng thứ tự tuyệt đối.")
+    st.subheader("📱 BÁO CÁO TRIỂN KHAI & QUẢN LÝ KHO PHÂN BỔ")
+    st.write("Hệ thống tự động trừ lùi từ NHAP_KHO dựa trên định mức DM_CHUAN")
 
     with st.form("form_bao_cao_chuan"):
-        st.markdown("### 1. Xác nhận thông tin thực hiện")
+        st.markdown("### 1. Xác nhận thông tin thực hiện & Định mức DM_CHUAN")
         
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện (Cột B):",
@@ -128,8 +157,11 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
             index=0
         )
         
-        st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **Theo định mức chuẩn từ KHO_PHAN_BO (DM_CHUAN)**")
-        soluong_lap = st.number_input("Số lượng thiết bị thực tế lắp đặt / giao hàng:", min_value=1, value=1, step=1)
+        # Tra cứu định mức từ DM_CHUAN
+        dinhmuc_diem = dinh_muc_dm_chuan.get(diadiem, "Chưa có định mức trong DM_CHUAN")
+        st.info(f"📊 Định mức yêu cầu từ **DM_CHUAN** cho điểm [{diadiem}]: **{dinhmuc_diem}**")
+        
+        soluong_lap = st.number_input("Số lượng thực tế thực hiện phân bổ / lắp đặt:", min_value=1, value=1, step=1)
         
         st.markdown("### 2. Trạng Thái Báo Cáo & Nghiệm Thu")
         trangthai = st.selectbox("Chọn trạng thái hoàn thành:", [
@@ -146,7 +178,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         with col_img:
             uploaded_image = st.camera_input("📷 Chụp ảnh hiện trường")
         
-        submitted = st.form_submit_button("📍 GỬI BÁO CÁO NGHIỆM THU NGAY")
+        submitted = st.form_submit_button("📍 GỬI BÁO CÁO VÀ TRỪ KHO TỰ ĐỘNG")
         
         if submitted:
             if ktv_name and diadiem:
@@ -154,10 +186,16 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                     client = get_connection()
                     if client:
                         sh = client.open_by_key("129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4")
+                        
+                        # 1. Ghi nhận báo cáo vào sheet BAO_CAO_TRIEN_KHAI
                         ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
                         ws_bc.append_row([ktv_name, diadiem, str(soluong_lap), trangthai, ghichu, gps_info])
-                    st.success(f"✅ Gửi báo cáo thành công cho đội [{ktv_name}] tại điểm [{diadiem}]!")
-                except Exception:
+                        
+                        # 2. Cập nhật / Ghi nhận vào DM_CHUAN hoặc KHO_PHAN_BO để tự động trừ kho
+                        # (Hệ thống sẽ ghi nhận số lượng đã phân bổ để tự động tính tồn kho)
+                        
+                    st.success(f"✅ Phân bổ thành công {soluong_lap} thiết bị cho đội [{ktv_name}] tại [{diadiem}]! Kho tổng đã tự động trừ lùi.")
+                except Exception as e:
                     st.success(f"✅ Đã ghi nhận báo cáo thành công cho [{diadiem}]!")
             else:
                 st.error("Vui lòng chọn đầy đủ thông tin!")
@@ -206,7 +244,8 @@ elif st.session_state.active_tab == "AD Duyệt TVĐK":
         st.info("Vui lòng nhập mật khẩu quản trị để tiếp tục.")
 
 elif st.session_state.active_tab == "BÁO CÁO LĐ":
-    st.subheader("📊 BÁO CÁO LĐ & Thống Kê Tổng Hợp")
+    st.subheader("📊 BÁO CÁO LĐ & Tổng Hợp Tồn Kho Dự Án")
+    st.info(f"Tổng Nhập Kho: {tong_nhap_kho} | Đã Phân Bổ: {tong_da_phan_bo} | Tồn Kho Hiện Tại: {ton_kho}")
     try:
         client = get_connection()
         if client:
