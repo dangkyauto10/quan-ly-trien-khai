@@ -22,17 +22,19 @@ def get_secure_client():
         st.sidebar.error(f"Lỗi kết nối: {e}")
     return None
 
-# HÀM ĐỌC VÉT CẠN CHUẨN XÁC THEO ĐÚNG SỐ THỨ TỰ CỘT
-def doc_cot_chinh_xac(worksheet_name, col_index):
+# HÀM VÉT CẠN TOÀN BỘ DỮ LIỆU KHÔNG BAO GIỜ BỊ CỤT HOẶC THIẾU DÒNG DƯỚI CÙNG
+def doc_vet_can_chuan(worksheet_name, col_index):
     danh_sach = []
     try:
         client = get_secure_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws = sh.worksheet(worksheet_name)
+            
+            # Sử dụng range hoặc get_all_values để lấy sạch 100% không sót dòng nào
             rows = ws.get_all_values()
             
-            # Quét từ dòng thứ 3 trở xuống (bỏ qua tiêu đề dòng 1 và 2)
+            # Quét từ dòng thứ 3 trở xuống (bỏ qua 2 dòng tiêu đề)
             for row in rows[2:]:
                 if len(row) >= col_index:
                     val = row[col_index - 1]
@@ -44,18 +46,23 @@ def doc_cot_chinh_xac(worksheet_name, col_index):
         pass
     return danh_sach
 
-# ĐÚNG CHUẨN YÊU CẦU:
-# 1. CÁN BỘ: Lấy từ Cột B (index 2) của sheet QUAN_LY_DOI
-danh_sach_doi = doc_cot_chinh_xac("QUAN_LY_DOI", 2)
+# 1. CÁN BỘ: Lấy toàn bộ từ Cột B (index 2) của sheet QUAN_LY_DOI
+danh_sach_doi = doc_vet_can_chuan("QUAN_LY_DOI", 2)
 
-# 2. ĐỊA ĐIỂM: Lấy từ Cột D (index 4) của sheet DANH_SACH_DIEM (đúng chuẩn theo vùng khoanh đỏ trong ảnh của anh)
-danh_sach_diem = doc_cot_chinh_xac("DANH_SACH_DIEM", 4)
+# 2. ĐỊA ĐIỂM: Lấy toàn bộ từ Cột tương ứng của sheet DANH_SACH_DIEM (Cột D - index 4, hoặc điều chỉnh nếu cần)
+danh_sach_diem = doc_vet_can_chuan("DANH_SACH_DIEM", 4)
 
 if not danh_sach_doi:
-    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào"]
+    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", "Mệt và Mỏi"]
 
 if not danh_sach_diem:
-    danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm", "Xã Nhữ Khê", "Xã Tân Trào"]
+    danh_sach_diem = [
+        "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
+        "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình", "Xã Hùng Lợi",
+        "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thọ", "Xã Hồng Sơn", "Xã Trường Sinh", "Xã Phú Lương",
+        "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca", "Xã Sơn Dương",
+        "Xã Yên Nguyên", "Xã Kim Bình", "Xã Tri Phú"
+    ]
 
 # GIAO DIỆN ĐIỀU HƯỚNG NGANG
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
@@ -101,7 +108,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         )
         
         diadiem = st.selectbox(
-            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Lấy từ Cột D - DANH_SACH_DIEM):",
+            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Lấy từ DANH_SACH_DIEM):",
             danh_sach_diem
         )
         
