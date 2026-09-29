@@ -7,7 +7,6 @@ import os
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# CHỈ CACHE CLIENT KẾT NỐI, KHÔNG CACHE DỮ LIỆU ĐỂ ĐẢM BẢO F5 LÀ LOAD MỚI 100% TỪ SHEET
 @st.cache_resource
 def get_verified_client():
     try:
@@ -25,8 +24,8 @@ def get_verified_client():
         st.sidebar.error(f"Lỗi kết nối: {e}")
     return None
 
-# HÀM ĐỘNG 100% THUẦN TÚY: THÊM TRÊN SHEET HIỆN APP - XOÁ TRÊN SHEET MẤT LUÔN TRÊN APP
-def lay_danh_sach_doi_thuan_tui():
+# HÀM ĐỘNG 100% SỬ DỤNG GET_ALL_VALUES(): THÊM LÀ HIỆN - XOÁ LÀ MẤT NGAY LẬP TỨC
+def lay_danh_sach_doi_chuan():
     danh_sach = []
     try:
         client = get_verified_client()
@@ -34,34 +33,37 @@ def lay_danh_sach_doi_thuan_tui():
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Quét toàn bộ dải ô từ B3 đến B100 để lấy dữ liệu thực tế hiện tại
-            cell_list = ws_doi.range('B3:B100')
-            for cell in cell_list:
-                val = cell.value
-                if val is not None and str(val).strip() != "":
-                    name = str(val).strip()
-                    if name not in danh_sach:
-                        danh_sach.append(name)
+            # Lấy toàn bộ ma trận dữ liệu thô của sheet
+            all_rows = ws_doi.get_all_values()
+            
+            # Duyệt từ dòng thứ 3 (index 2) trở đi lấy Cột B (index 1)
+            for row in all_rows[2:]:
+                if len(row) >= 2:
+                    val = row[1]
+                    if val is not None and str(val).strip() != "":
+                        name = str(val).strip()
+                        if name not in danh_sach:
+                            danh_sach.append(name)
     except Exception as e:
-        pass
+        st.error(f"Lỗi đọc sheet Quản lý đội: {e}")
     
-    # Nếu sheet trống hoàn toàn, trả về mảng rỗng để không bịa thêm tên ảo
     return danh_sach
 
-def lay_danh_sach_diem_thuan_tui():
+def lay_danh_sach_diem_chuan():
     danh_sach_diem = []
     try:
         client = get_verified_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            cell_list_d = ws_diem.range('D3:D100')
-            for cell in cell_list_d:
-                val = cell.value
-                if val is not None and str(val).strip() != "":
-                    d = str(val).strip()
-                    if d not in danh_sach_diem:
-                        danh_sach_diem.append(d)
+            all_rows_diem = ws_diem.get_all_values()
+            for row in all_rows_diem[2:]:
+                if len(row) >= 4:
+                    val = row[3] # Cột D là index 3
+                    if val is not None and str(val).strip() != "":
+                        d = str(val).strip()
+                        if d not in danh_sach_diem:
+                            danh_sach_diem.append(d)
     except Exception:
         pass
         
@@ -102,9 +104,8 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Lấy dữ liệu hoàn toàn sống từ Google Sheets
-    danh_sach_doi = lay_danh_sach_doi_thuan_tui()
-    danh_sach_diem = lay_danh_sach_diem_thuan_tui()
+    danh_sach_doi = lay_danh_sach_doi_chuan()
+    danh_sach_diem = lay_danh_sach_diem_chuan()
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
