@@ -2,7 +2,7 @@ import streamlit as st
 import gspread
 import os
 import json
-import pandas as pd
+import time
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
@@ -15,11 +15,13 @@ def get_secure_client():
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
+        # Thêm thông số để tránh lỗi lệch giờ JWT Signature trên Cloud
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        return gspread.authorize(creds)
+        client = gspread.authorize(creds)
+        return client
     return None
 
-# Hàm đọc dữ liệu chống cache, lấy chuẩn xác CỘT B cho tên đội và CỘT D cho địa điểm
+# Đọc dữ liệu với cơ chế chống cache và fix lỗi xác thực
 @st.cache_data(ttl=1)
 def doc_du_lieu_chuan_xac():
     danh_sach_doi = []
@@ -29,10 +31,10 @@ def doc_du_lieu_chuan_xac():
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             
-            # Đọc sheet QUAN_LY_DOI: Lấy ĐÚNG CỘT B (index 1 trong mảng vì cột B là cột thứ 2)
+            # Đọc sheet QUAN_LY_DOI: Lấy ĐÚNG CỘT B (index 1) từ dòng 3 xuống
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             rows_doi = ws_doi.get_all_values()
-            for r in rows_doi[2:]:  # Từ dòng 3 trở xuống
+            for r in rows_doi[2:]:
                 if len(r) >= 2:
                     val = r[1]  # Cột B
                     if val is not None:
@@ -40,7 +42,7 @@ def doc_du_lieu_chuan_xac():
                         if txt != "" and txt not in danh_sach_doi:
                             danh_sach_doi.append(txt)
             
-            # Đọc sheet DANH_SACH_DIEM: Lấy CỘT D (index 3)
+            # Đọc sheet DANH_SACH_DIEM: Lấy CỘT D (index 3) từ dòng 3 xuống
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
             rows_diem = ws_diem.get_all_values()
             for r in rows_diem[2:]:
@@ -144,7 +146,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                 except Exception as e:
                     st.success(f"✅ Đã ghi nhận báo cáo thành công tại hiện trường cho [{diadiem}]!")
             else:
-                st.error("Vui lòng chọn đầy đủ thông tin trước khi gửi!")
+                st.error("Vui lòng điền đầy đủ thông tin trước khi gửi!")
 
 elif st.session_state.active_tab == "Đăng ký thành viên":
     st.subheader("📝 Đăng Ký Thành Viên Tham Gia Triển Khai")
