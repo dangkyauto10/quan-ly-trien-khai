@@ -6,7 +6,7 @@ from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# KẾT NỐI BẢO MẬT NỘI BỘ QUA SERVICE ACCOUNT (AN TOÀN TUYỆT ĐỐI, KHÔNG CÔNG KHAI)
+# KẾT NỐI BẢO MẬT NỘI BỘ QUA SERVICE ACCOUNT
 def get_secure_client():
     try:
         if os.path.exists("credentials.json"):
@@ -22,8 +22,8 @@ def get_secure_client():
         st.sidebar.error(f"Lỗi bảo mật: {e}")
     return None
 
-# HÀM ĐỌC DỮ LIỆU ĐỘNG TRỰC TIẾP TỪ SHEET NỘI BỘ
-def doc_du_lieu_noi_bo(worksheet_name, col_num):
+# HÀM ĐỌC VÉT CẠN THÔNG MINH: CỨ CÓ CHỮ Ở CỘT ĐÓ LÀ LẤY, KHÔNG BAO GIỜ BỊ CỤT NGỌN
+def doc_du_lieu_vet_can(worksheet_name, col_num):
     danh_sach = []
     try:
         client = get_secure_client()
@@ -31,30 +31,26 @@ def doc_du_lieu_noi_bo(worksheet_name, col_num):
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws = sh.worksheet(worksheet_name)
             rows = ws.get_all_values()
-            for row in rows[2:]: # Bỏ qua 2 dòng tiêu đề
+            
+            # Quét từ dòng thứ 3 trở xuống (bỏ qua 2 dòng tiêu đề)
+            for row in rows[2:]:
                 if len(row) >= col_num:
                     val = row[col_num - 1]
                     if val is not None and str(val).strip() != "":
                         text = str(val).strip()
                         if text not in danh_sach:
                             danh_sach.append(text)
-    except Exception:
+    except Exception as e:
         pass
     return danh_sach
 
-# LẤY TRỰC TIẾP TỪ CỘT B (QUAN_LY_DOI) VÀ CỘT D (DANH_SACH_DIEM)
-danh_sach_doi = doc_du_lieu_noi_bo("QUAN_LY_DOI", 2)
-danh_sach_diem = doc_du_lieu_noi_bo("DANH_SACH_DIEM", 4)
+# LẤY TRỰC TIẾP TỪ CỘT B (QUAN_LY_DOI - INDEX 2) VÀ CỘT D (DANH_SACH_DIEM - INDEX 4)
+danh_sach_doi = doc_du_lieu_vet_can("QUAN_LY_DOI", 2)
+danh_sach_diem = doc_du_lieu_vet_can("DANH_SACH_DIEM", 4)
 
+# Nếu sheet trống hoàn toàn mới dùng mảng dự phòng tối thiểu
 if not danh_sach_doi:
-    danh_sach_doi = [
-        "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", 
-        "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", 
-        "Nguyễn Văn C", "Hồ văn Hải", "Nguyễn Văn Ngu", 
-        "Ngu như Lợn", "Hồ Hữu Chánh", "Hồ Hưu Tâm", 
-        "Trần Thanh Tâm", "Nhu Nhu Cạc", "Đừng Tiếp Nữa", 
-        "Chắc Ổn Rồi", "Xong Đi Nào", "ổn không", "Chắc XONG"
-    ]
+    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
 
 if not danh_sach_diem:
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
