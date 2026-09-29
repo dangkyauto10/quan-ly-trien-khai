@@ -15,15 +15,13 @@ def get_secure_client():
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
-        # Khởi tạo credentials chuẩn xác kèm theo thời gian dung sai để chống lỗi JWT Signature trên mây
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        client = gspread.authorize(creds)
-        return client
+        return gspread.authorize(creds)
     return None
 
-# Đọc dữ liệu với cơ chế chống cache tuyệt đối
+# HÀM ĐỌC THÔ: LẤY TRỰC TIẾP TỪNG Ô CỘT B, KHÔNG LỌC TRÙNG, KHÔNG ĐIỀU KIỆN RƯỜM RÀ ĐỂ GIỮ NGUYÊN 100% THỨ TỰ
 @st.cache_data(ttl=1)
-def doc_du_lieu_chuan_xac():
+def lay_danh_sach_tho():
     danh_sach_doi = []
     danh_sach_diem = []
     try:
@@ -31,39 +29,40 @@ def doc_du_lieu_chuan_xac():
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             
-            # Đọc sheet QUAN_LY_DOI: Lấy ĐÚNG CỘT B (index 1) từ dòng 3 xuống đến hết, không bỏ sót
+            # Đọc sheet QUAN_LY_DOI
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             rows_doi = ws_doi.get_all_values()
-            for r in rows_doi[2:]:  # Bỏ 2 dòng đầu, bắt đầu từ dòng 3
+            # Bắt đầu duyệt từ dòng 3 (index 2) của Cột B (index 1)
+            for r in rows_doi[2:]:
                 if len(r) >= 2:
-                    val = r[1]  # Cột B (Cán bộ / Đội trưởng)
+                    val = r[1]
                     if val is not None:
                         txt = str(val).strip()
-                        if txt != "" and txt not in danh_sach_doi:
+                        if txt != "":
                             danh_sach_doi.append(txt)
-            
-            # Đọc sheet DANH_SACH_DIEM: Lấy CỘT D (index 3) từ dòng 3 xuống
+                            
+            # Đọc sheet DANH_SACH_DIEM từ Cột D (index 3)
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
             rows_diem = ws_diem.get_all_values()
             for r in rows_diem[2:]:
                 if len(r) >= 4:
-                    val = r[3]  # Cột D (Địa điểm)
+                    val = r[3]
                     if val is not None:
                         txt = str(val).strip()
-                        if txt != "" and txt not in danh_sach_diem:
+                        if txt != "":
                             danh_sach_diem.append(txt)
     except Exception as e:
-        # Nếu vẫn lỗi kết nối mạng/JWT, dùng danh sách dự phòng để app không bị treo
-        pass
-        
+        st.error(f"Lỗi đọc sheet: {e}")
+
+    # Dự phòng nếu rỗng
     if not danh_sach_doi:
-        danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé", "Hết Bình Tĩnh", "Như Con Cạc", "Chắc Ôn Rồi", "Quá Đi Nhé"]
+        danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
     if not danh_sach_diem:
         danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
         
     return danh_sach_doi, danh_sach_diem
 
-danh_sach_doi, danh_sach_diem = doc_du_lieu_chuan_xac()
+danh_sach_doi, danh_sach_diem = lay_danh_sach_tho()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -95,6 +94,9 @@ st.markdown("---")
 if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
+
+    # Hiển thị mảng debug trực tiếp để kiểm tra xem code đang bốc được những ai
+    st.caption(f"🔍 [DEBUG] Tổng số cán bộ lấy được từ Cột B ({len(danh_sach_doi)} người): {danh_sach_doi}")
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
