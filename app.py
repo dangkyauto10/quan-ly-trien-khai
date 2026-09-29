@@ -21,8 +21,8 @@ def get_secure_client():
         pass
     return None
 
-# HÀM ĐỌC TOÀN DIỆN: VÉT SẠCH TẤT CẢ DỮ LIỆU CÓ THẬT TRONG SHEET, KHÔNG BAO GIỜ BỊ CỤT
-def lay_danh_sach_tuyet_doi(worksheet_name):
+# HÀM LẤY ĐÚNG CHUẨN CỘT, QUÉT TỪ DÒNG 3 XUỐNG DƯỚI, LOẠI BỎ Ô TRỐNG
+def lay_chinh_xac_theo_cot(worksheet_name, col_index):
     danh_sach = []
     try:
         client = get_secure_client()
@@ -30,25 +30,25 @@ def lay_danh_sach_tuyet_doi(worksheet_name):
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws = sh.worksheet(worksheet_name)
             all_rows = ws.get_all_values()
-            # Quét từ dòng thứ 3 trở đi
+            # Duyệt từ dòng thứ 3 (index 2) trở đi
             for row in all_rows[2:]:
-                for cell in row:
-                    if cell is not None:
-                        txt = str(cell).strip()
-                        # Lọc bỏ ô trống, mã định danh như KTV-26 và các từ khóa hệ thống
-                        if txt != "" and not txt.startswith("KTV-") and txt not in danh_sach:
+                if len(row) >= col_index:
+                    val = row[col_index - 1] # Chuyển index dạng 1-based sang 0-based
+                    if val is not None:
+                        txt = str(val).strip()
+                        if txt != "" and txt not in danh_sach:
                             danh_sach.append(txt)
     except Exception:
         pass
     return danh_sach
 
-# Lấy trọn vẹn danh sách từ Google Sheets
-danh_sach_doi = lay_danh_sach_tuyet_doi("QUAN_LY_DOI")
-danh_sach_diem = lay_danh_sach_tuyet_doi("DANH_SACH_DIEM")
+# Cột B là cột số 2 (Cán bộ), Cột D là cột số 4 (Địa điểm)
+danh_sach_doi = lay_chinh_xac_theo_cot("QUAN_LY_DOI", 2)
+danh_sach_diem = lay_chinh_xac_theo_cot("DANH_SACH_DIEM", 4)
 
-# Danh sách dự phòng an toàn tuyệt đối nếu mất kết nối
+# Danh sách dự phòng an toàn
 if not danh_sach_doi:
-    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé", "Hết Bình Tĩnh", "Như Con Cạc"]
+    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
 
 if not danh_sach_diem:
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
