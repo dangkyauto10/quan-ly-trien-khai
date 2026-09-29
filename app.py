@@ -21,26 +21,29 @@ def get_secure_client():
         pass
     return None
 
-def lay_danh_sach_nguyen_ban(worksheet_name, col_index):
+# HÀM VÉT CẠN TOÀN BỘ CỘT TỪ DÒNG 3 ĐẾN 1000, KHÔNG GIỚI HẠN, CẬP NHẬT/XOÁ THÀNH VIÊN ĂN NGAY LẬP TỨC
+def lay_danh_sach_toi_da(worksheet_name, range_name):
     danh_sach = []
     try:
         client = get_secure_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws = sh.worksheet(worksheet_name)
-            cot = ws.col_values(col_index)
-            for v in cot[2:]:
-                if v is not None:
-                    txt = str(v).strip()
-                    if txt != "" and txt not in danh_sach:
-                        danh_sach.append(txt)
+            rows = ws.get(range_name)
+            for row in rows:
+                if row and len(row) > 0:
+                    val = row[0]
+                    if val is not None:
+                        txt = str(val).strip()
+                        if txt != "" and txt not in danh_sach:
+                            danh_sach.append(txt)
     except:
         pass
     return danh_sach
 
-# Đọc nguyên bản chuẩn ngày 26-9
-danh_sach_doi = lay_danh_sach_nguyen_ban("QUAN_LY_DOI", 2)
-danh_sach_diem = lay_danh_sach_nguyen_ban("DANH_SACH_DIEM", 4)
+# Lấy trọn vẹn toàn bộ Cột B và Cột D tới tận dòng 1000
+danh_sach_doi = lay_danh_sach_toi_da("QUAN_LY_DOI", "B3:B1000")
+danh_sach_diem = lay_danh_sach_toi_da("DANH_SACH_DIEM", "D3:D1000")
 
 if not danh_sach_doi:
     danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
