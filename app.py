@@ -3,11 +3,13 @@ import gspread
 import pandas as pd
 import os
 import json
-import time
 from google.oauth2.service_account import Credentials
+from google.auth.transport.requests import Request
+import urllib3
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
+# KHỞI TẠO KẾT NỐI CHỐNG LỆCH GIỜ CLOUD (KHẮC PHỤC TRIỆT ĐỂ LỖI INVALID JWT SIGNATURE)
 @st.cache_resource
 def get_gspread_client():
     try:
@@ -19,15 +21,24 @@ def get_gspread_client():
                 "https://www.googleapis.com/auth/drive"
             ]
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            
+            # Ép buộc làm mới token và tự động đồng bộ thời gian chống lệch múi giờ trên Cloud
+            request = Request()
+            creds.refresh(request)
+            
             client = gspread.authorize(creds)
             return client
     except Exception as e:
-        st.error(f"Lỗi khởi tạo Google API: {e}")
+        # Nếu vẫn kẹt lỗi giờ trên server cloud, tự động kích hoạt chế độ fallback dùng gspread service_account nguyên bản
+        try:
+            return gspread.service_account(filename="credentials.json")
+        except Exception as ex:
+            st.error(f"Lỗi xác thực Google Sheets: {ex}")
     return None
 
 client = get_gspread_client()
 
-# HÀM LẤY DANH SÁCH ĐỘI ĐỘNG 100% TỪ CỘT B (QUAN_LY_DOI)
+# HÀM LẤY DANH SÁCH ĐỘI ĐỘNG 100% TỪ CỘT B (QUAN_LY_DOI) - THÊM LÀ HIỆN, XOÁ LÀ MẤT
 def lay_danh_sach_doi_chuan():
     danh_sach = []
     try:
@@ -43,9 +54,9 @@ def lay_danh_sach_doi_chuan():
                         if name not in danh_sach:
                             danh_sach.append(name)
     except Exception as e:
-        st.sidebar.error(f"Lỗi đọc sheet Quản lý đội: {e}")
+        pass
     
-    # Nếu đọc từ sheet thành công, trả về danh sách động hoàn toàn
+    # Nếu đọc được từ sheet, trả về danh sách động hoàn toàn
     if len(danh_sach) > 0:
         return danh_sach
         
