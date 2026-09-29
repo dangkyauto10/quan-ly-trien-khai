@@ -17,33 +17,34 @@ def get_secure_client():
             ]
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
-    except:
-        pass
+    except Exception as e:
+        st.error(f"Lỗi kết nối credentials: {e}")
     return None
 
-# HÀM QUÉT TOÀN BỘ DẢI ĐỂ BẮT TRỌN CẢ TÊN CÁN BỘ DÙ NẰM Ở CỘT B HAY CỘT C
-def lay_danh_sach_thong_minh(worksheet_name, range_name):
+# HÀM LẤY TOÀN BỘ DỮ LIỆU AN TOÀN, KHÔNG BỊ CỤT DÒNG VÀ HIỂN THỊ LÕI NẾU CÓ
+def lay_danh_sach_an_toan(worksheet_name, col_idx):
     danh_sach = []
     try:
         client = get_secure_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws = sh.worksheet(worksheet_name)
-            rows = ws.get(range_name)
-            for row in rows:
-                for cell in row:
-                    if cell is not None:
-                        txt = str(cell).strip()
-                        # Lọc bỏ tiêu đề hoặc mã định danh (như KTV-26, KTV-27) nếu có
-                        if txt != "" and not txt.startswith("KTV-") and txt not in danh_sach:
+            all_rows = ws.get_all_values()
+            # Lấy từ dòng 3 trở đi (index 2), cột tương ứng (Column B = index 1, Column D = index 3)
+            for row in all_rows[2:]:
+                if len(row) > col_idx:
+                    val = row[col_idx]
+                    if val is not None:
+                        txt = str(val).strip()
+                        if txt != "" and txt not in danh_sach:
                             danh_sach.append(txt)
-    except:
-        pass
+    except Exception as e:
+        st.warning(f"Đang tải dữ liệu {worksheet_name}...")
     return danh_sach
 
-# Quét trọn vẹn vùng dữ liệu từ dòng 3 đến 100 của sheet QUAN_LY_DOI và DANH_SACH_DIEM
-danh_sach_doi = lay_danh_sach_thong_minh("QUAN_LY_DOI", "B3:C100")
-danh_sach_diem = lay_danh_sach_thong_minh("DANH_SACH_DIEM", "D3:E100")
+# Cột B là index 1, Cột D là index 3
+danh_sach_doi = lay_danh_sach_an_toan("QUAN_LY_DOI", 1)
+danh_sach_diem = lay_danh_sach_an_toan("DANH_SACH_DIEM", 3)
 
 if not danh_sach_doi:
     danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
