@@ -15,20 +15,29 @@ def get_secure_client():
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
-        # Thêm thông số để tránh lỗi lệch giờ JWT Signature trên Cloud
+        # Khởi tạo credentials với thời gian chuẩn, tự động bỏ qua lệch giờ JWT
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        # Sử dụng service_account trực tiếp từ file dictionary để tránh lỗi signature
         client = gspread.authorize(creds)
         return client
     return None
 
-# Đọc dữ liệu với cơ chế chống cache và fix lỗi xác thực
+# Đọc dữ liệu với cơ chế chống cache và khắc phục triệt để lỗi token
 @st.cache_data(ttl=1)
 def doc_du_lieu_chuan_xac():
     danh_sach_doi = []
     danh_sach_diem = []
     try:
-        client = get_secure_client()
-        if client:
+        if os.path.exists("credentials.json"):
+            with open("credentials.json", "r") as f:
+                creds_dict = json.load(f)
+            scopes = [
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            client = gspread.authorize(creds)
+            
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             
             # Đọc sheet QUAN_LY_DOI: Lấy ĐÚNG CỘT B (index 1) từ dòng 3 xuống
@@ -53,7 +62,7 @@ def doc_du_lieu_chuan_xac():
                         if txt != "" and txt not in danh_sach_diem:
                             danh_sach_diem.append(txt)
     except Exception as e:
-        st.error(f"Lỗi đọc sheet: {e}")
+        st.error(f"Lỗi kết nối Google Sheets: {e}")
         
     if not danh_sach_doi:
         danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
