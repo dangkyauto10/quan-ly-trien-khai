@@ -6,7 +6,7 @@ from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# KẾT NỐI TƯƠI MỚI TRỰC TIẾP TỪ GOOGLE SHEETS
+# KHỞI TẠO KẾT NỐI TƯƠI MỚI 100% KHÔNG DÙNG BỘ NHỚ ĐỆM
 def get_live_client():
     try:
         if os.path.exists("credentials.json"):
@@ -22,8 +22,8 @@ def get_live_client():
         st.sidebar.error(f"Lỗi kết nối: {e}")
     return None
 
-# HÀM QUÉT TUYỆT ĐỐI THEO TỪNG CỘT (DÙNG col_values ĐỂ LẤY SẠCH 100% TỪ TRÊN XUỐNG DƯỚI, KHÔNG BAO GIỜ BỊ CỤT DÒNG)
-def doc_sach_tuyet_doi(worksheet_name, col_index_python):
+# HÀM ĐỌC CỘT CHUYÊN BIỆT (DÙNG col_values ĐỂ LẤY SẠCH 100% TỪ TRÊN XUỐNG DƯỚI, KHÔNG BAO GIỜ BỊ CỤT DÒNG)
+def doc_cot_tuyet_doi(worksheet_name, col_index_gspread):
     danh_sach = []
     try:
         client = get_live_client()
@@ -31,8 +31,8 @@ def doc_sach_tuyet_doi(worksheet_name, col_index_python):
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws = sh.worksheet(worksheet_name)
             
-            # Lấy toàn bộ giá trị của đúng cột đó từ trên xuống dưới (gspread dùng index bắt đầu từ 1)
-            col_values = ws.col_values(col_index_python)
+            # Lấy toàn bộ giá trị của đúng cột đó từ trên xuống dưới (gspread tính index từ 1)
+            col_values = ws.col_values(col_index_gspread)
             
             # Bỏ qua 2 dòng tiêu đề đầu tiên (dòng 1 và 2), quét từ dòng thứ 3 trở đi
             for val in col_values[2:]:
@@ -45,14 +45,14 @@ def doc_sach_tuyet_doi(worksheet_name, col_index_python):
     return danh_sach
 
 # 1. CÁN BỘ: Lấy toàn bộ từ Cột B (index 2 trong gspread) của sheet QUAN_LY_DOI
-danh_sach_doi = doc_sach_tuyet_doi("QUAN_LY_DOI", 2)
+danh_sach_doi = doc_cot_tuyet_doi("QUAN_LY_DOI", 2)
 
 # 2. ĐỊA ĐIỂM: Lấy toàn bộ từ Cột D (index 4 trong gspread) của sheet DANH_SACH_DIEM
-danh_sach_diem = doc_sach_tuyet_doi("DANH_SACH_DIEM", 4)
+danh_sach_diem = doc_cot_tuyet_doi("DANH_SACH_DIEM", 4)
 
-# Danh sách dự phòng an toàn
+# Danh sách dự phòng an toàn tuyệt đối
 if not danh_sach_doi:
-    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Hết Bình Tĩnh"]
+    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé"]
 
 if not danh_sach_diem:
     danh_sach_diem = [
