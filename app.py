@@ -4,11 +4,11 @@ import gspread
 import pandas as pd
 import json
 import os
-import time
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# KHỞI TẠO KẾT NỐI AN TOÀN - KHẮC PHỤC TRIỆT ĐỂ LỖI INVALID JWT SIGNATURE DO LỆCH GIỜ CLOUD
+# CHỈ CACHE CLIENT KẾT NỐI, KHÔNG CACHE DỮ LIỆU ĐỂ ĐẢM BẢO F5 LÀ LOAD MỚI 100% TỪ SHEET
+@st.cache_resource
 def get_verified_client():
     try:
         if os.path.exists("credentials.json"):
@@ -18,16 +18,15 @@ def get_verified_client():
                 "https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive"
             ]
-            # Ép buộc cấp phát credentials chuẩn xác chống lệch múi giờ/token
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             client = gspread.authorize(creds)
             return client
     except Exception as e:
-        st.sidebar.error(f"Lỗi JWT: {e}")
+        st.sidebar.error(f"Lỗi kết nối: {e}")
     return None
 
-# HÀM LẤY DANH SÁCH ĐỘI CHUẨN XÁC 100% TỪ CỘT B (QUAN_LY_DOI)
-def lay_danh_sach_doi_chuan_100():
+# HÀM ĐỘNG 100% THUẦN TÚY: THÊM TRÊN SHEET HIỆN APP - XOÁ TRÊN SHEET MẤT LUÔN TRÊN APP
+def lay_danh_sach_doi_thuan_tui():
     danh_sach = []
     try:
         client = get_verified_client()
@@ -35,9 +34,10 @@ def lay_danh_sach_doi_chuan_100():
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Lấy toàn bộ giá trị Cột B
-            col_b = ws_doi.col_values(2)
-            for val in col_b[2:]: # Bỏ qua 2 dòng tiêu đề
+            # Quét toàn bộ dải ô từ B3 đến B100 để lấy dữ liệu thực tế hiện tại
+            cell_list = ws_doi.range('B3:B100')
+            for cell in cell_list:
+                val = cell.value
                 if val is not None and str(val).strip() != "":
                     name = str(val).strip()
                     if name not in danh_sach:
@@ -45,38 +45,19 @@ def lay_danh_sach_doi_chuan_100():
     except Exception as e:
         pass
     
-    # Nếu kết nối sheet thành công và đọc được dữ liệu, trả về danh sách thực tế từ sheet
-    if len(danh_sach) > 0:
-        return danh_sach
-        
-    # Danh sách dự phòng nếu mất kết nối mạng
-    return [
-        "Nguyễn Văn Thiện", 
-        "Nguyễn Văn Hải", 
-        "Nguyễn Ngọc Hiền", 
-        "Nguyễn Văn Huân", 
-        "Trần Đình Vỹ", 
-        "Trần Hữu H", 
-        "Nguyễn Văn C", 
-        "Hồ văn Hải", 
-        "Nguyễn Văn Ngu", 
-        "Ngu như Lợn", 
-        "Hồ Hữu Chánh", 
-        "Hồ Hưu Tâm", 
-        "Trần Thanh Tâm",
-        "Nhu Nhu Cạc",
-        "Đừng Tiếp Nữa"
-    ]
+    # Nếu sheet trống hoàn toàn, trả về mảng rỗng để không bịa thêm tên ảo
+    return danh_sach
 
-def lay_danh_sach_diem_chuan_100():
+def lay_danh_sach_diem_thuan_tui():
     danh_sach_diem = []
     try:
         client = get_verified_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            col_d = ws_diem.col_values(4)
-            for val in col_d[2:]:
+            cell_list_d = ws_diem.range('D3:D100')
+            for cell in cell_list_d:
+                val = cell.value
                 if val is not None and str(val).strip() != "":
                     d = str(val).strip()
                     if d not in danh_sach_diem:
@@ -84,8 +65,6 @@ def lay_danh_sach_diem_chuan_100():
     except Exception:
         pass
         
-    if not danh_sach_diem:
-        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
     return danh_sach_diem
 
 # GIAO DIỆN ĐIỀU HƯỚNG NGANG
@@ -123,21 +102,29 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    danh_sach_doi = lay_danh_sach_doi_chuan_100()
-    danh_sach_diem = lay_danh_sach_diem_chuan_100()
+    # Lấy dữ liệu hoàn toàn sống từ Google Sheets
+    danh_sach_doi = lay_danh_sach_doi_thuan_tui()
+    danh_sach_diem = lay_danh_sach_diem_thuan_tui()
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        ktv_name = st.selectbox(
-            "Cán bộ / Đội trưởng thực hiện:",
-            danh_sach_doi
-        )
-        
-        diadiem = st.selectbox(
-            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
-            danh_sach_diem
-        )
+        if danh_sach_doi:
+            ktv_name = st.selectbox(
+                "Cán bộ / Đội trưởng thực hiện:",
+                danh_sach_doi
+            )
+        else:
+            st.warning("⚠️ Sheet QUAN_LY_DOI chưa có dữ liệu ở Cột B hoặc đang trống!")
+            ktv_name = None
+            
+        if danh_sach_diem:
+            diadiem = st.selectbox(
+                "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
+                danh_sach_diem
+            )
+        else:
+            diadiem = None
         
         st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **Theo định mức chuẩn từ KHO_PHAN_BO** (Chỉ hiển thị, không chỉnh sửa)")
         
