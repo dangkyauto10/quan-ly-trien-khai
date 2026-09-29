@@ -22,8 +22,8 @@ def get_secure_client():
         st.sidebar.error(f"Lỗi kết nối: {e}")
     return None
 
-# HÀM ĐỌC VÉT CẠN CỘT B CHUẨN XÁC 100% CHO CẢ 2 SHEET (KHÔNG BAO GIỜ BỊ SÓT HOẶC CỤT DÒNG)
-def doc_cot_b_chuan(worksheet_name):
+# HÀM ĐỌC VÉT CẠN CHUẨN XÁC THEO ĐÚNG SỐ THỨ TỰ CỘT
+def doc_cot_chinh_xac(worksheet_name, col_index):
     danh_sach = []
     try:
         client = get_secure_client()
@@ -32,10 +32,10 @@ def doc_cot_b_chuan(worksheet_name):
             ws = sh.worksheet(worksheet_name)
             rows = ws.get_all_values()
             
-            # Quét từ dòng thứ 3 trở xuống (bỏ qua tiêu đề dòng 1 và 2), lấy chính xác Cột B (index 1)
+            # Quét từ dòng thứ 3 trở xuống (bỏ qua tiêu đề dòng 1 và 2)
             for row in rows[2:]:
-                if len(row) >= 2:
-                    val = row[1]
+                if len(row) >= col_index:
+                    val = row[col_index - 1]
                     if val is not None and str(val).strip() != "":
                         text = str(val).strip()
                         if text not in danh_sach:
@@ -44,15 +44,18 @@ def doc_cot_b_chuan(worksheet_name):
         pass
     return danh_sach
 
-# LẤY DỮ LIỆU ĐỘNG: CÁN BỘ LẤY TỪ CỘT B SHEET QUAN_LY_DOI, ĐỊA ĐIỂM LẤY TỪ CỘT B SHEET DANH_SACH_DIEM
-danh_sach_doi = doc_cot_b_chuan("QUAN_LY_DOI")
-danh_sach_diem = doc_cot_b_chuan("DANH_SACH_DIEM")
+# ĐÚNG CHUẨN YÊU CẦU:
+# 1. CÁN BỘ: Lấy từ Cột B (index 2) của sheet QUAN_LY_DOI
+danh_sach_doi = doc_cot_chinh_xac("QUAN_LY_DOI", 2)
+
+# 2. ĐỊA ĐIỂM: Lấy từ Cột D (index 4) của sheet DANH_SACH_DIEM (đúng chuẩn theo vùng khoanh đỏ trong ảnh của anh)
+danh_sach_diem = doc_cot_chinh_xac("DANH_SACH_DIEM", 4)
 
 if not danh_sach_doi:
-    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào"]
 
 if not danh_sach_diem:
-    danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
+    danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm", "Xã Nhữ Khê", "Xã Tân Trào"]
 
 # GIAO DIỆN ĐIỀU HƯỚNG NGANG
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
@@ -98,7 +101,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         )
         
         diadiem = st.selectbox(
-            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Lấy từ Cột B - DANH_SACH_DIEM):",
+            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Lấy từ Cột D - DANH_SACH_DIEM):",
             danh_sach_diem
         )
         
