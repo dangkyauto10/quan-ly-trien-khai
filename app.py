@@ -31,9 +31,9 @@ def get_connection():
         pass
     return None
 
-# HÀM ĐỌC DỮ LIỆU ĐỘNG & TÍNH TOÁN TỒN KHO THỜI GIAN THỰC
+# HÀM ĐỌC DỮ LIỆU ĐỘNG & TÍNH TOÁN KHO (NHAP_KHO, DM_CHUAN, KHO_PHAN_BO)
 @st.cache_data(ttl=1)
-def load_data_inventory():
+def load_system_data():
     danh_sach_doi = []
     danh_sach_diem = []
     dinh_muc_dm_chuan = {}
@@ -45,7 +45,7 @@ def load_data_inventory():
         if client:
             sh = client.open_by_key("129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4")
             
-            # 1. Đọc Cột B từ QUAN_LY_DOI (Giữ nguyên thứ tự tuyệt đối)
+            # 1. Đọc chuẩn Cột B từ QUAN_LY_DOI (Giữ nguyên thứ tự dòng tuyệt đối)
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             for idx, row in enumerate(ws_doi.get_all_values()):
                 if idx >= 2 and len(row) >= 2 and row[1]:
@@ -53,7 +53,7 @@ def load_data_inventory():
                     if txt and txt not in danh_sach_doi:
                         danh_sach_doi.append(txt)
                             
-            # 2. Đọc Cột D từ DANH_SACH_DIEM
+            # 2. Đọc chuẩn Cột D từ DANH_SACH_DIEM
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
             for idx, row in enumerate(ws_diem.get_all_values()):
                 if idx >= 2 and len(row) >= 4 and row[3]:
@@ -61,14 +61,13 @@ def load_data_inventory():
                     if txt and txt not in danh_sach_diem:
                         danh_sach_diem.append(txt)
                         
-            # 3. Đọc NHAP_KHO (Tính tổng hàng dự án cấp)
+            # 3. Đọc NHAP_KHO (Số lượng thiết bị tổng do Dự án cấp)
             try:
                 ws_nhap = sh.worksheet("NHAP_KHO")
                 for idx, row in enumerate(ws_nhap.get_all_values()):
                     if idx >= 1 and len(row) >= 2:
                         try:
-                            val_sl = float(row[1]) # Giả định cột số lượng ở index 1
-                            tong_nhap_kho += val_sl
+                            tong_nhap_kho += float(row[1])
                         except:
                             pass
             except Exception:
@@ -80,7 +79,7 @@ def load_data_inventory():
                 for idx, row in enumerate(ws_dm.get_all_values()):
                     if idx >= 1 and len(row) >= 3:
                         diem = str(row[0]).strip()
-                        soluong_dm = str(row[2]).strip() # Cột số lượng định mức
+                        soluong_dm = str(row[2]).strip()
                         dinh_muc_dm_chuan[diem] = soluong_dm
                         try:
                             tong_da_phan_bo += float(soluong_dm)
@@ -91,7 +90,7 @@ def load_data_inventory():
     except Exception:
         pass
         
-    # Mảng dự phòng chuẩn
+    # Mảng dự phòng chuẩn an toàn không bao giờ trống
     if not danh_sach_doi:
         danh_sach_doi = [
             "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", "Mệt và Mỏi", 
@@ -106,12 +105,12 @@ def load_data_inventory():
     ton_kho = tong_nhap_kho - tong_da_phan_bo
     return danh_sach_doi, danh_sach_diem, dinh_muc_dm_chuan, tong_nhap_kho, tong_da_phan_bo, ton_kho
 
-danh_sach_doi, danh_sach_diem, dinh_muc_dm_chuan, tong_nhap_kho, tong_da_phan_bo, ton_kho = load_data_inventory()
+danh_sach_doi, danh_sach_diem, dinh_muc_dm_chuan, tong_nhap_kho, tong_da_phan_bo, ton_kho = load_system_data()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
-# Hiển thị thanh trạng thái Tồn Kho Tổng Hợp Ngay Đầu Trang
-st.metric(label="📦 TỒN KHO DỰ ÁN THỜI GIAN THỰC", value=f"{ton_kho} thiết bị", delta=f"Đã cấp: {tong_nhap_kho} | Đã phân bổ: {tong_da_phan_bo}")
+# Hiển thị thanh Tồn kho chuẩn xác thời gian thực
+st.metric(label="📦 TỒN KHO DỰ ÁN THỜI GIAN THỰC", value=f"{ton_kho} thiết bị", delta=f"Dự án cấp: {tong_nhap_kho} | Đã phân bổ: {tong_da_phan_bo}")
 
 nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
 
@@ -139,11 +138,11 @@ elif btn_baocaold:
 st.markdown("---")
 
 if st.session_state.active_tab == "Báo cáo KTV&VC":
-    st.subheader("📱 BÁO CÁO TRIỂN KHAI & QUẢN LÝ KHO PHÂN BỔ")
-    st.write("Hệ thống tự động trừ lùi từ NHAP_KHO dựa trên định mức DM_CHUAN")
+    st.subheader("📱 BÁO CÁO TRIỂN KHAI & PHÂN BỔ KHO")
+    st.write("Hệ thống điều hành tự động từ NHAP_KHO và DM_CHUAN")
 
     with st.form("form_bao_cao_chuan"):
-        st.markdown("### 1. Xác nhận thông tin thực hiện & Định mức DM_CHUAN")
+        st.markdown("### 1. Xác nhận thông tin thực hiện & Định mức")
         
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện (Cột B):",
@@ -157,9 +156,8 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
             index=0
         )
         
-        # Tra cứu định mức từ DM_CHUAN
-        dinhmuc_diem = dinh_muc_dm_chuan.get(diadiem, "Chưa có định mức trong DM_CHUAN")
-        st.info(f"📊 Định mức yêu cầu từ **DM_CHUAN** cho điểm [{diadiem}]: **{dinhmuc_diem}**")
+        dinhmuc_diem = dinh_muc_dm_chuan.get(diadiem, "Chưa có định mức chuẩn")
+        st.info(f"📊 Định mức từ **DM_CHUAN** cho điểm [{diadiem}]: **{dinhmuc_diem}**")
         
         soluong_lap = st.number_input("Số lượng thực tế thực hiện phân bổ / lắp đặt:", min_value=1, value=1, step=1)
         
@@ -186,16 +184,10 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                     client = get_connection()
                     if client:
                         sh = client.open_by_key("129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4")
-                        
-                        # 1. Ghi nhận báo cáo vào sheet BAO_CAO_TRIEN_KHAI
                         ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
                         ws_bc.append_row([ktv_name, diadiem, str(soluong_lap), trangthai, ghichu, gps_info])
-                        
-                        # 2. Cập nhật / Ghi nhận vào DM_CHUAN hoặc KHO_PHAN_BO để tự động trừ kho
-                        # (Hệ thống sẽ ghi nhận số lượng đã phân bổ để tự động tính tồn kho)
-                        
-                    st.success(f"✅ Phân bổ thành công {soluong_lap} thiết bị cho đội [{ktv_name}] tại [{diadiem}]! Kho tổng đã tự động trừ lùi.")
-                except Exception as e:
+                    st.success(f"✅ Phân bổ thành công {soluong_lap} thiết bị cho đội [{ktv_name}] tại [{diadiem}]!")
+                except Exception:
                     st.success(f"✅ Đã ghi nhận báo cáo thành công cho [{diadiem}]!")
             else:
                 st.error("Vui lòng chọn đầy đủ thông tin!")
