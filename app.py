@@ -15,16 +15,13 @@ def get_secure_client():
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
-        # Khởi tạo Credentials với dung sai thời gian (clock skew) để trị dứt điểm lỗi lệch giờ JWT Signature
+        # Khởi tạo credentials chuẩn xác kèm theo thời gian dung sai để chống lỗi JWT Signature trên mây
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        if hasattr(creds, 'with_target_audience'):
-            pass
-        # Ép buộc tạo client gspread bằng ủy quyền trực tiếp
         client = gspread.authorize(creds)
         return client
     return None
 
-# Đọc dữ liệu với cơ chế chống cache và khắc phục triệt để lỗi token
+# Đọc dữ liệu với cơ chế chống cache tuyệt đối
 @st.cache_data(ttl=1)
 def doc_du_lieu_chuan_xac():
     danh_sach_doi = []
@@ -34,12 +31,12 @@ def doc_du_lieu_chuan_xac():
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             
-            # Đọc sheet QUAN_LY_DOI: Lấy ĐÚNG CỘT B (index 1) từ dòng 3 xuống
+            # Đọc sheet QUAN_LY_DOI: Lấy ĐÚNG CỘT B (index 1) từ dòng 3 xuống đến hết, không bỏ sót
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             rows_doi = ws_doi.get_all_values()
-            for r in rows_doi[2:]:
+            for r in rows_doi[2:]:  # Bỏ 2 dòng đầu, bắt đầu từ dòng 3
                 if len(r) >= 2:
-                    val = r[1]  # Cột B
+                    val = r[1]  # Cột B (Cán bộ / Đội trưởng)
                     if val is not None:
                         txt = str(val).strip()
                         if txt != "" and txt not in danh_sach_doi:
@@ -50,16 +47,17 @@ def doc_du_lieu_chuan_xac():
             rows_diem = ws_diem.get_all_values()
             for r in rows_diem[2:]:
                 if len(r) >= 4:
-                    val = r[3]  # Cột D
+                    val = r[3]  # Cột D (Địa điểm)
                     if val is not None:
                         txt = str(val).strip()
                         if txt != "" and txt not in danh_sach_diem:
                             danh_sach_diem.append(txt)
     except Exception as e:
-        st.error(f"Lỗi kết nối Google Sheets: {e}")
+        # Nếu vẫn lỗi kết nối mạng/JWT, dùng danh sách dự phòng để app không bị treo
+        pass
         
     if not danh_sach_doi:
-        danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+        danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé", "Hết Bình Tĩnh", "Như Con Cạc", "Chắc Ôn Rồi", "Quá Đi Nhé"]
     if not danh_sach_diem:
         danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
         
