@@ -17,41 +17,34 @@ def get_secure_client():
             ]
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
-    except Exception:
+    except:
         pass
     return None
 
-# HÀM QUÉT THÔNG MINH GỘP CỘT B VÀ CỘT C, BỐC SẠCH MỌI DÒNG TỪ DÒNG 3 TRỞ XUỐNG
-def lay_danh_sach_ket_hop(worksheet_name, col_indices):
+def lay_danh_sach_chuan_nguyen_ban(worksheet_name, col_index):
     danh_sach = []
     try:
         client = get_secure_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws = sh.worksheet(worksheet_name)
-            all_rows = ws.get_all_values()
-            # Duyệt từ dòng thứ 3 (index 2) trở đi
-            for row in all_rows[2:]:
-                for c_idx in col_indices:
-                    if len(row) >= c_idx:
-                        val = row[c_idx - 1]
-                        if val is not None:
-                            txt = str(val).strip()
-                            # Lọc bỏ ô trống, mã định danh hệ thống (như KTV-26, KTV-27)
-                            if txt != "" and not txt.startswith("KTV-") and txt not in danh_sach:
-                                danh_sach.append(txt)
-    except Exception:
+            cot = ws.col_values(col_index)
+            # Lấy từ dòng 3 trở đi (index 2), quét sạch toàn bộ không giới hạn
+            for v in cot[2:]:
+                if v is not None:
+                    txt = str(v).strip()
+                    if txt != "" and txt not in danh_sach:
+                        danh_sach.append(txt)
+    except:
         pass
     return danh_sach
 
-# Lấy Cán bộ từ cả Cột B và Cột C (cột 2 và cột 3) của sheet QUAN_LY_DOI
-danh_sach_doi = lay_danh_sach_ket_hop("QUAN_LY_DOI", [2, 3])
-# Lấy Địa điểm từ Cột D và Cột E (cột 4 và cột 5) của sheet DANH_SACH_DIEM
-danh_sach_diem = lay_danh_sach_ket_hop("DANH_SACH_DIEM", [4, 5])
+# Đọc chính xác Cột B (Cột 2) cho danh sách đội và Cột D (Cột 4) cho địa điểm
+danh_sach_doi = lay_danh_sach_chuan_nguyen_ban("QUAN_LY_DOI", 2)
+danh_sach_diem = lay_danh_sach_chuan_nguyen_ban("DANH_SACH_DIEM", 4)
 
-# Danh sách dự phòng an toàn tuyệt đối nếu mất kết nối
 if not danh_sach_doi:
-    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé", "Hết Bình Tĩnh", "Như Con Cạc", "Chắc Ôn Rồi"]
+    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
 
 if not danh_sach_diem:
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
@@ -91,12 +84,12 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
         ktv_name = st.selectbox(
-            "Cán bộ / Đội trưởng thực hiện:",
+            "Cán bộ / Đội trưởng thực hiện (Lấy từ Cột B - QUAN_LY_DOI):",
             danh_sach_doi
         )
         
         diadiem = st.selectbox(
-            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT:",
+            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Lấy từ Cột D - DANH_SACH_DIEM):",
             danh_sach_diem
         )
         
@@ -154,7 +147,7 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
                         sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                         ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
                         ws_dk.append_row([reg_name, reg_phone, reg_tuyen, "Chờ duyệt"])
-                    st.success(f"Đã gửi đăng ký thành viên thành công cho {reg_name}!")
+                    st.success(f"Đã gửi đăng ký thành công cho {reg_name}!")
                 except Exception as e:
                     st.success(f"✅ Đã ghi nhận đăng ký thành công cho {reg_name}!")
             else:
