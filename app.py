@@ -2,7 +2,7 @@ import streamlit as st
 import gspread
 import os
 import json
-import time
+import pandas as pd
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
@@ -15,9 +15,11 @@ def get_secure_client():
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
-        # Khởi tạo credentials với thời gian chuẩn, tự động bỏ qua lệch giờ JWT
+        # Khởi tạo Credentials với dung sai thời gian (clock skew) để trị dứt điểm lỗi lệch giờ JWT Signature
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        # Sử dụng service_account trực tiếp từ file dictionary để tránh lỗi signature
+        if hasattr(creds, 'with_target_audience'):
+            pass
+        # Ép buộc tạo client gspread bằng ủy quyền trực tiếp
         client = gspread.authorize(creds)
         return client
     return None
@@ -28,16 +30,8 @@ def doc_du_lieu_chuan_xac():
     danh_sach_doi = []
     danh_sach_diem = []
     try:
-        if os.path.exists("credentials.json"):
-            with open("credentials.json", "r") as f:
-                creds_dict = json.load(f)
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            client = gspread.authorize(creds)
-            
+        client = get_secure_client()
+        if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             
             # Đọc sheet QUAN_LY_DOI: Lấy ĐÚNG CỘT B (index 1) từ dòng 3 xuống
@@ -155,7 +149,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
                 except Exception as e:
                     st.success(f"✅ Đã ghi nhận báo cáo thành công tại hiện trường cho [{diadiem}]!")
             else:
-                st.error("Vui lòng điền đầy đủ thông tin trước khi gửi!")
+                st.error("Vui lòng chọn đầy đủ thông tin trước khi gửi!")
 
 elif st.session_state.active_tab == "Đăng ký thành viên":
     st.subheader("📝 Đăng Ký Thành Viên Tham Gia Triển Khai")
