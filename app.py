@@ -2,6 +2,7 @@ import streamlit as st
 import gspread
 import pandas as pd
 import os
+import json
 import time
 from google.oauth2.service_account import Credentials
 
@@ -17,7 +18,6 @@ def get_gspread_client():
                 "https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive"
             ]
-            # Đồng bộ thời gian chuẩn quốc tế để loại bỏ hoàn toàn lỗi Invalid JWT Signature do lệch giờ Cloud
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             client = gspread.authorize(creds)
             return client
@@ -27,7 +27,7 @@ def get_gspread_client():
 
 client = get_gspread_client()
 
-# HÀM LẤY DANH SÁCH ĐỘI HOÀN TOÀN ĐỘNG TỪ CỘT B (QUAN_LY_DOI)
+# HÀM LẤY DANH SÁCH ĐỘI ĐỘNG 100% TỪ CỘT B (QUAN_LY_DOI)
 def lay_danh_sach_doi_chuan():
     danh_sach = []
     try:
