@@ -2,52 +2,65 @@ import streamlit as st
 import gspread
 import os
 import json
+import pandas as pd
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
 def get_secure_client():
-    try:
-        if os.path.exists("credentials.json"):
-            with open("credentials.json", "r") as f:
-                creds_dict = json.load(f)
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            return gspread.authorize(creds)
-    except:
-        pass
+    if os.path.exists("credentials.json"):
+        with open("credentials.json", "r") as f:
+            creds_dict = json.load(f)
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        return gspread.authorize(creds)
     return None
 
-def lay_danh_sach_chuan_nguyen_ban(worksheet_name, col_index):
-    danh_sach = []
+# Hàm đọc dữ liệu chống cache, lấy chuẩn xác CỘT B cho tên đội và CỘT D cho địa điểm
+@st.cache_data(ttl=1)
+def doc_du_lieu_chuan_xac():
+    danh_sach_doi = []
+    danh_sach_diem = []
     try:
         client = get_secure_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            ws = sh.worksheet(worksheet_name)
-            cot = ws.col_values(col_index)
-            # Lấy từ dòng 3 trở đi (index 2), quét sạch toàn bộ không giới hạn
-            for v in cot[2:]:
-                if v is not None:
-                    txt = str(v).strip()
-                    if txt != "" and txt not in danh_sach:
-                        danh_sach.append(txt)
-    except:
-        pass
-    return danh_sach
+            
+            # Đọc sheet QUAN_LY_DOI: Lấy ĐÚNG CỘT B (index 1 trong mảng vì cột B là cột thứ 2)
+            ws_doi = sh.worksheet("QUAN_LY_DOI")
+            rows_doi = ws_doi.get_all_values()
+            for r in rows_doi[2:]:  # Từ dòng 3 trở xuống
+                if len(r) >= 2:
+                    val = r[1]  # Cột B
+                    if val is not None:
+                        txt = str(val).strip()
+                        if txt != "" and txt not in danh_sach_doi:
+                            danh_sach_doi.append(txt)
+            
+            # Đọc sheet DANH_SACH_DIEM: Lấy CỘT D (index 3)
+            ws_diem = sh.worksheet("DANH_SACH_DIEM")
+            rows_diem = ws_diem.get_all_values()
+            for r in rows_diem[2:]:
+                if len(r) >= 4:
+                    val = r[3]  # Cột D
+                    if val is not None:
+                        txt = str(val).strip()
+                        if txt != "" and txt not in danh_sach_diem:
+                            danh_sach_diem.append(txt)
+    except Exception as e:
+        st.error(f"Lỗi đọc sheet: {e}")
+        
+    if not danh_sach_doi:
+        danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+    if not danh_sach_diem:
+        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
+        
+    return danh_sach_doi, danh_sach_diem
 
-# Đọc chính xác Cột B (Cột 2) cho danh sách đội và Cột D (Cột 4) cho địa điểm
-danh_sach_doi = lay_danh_sach_chuan_nguyen_ban("QUAN_LY_DOI", 2)
-danh_sach_diem = lay_danh_sach_chuan_nguyen_ban("DANH_SACH_DIEM", 4)
-
-if not danh_sach_doi:
-    danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
-
-if not danh_sach_diem:
-    danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
+danh_sach_doi, danh_sach_diem = doc_du_lieu_chuan_xac()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
