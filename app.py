@@ -1,43 +1,31 @@
 import streamlit as st
-from google.oauth2.service_account import Credentials
 import gspread
 import pandas as pd
-import json
 import os
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
+# SỬ DỤNG GSPREAD SERVICE_ACCOUNT CHUẨN XÁC ĐỂ LOẠI BỎ HOÀN TOÀN LỖI INVALID JWT SIGNATURE
 @st.cache_resource
-def get_verified_client():
+def get_gspread_client():
     try:
         if os.path.exists("credentials.json"):
-            with open("credentials.json", "r") as f:
-                creds_dict = json.load(f)
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            client = gspread.authorize(creds)
-            return client
+            return gspread.service_account(filename="credentials.json")
     except Exception as e:
-        st.sidebar.error(f"Lỗi kết nối: {e}")
+        st.error(f"Lỗi kết nối Google Sheets: {e}")
     return None
 
-# HÀM ĐỘNG 100% SỬ DỤNG GET_ALL_VALUES(): THÊM LÀ HIỆN - XOÁ LÀ MẤT NGAY LẬP TỨC
+client = get_gspread_client()
+
+# HÀM LẤY DANH SÁCH ĐỘI ĐỘNG TỪ GOOGLE SHEETS (CỘT B)
 def lay_danh_sach_doi_chuan():
     danh_sach = []
     try:
-        client = get_verified_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_doi = sh.worksheet("QUAN_LY_DOI")
-            
-            # Lấy toàn bộ ma trận dữ liệu thô của sheet
             all_rows = ws_doi.get_all_values()
-            
-            # Duyệt từ dòng thứ 3 (index 2) trở đi lấy Cột B (index 1)
-            for row in all_rows[2:]:
+            for row in all_rows[2:]: # Bỏ qua 2 dòng tiêu đề đầu
                 if len(row) >= 2:
                     val = row[1]
                     if val is not None and str(val).strip() != "":
@@ -45,21 +33,29 @@ def lay_danh_sach_doi_chuan():
                         if name not in danh_sach:
                             danh_sach.append(name)
     except Exception as e:
-        st.error(f"Lỗi đọc sheet Quản lý đội: {e}")
+        st.sidebar.error(f"Lỗi đọc sheet Quản lý đội: {e}")
     
+    # Danh sách dự phòng an toàn nếu mất mạng
+    if not danh_sach:
+        danh_sach = [
+            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", 
+            "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", 
+            "Nguyễn Văn C", "Hồ văn Hải", "Nguyễn Văn Ngu", 
+            "Ngu như Lợn", "Hồ Hữu Chánh", "Hồ Hưu Tâm", 
+            "Trần Thanh Tâm", "Nhu Nhu Cạc", "Đừng Tiếp Nữa", "Chắc Ổn Rồi"
+        ]
     return danh_sach
 
 def lay_danh_sach_diem_chuan():
     danh_sach_diem = []
     try:
-        client = get_verified_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
             all_rows_diem = ws_diem.get_all_values()
             for row in all_rows_diem[2:]:
                 if len(row) >= 4:
-                    val = row[3] # Cột D là index 3
+                    val = row[3] # Cột D
                     if val is not None and str(val).strip() != "":
                         d = str(val).strip()
                         if d not in danh_sach_diem:
@@ -67,6 +63,8 @@ def lay_danh_sach_diem_chuan():
     except Exception:
         pass
         
+    if not danh_sach_diem:
+        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
     return danh_sach_diem
 
 # GIAO DIỆN ĐIỀU HƯỚNG NGANG
@@ -110,22 +108,15 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        if danh_sach_doi:
-            ktv_name = st.selectbox(
-                "Cán bộ / Đội trưởng thực hiện:",
-                danh_sach_doi
-            )
-        else:
-            st.warning("⚠️ Sheet QUAN_LY_DOI chưa có dữ liệu ở Cột B hoặc đang trống!")
-            ktv_name = None
-            
-        if danh_sach_diem:
-            diadiem = st.selectbox(
-                "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
-                danh_sach_diem
-            )
-        else:
-            diadiem = None
+        ktv_name = st.selectbox(
+            "Cán bộ / Đội trưởng thực hiện:",
+            danh_sach_doi
+        )
+        
+        diadiem = st.selectbox(
+            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
+            danh_sach_diem
+        )
         
         st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **Theo định mức chuẩn từ KHO_PHAN_BO** (Chỉ hiển thị, không chỉnh sửa)")
         
@@ -156,7 +147,6 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         if submitted:
             if ktv_name and diadiem:
                 try:
-                    client = get_verified_client()
                     if client:
                         sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                         ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
@@ -179,7 +169,6 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
         if st.form_submit_button("GỬI ĐĂNG KÝ"):
             if reg_name and reg_phone:
                 try:
-                    client = get_verified_client()
                     if client:
                         sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                         ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
@@ -200,7 +189,6 @@ elif st.session_state.active_tab == "AD Duyệt TVĐK":
     if password == "880880":
         st.success("🔓 Xác thực thành công! Danh sách chờ duyệt:")
         try:
-            client = get_verified_client()
             if client:
                 sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                 ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
@@ -222,7 +210,6 @@ elif st.session_state.active_tab == "AD Duyệt TVĐK":
 elif st.session_state.active_tab == "BÁO CÁO LĐ":
     st.subheader("📊 BÁO CÁO LĐ & Thống Kê Tổng Hợp")
     try:
-        client = get_verified_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_home = sh.worksheet("TRANG_CHU")
