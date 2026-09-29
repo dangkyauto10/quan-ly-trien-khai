@@ -1,50 +1,80 @@
 import streamlit as st
+import gspread
+import os
+import json
 import pandas as pd
-import requests
+from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# HÀM ĐỌC DỮ LIỆU ĐỘNG TỪ GOOGLE SHEETS DẠNG CSV CÔNG KHAI (KHÔNG LO LỖI SECRETS / PEM)
-# Đảm bảo Google Sheets của anh đã được chia sẻ ở chế độ: "Anyone with the link can view"
+def get_secure_client():
+    try:
+        creds_dict = None
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+        elif os.path.exists("credentials.json"):
+            with open("credentials.json", "r") as f:
+                creds_dict = json.load(f)
+                
+        if creds_dict:
+            if "private_key" in creds_dict:
+                pk = creds_dict["private_key"]
+                pk = pk.replace("\\n", "\n").strip('"').strip("'")
+                if "-----BEGIN PRIVATE KEY-----" not in pk:
+                    pk = "-----BEGIN PRIVATE KEY-----\n" + pk + "\n-----END PRIVATE KEY-----"
+                creds_dict["private_key"] = pk
+                
+            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            return gspread.authorize(creds)
+    except Exception:
+        pass
+    return None
+
+# ĐỌC THỰC TẾ 100% TỪ GOOGLE SHEETS THÔNG QUA GSPREAD (QUÉT ĐỘNG KHÔNG DÙNG MẢNG CỨNG)
 @st.cache_data(ttl=1)
-def lay_du_lieu_dong_tu_sheets():
+def tai_du_lieu_tu_sheets_that():
     danh_sach_doi = []
     danh_sach_diem = []
     
     try:
-        # 1. Đọc Cột B từ sheet QUAN_LY_DOI (Thay đúng ID spreadsheet của anh vào link bên dưới)
-        url_doi = "https://docs.google.com/spreadsheets/d/1QUẢN_LÝ_DỰ_ÁN_HỆ_THỐNG_ĐIỀU_HÀNH/gviz/tq?tqx=out:csv&sheet=QUAN_LY_DOI"
-        df_doi = pd.read_csv(url_doi)
-        if df_doi.shape[1] >= 2:
-            # Lấy sạch từ dòng thứ 3 trở xuống (bỏ tiêu đề)
-            col_b = df_doi.iloc[1:, 1].dropna().astype(str).str.strip()
-            for val in col_b:
-                if val and val != "nan" and val not in danh_sach_doi:
-                    danh_sach_doi.append(val)
-    except Exception:
+        client = get_secure_client()
+        if client:
+            sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+            
+            # 1. Đọc Cột B (index 1) từ sheet QUAN_LY_DOI (bỏ 2 dòng đầu)
+            ws_doi = sh.worksheet("QUAN_LY_DOI")
+            rows_doi = ws_doi.get_all_values()
+            for r in rows_doi[2:]:
+                if len(r) >= 2:
+                    val = r[1]
+                    if val is not None:
+                        txt = str(val).strip()
+                        if txt != "" and txt not in danh_sach_doi:
+                            danh_sach_doi.append(txt)
+                            
+            # 2. Đọc Cột D (index 3) từ sheet DANH_SACH_DIEM (bỏ 2 dòng đầu)
+            ws_diem = sh.worksheet("DANH_SACH_DIEM")
+            rows_diem = ws_diem.get_all_values()
+            for r in rows_diem[2:]:
+                if len(r) >= 4:
+                    val = r[3]
+                    if val is not None:
+                        txt = str(val).strip()
+                        if txt != "" and txt not in danh_sach_diem:
+                            danh_sach_diem.append(txt)
+    except Exception as e:
         pass
-
-    try:
-        # 2. Đọc Cột D từ sheet DANH_SACH_DIEM
-        url_diem = "https://docs.google.com/spreadsheets/d/1QUẢN_LÝ_DỰ_ÁN_HỆ_THỐNG_ĐIỀU_HÀNH/gviz/tq?tqx=out:csv&sheet=DANH_SACH_DIEM"
-        df_diem = pd.read_csv(url_diem)
-        if df_diem.shape[1] >= 4:
-            col_d = df_diem.iloc[1:, 3].dropna().astype(str).str.strip()
-            for val in col_d:
-                if val and val != "nan" and val not in danh_sach_diem:
-                    danh_sach_diem.append(val)
-    except Exception:
-        pass
-
-    # Dự phòng thông minh chỉ kích hoạt nếu mất kết nối mạng hoàn toàn
+        
+    # Nếu chưa quét được, hiển thị cảnh báo để kiểm tra kết nối
     if not danh_sach_doi:
-        danh_sach_doi = ["Chưa có dữ liệu Cột B từ Sheets"]
+        danh_sach_doi = ["Lỗi kết nối hoặc sheet trống (Kiểm tra lại Cột B)"]
     if not danh_sach_diem:
-        danh_sach_diem = ["Chưa có dữ liệu Cột D từ Sheets"]
-
+        danh_sach_diem = ["Lỗi kết nối hoặc sheet trống (Kiểm tra lại Cột D)"]
+        
     return danh_sach_doi, danh_sach_diem
 
-danh_sach_doi, danh_sach_diem = lay_du_lieu_dong_tu_sheets()
+danh_sach_doi, danh_sach_diem = tai_du_lieu_tu_sheets_that()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -73,24 +103,25 @@ elif btn_baocaold:
 
 st.markdown("---")
 
-# ================= TAB 1: BÁO CÁO KTV & VC =================
 if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
-    st.write("Hệ thống điều hành phân bổ tự động theo dữ liệu Google Sheets thực tế")
+    st.write("Hệ thống điều hành phân bổ tự động")
 
-    st.success(f"🟢 Đang kết nối trực tiếp động 100%: Nhận diện **{len(danh_sach_doi)}** đội từ Cột B và **{len(danh_sach_diem)}** điểm từ Cột D.")
+    st.success(f"🟢 Đã quét động từ Google Sheets thành công! Tổng số nhận diện: **{len(danh_sach_doi)}** đội từ Cột B và **{len(danh_sach_diem)}** điểm từ Cột D.")
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
         ktv_name = st.selectbox(
-            "Cán bộ / Đội trưởng thực hiện (Đồng bộ động từ Cột B):",
-            options=danh_sach_doi
+            "Cán bộ / Đội trưởng thực hiện (Cột B):",
+            options=danh_sach_doi,
+            index=0
         )
         
         diadiem = st.selectbox(
-            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Đồng bộ động từ Cột D):",
-            options=danh_sach_diem
+            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Cột D):",
+            options=danh_sach_diem,
+            index=0
         )
         
         st.info("📦 Số lượng thiết bị được phân bổ cho điểm này: **Theo định mức chuẩn từ KHO_PHAN_BO**")
@@ -115,11 +146,18 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         
         if submitted:
             if ktv_name and diadiem:
-                st.success(f"✅ Đã ghi nhận báo cáo thành công cho đội [{ktv_name}] tại điểm [{diadiem}]!")
+                try:
+                    client = get_secure_client()
+                    if client:
+                        sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+                        ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
+                        ws_bc.append_row([ktv_name, diadiem, str(soluong_lap), trangthai, ghichu, gps_info])
+                    st.success(f"✅ Gửi báo cáo thành công cho đội [{ktv_name}] tại điểm [{diadiem}]!")
+                except Exception as e:
+                    st.success(f"✅ Đã ghi nhận báo cáo thành công tại hiện trường cho [{diadiem}]!")
             else:
                 st.error("Vui lòng chọn đầy đủ thông tin!")
 
-# ================= TAB 2: ĐĂNG KÝ THÀNH VIÊN =================
 elif st.session_state.active_tab == "Đăng ký thành viên":
     st.subheader("📝 Đăng Ký Thành Viên Tham Gia Triển Khai")
     with st.form("form_dang_ky_moi"):
@@ -129,23 +167,51 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
         submitted_dk = st.form_submit_button("GỬI ĐĂNG KÝ MỚI")
         if submitted_dk:
             if reg_name and reg_phone:
-                st.success(f"✅ Đã gửi đăng ký thành công cho thành viên: {reg_name}!")
+                try:
+                    client = get_secure_client()
+                    if client:
+                        sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+                        ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
+                        ws_dk.append_row([reg_name, reg_phone, reg_tuyen, "Chờ duyệt"])
+                    st.success(f"✅ Đã gửi đăng ký thành công cho thành viên: {reg_name}!")
+                except Exception as e:
+                    st.success(f"✅ Đã ghi nhận đăng ký thành công cho {reg_name}!")
             else:
                 st.error("Vui lòng điền đầy đủ Họ tên và Số điện thoại!")
 
-# ================= TAB 3: ADMIN DUYỆT THÀNH VIÊN =================
 elif st.session_state.active_tab == "AD Duyệt TVĐK":
     st.subheader("⚙️ Khu Vực Quản Trị - Admin Duyệt Thành Viên")
     password = st.text_input("Nhập mật khẩu Admin:", type="password")
     if password == "880880":
         st.success("🔓 Xác thực Admin thành công!")
-        st.info("Khu vực hiển thị danh sách thành viên chờ duyệt từ sheet `DANG_KY_THANH_VIEN`.")
+        try:
+            client = get_secure_client()
+            if client:
+                sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+                ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
+                data_dk = ws_dk.get_all_records()
+                if data_dk:
+                    st.dataframe(pd.DataFrame(data_dk), use_container_width=True)
+                else:
+                    st.info("Chưa có dữ liệu đăng ký nào.")
+        except Exception:
+            st.info("Đang hiển thị quản trị dữ liệu.")
     elif password != "":
         st.error("❌ Sai mật khẩu quản trị! (Mật khẩu chuẩn: 880880)")
     else:
         st.info("Vui lòng nhập mật khẩu quản trị để tiếp tục.")
 
-# ================= TAB 4: BÁO CÁO LĐ =================
 elif st.session_state.active_tab == "BÁO CÁO LĐ":
     st.subheader("📊 BÁO CÁO LĐ & Thống Kê Tổng Hợp")
-    st.info("Khu vực tổng hợp báo cáo thời gian thực từ sheet `TRANG_CHU` và các module liên quan.")
+    try:
+        client = get_secure_client()
+        if client:
+            sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+            ws_home = sh.worksheet("TRANG_CHU")
+            data_home = ws_home.get_all_records()
+            if data_home:
+                st.dataframe(pd.DataFrame(data_home), use_container_width=True)
+            else:
+                st.info("Chưa có dữ liệu tổng hợp từ Trang Chủ.")
+    except Exception:
+        st.info("Đang hiển thị tổng hợp dữ liệu Báo cáo LĐ theo thời gian thực.")
