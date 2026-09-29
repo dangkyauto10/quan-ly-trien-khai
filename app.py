@@ -21,8 +21,8 @@ def get_secure_client():
         pass
     return None
 
-# HÀM VÉT CẠN TOÀN BỘ CỘT TỪ DÒNG 3 ĐẾN 1000, KHÔNG GIỚI HẠN, CẬP NHẬT/XOÁ THÀNH VIÊN ĂN NGAY LẬP TỨC
-def lay_danh_sach_toi_da(worksheet_name, range_name):
+# HÀM QUÉT TOÀN BỘ DẢI ĐỂ BẮT TRỌN CẢ TÊN CÁN BỘ DÙ NẰM Ở CỘT B HAY CỘT C
+def lay_danh_sach_thong_minh(worksheet_name, range_name):
     danh_sach = []
     try:
         client = get_secure_client()
@@ -31,19 +31,19 @@ def lay_danh_sach_toi_da(worksheet_name, range_name):
             ws = sh.worksheet(worksheet_name)
             rows = ws.get(range_name)
             for row in rows:
-                if row and len(row) > 0:
-                    val = row[0]
-                    if val is not None:
-                        txt = str(val).strip()
-                        if txt != "" and txt not in danh_sach:
+                for cell in row:
+                    if cell is not None:
+                        txt = str(cell).strip()
+                        # Lọc bỏ tiêu đề hoặc mã định danh (như KTV-26, KTV-27) nếu có
+                        if txt != "" and not txt.startswith("KTV-") and txt not in danh_sach:
                             danh_sach.append(txt)
     except:
         pass
     return danh_sach
 
-# Lấy trọn vẹn toàn bộ Cột B và Cột D tới tận dòng 1000
-danh_sach_doi = lay_danh_sach_toi_da("QUAN_LY_DOI", "B3:B1000")
-danh_sach_diem = lay_danh_sach_toi_da("DANH_SACH_DIEM", "D3:D1000")
+# Quét trọn vẹn vùng dữ liệu từ dòng 3 đến 100 của sheet QUAN_LY_DOI và DANH_SACH_DIEM
+danh_sach_doi = lay_danh_sach_thong_minh("QUAN_LY_DOI", "B3:C100")
+danh_sach_diem = lay_danh_sach_thong_minh("DANH_SACH_DIEM", "D3:E100")
 
 if not danh_sach_doi:
     danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
@@ -86,12 +86,12 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
         ktv_name = st.selectbox(
-            "Cán bộ / Đội trưởng thực hiện (Lấy từ Cột B - QUAN_LY_DOI):",
+            "Cán bộ / Đội trưởng thực hiện:",
             danh_sach_doi
         )
         
         diadiem = st.selectbox(
-            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Lấy từ Cột D - DANH_SACH_DIEM):",
+            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT:",
             danh_sach_diem
         )
         
