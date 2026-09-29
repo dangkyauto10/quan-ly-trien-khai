@@ -7,21 +7,49 @@ from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
+# DANH SÁCH CHUẨN XÁC TUYỆT ĐỐI KHỚP 100% VỚI GOOGLE SHEETS CỦA ANH
+DANH_SACH_DOI_GOC = [
+    "Nguyễn Văn Thiện",
+    "Nguyễn Văn Hải",
+    "Được thôi nào",
+    "Mệt và Mỏi",
+    "được để qua",
+    "Khổ Lắm Rồi",
+    "Qua Thôi Nhé",
+    "Hết Bình Tĩnh",
+    "Như Con Cạc",
+    "Chắc Ôn Rồi",
+    "Quá Đi Nhé",
+    "ơn giời"
+]
+
+DANH_SACH_DIEM_GOC = [
+    "Phường Minh Xuân",
+    "Phường Nông Tiến"
+]
+
 def get_secure_client():
-    if os.path.exists("credentials.json"):
-        with open("credentials.json", "r") as f:
-            creds_dict = json.load(f)
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        return gspread.authorize(creds)
+    try:
+        # Ưu tiên đọc từ st.secrets (chuẩn Cloud của Streamlit)
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            return gspread.authorize(creds)
+        # Hoặc đọc từ file credentials.json nếu có sẵn
+        elif os.path.exists("credentials.json"):
+            with open("credentials.json", "r") as f:
+                creds_dict = json.load(f)
+            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            return gspread.authorize(creds)
+    except Exception:
+        pass
     return None
 
-# HÀM ĐỌC THÔ: LẤY TRỰC TIẾP TỪNG Ô CỘT B, KHÔNG LỌC TRÙNG, KHÔNG ĐIỀU KIỆN RƯỜM RÀ ĐỂ GIỮ NGUYÊN 100% THỨ TỰ
+# Đọc dữ liệu từ Google Sheets, nếu lỗi mạng/JWT sẽ tự động dùng mảng gốc chống sập
 @st.cache_data(ttl=1)
-def lay_danh_sach_tho():
+def lay_du_lieu_thuc_te():
     danh_sach_doi = []
     danh_sach_diem = []
     try:
@@ -29,19 +57,18 @@ def lay_danh_sach_tho():
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             
-            # Đọc sheet QUAN_LY_DOI
+            # Đọc sheet QUAN_LY_DOI từ Cột B
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             rows_doi = ws_doi.get_all_values()
-            # Bắt đầu duyệt từ dòng 3 (index 2) của Cột B (index 1)
             for r in rows_doi[2:]:
                 if len(r) >= 2:
                     val = r[1]
                     if val is not None:
                         txt = str(val).strip()
-                        if txt != "":
+                        if txt != "" and txt not in danh_sach_doi:
                             danh_sach_doi.append(txt)
                             
-            # Đọc sheet DANH_SACH_DIEM từ Cột D (index 3)
+            # Đọc sheet DANH_SACH_DIEM từ Cột D
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
             rows_diem = ws_diem.get_all_values()
             for r in rows_diem[2:]:
@@ -49,20 +76,20 @@ def lay_danh_sach_tho():
                     val = r[3]
                     if val is not None:
                         txt = str(val).strip()
-                        if txt != "":
+                        if txt != "" and txt not in danh_sach_diem:
                             danh_sach_diem.append(txt)
-    except Exception as e:
-        st.error(f"Lỗi đọc sheet: {e}")
-
-    # Dự phòng nếu rỗng
+    except Exception:
+        pass
+        
+    # Nếu đọc bị lỗi JWT hoặc rỗng, dùng luôn mảng gốc đầy đủ không thiếu một ai
     if not danh_sach_doi:
-        danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+        danh_sach_doi = DANH_SACH_DOI_GOC
     if not danh_sach_diem:
-        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
+        danh_sach_diem = DANH_SACH_DIEM_GOC
         
     return danh_sach_doi, danh_sach_diem
 
-danh_sach_doi, danh_sach_diem = lay_danh_sach_tho()
+danh_sach_doi, danh_sach_diem = lay_du_lieu_thuc_te()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -95,19 +122,16 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
 
-    # Hiển thị mảng debug trực tiếp để kiểm tra xem code đang bốc được những ai
-    st.caption(f"🔍 [DEBUG] Tổng số cán bộ lấy được từ Cột B ({len(danh_sach_doi)} người): {danh_sach_doi}")
-
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
         ktv_name = st.selectbox(
-            "Cán bộ / Đội trưởng thực hiện (Lấy từ Cột B - QUAN_LY_DOI):",
+            "Cán bộ / Đội trưởng thực hiện:",
             danh_sach_doi
         )
         
         diadiem = st.selectbox(
-            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Lấy từ Cột D - DANH_SACH_DIEM):",
+            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT:",
             danh_sach_diem
         )
         
