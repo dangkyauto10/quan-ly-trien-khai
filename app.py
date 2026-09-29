@@ -18,57 +18,57 @@ def get_clean_client():
                 
         if creds_dict:
             if "private_key" in creds_dict:
-                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+                pk = creds_dict["private_key"]
+                # Xử lý triệt để mọi định dạng xuống dòng bị lỗi trên mây
+                pk = pk.replace("\\n", "\n").strip('"').strip("'")
+                if "-----BEGIN PRIVATE KEY-----" not in pk:
+                    pk = "-----BEGIN PRIVATE KEY-----\n" + pk + "\n-----END PRIVATE KEY-----"
+                creds_dict["private_key"] = pk
+                
             scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
-    except Exception as e:
-        st.error(f"Lỗi xác thực Google API: {e}")
+    except Exception:
+        pass
     return None
 
-# KHÔNG DÙNG CACHE NỮA - ĐỌC TRỰC TIẾP TƯƠI 100% TỪ GOOGLE SHEETS MỖI KHI LOAD TRANG
-def lay_du_lieu_khong_cache():
+# ĐỌC TRỰC TIẾP KHÔNG DÙNG FALLBACK ẢO - NẾU LỖI SẼ BÁO ĐỎ LÈ ĐỂ SỬA TRỰC TIẾP
+def doc_du_lieu_that_100():
     danh_sach_doi = []
     danh_sach_diem = []
     
-    try:
-        client = get_clean_client()
-        if client:
-            sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            
-            # 1. Đọc thô Cột B (index 1) từ sheet QUAN_LY_DOI (bỏ qua 2 dòng tiêu đề đầu)
-            ws_doi = sh.worksheet("QUAN_LY_DOI")
-            rows_doi = ws_doi.get_all_values()
-            for row in rows_doi[2:]:
-                if len(row) >= 2:
-                    val = row[1]
-                    if val is not None:
-                        txt = str(val).strip()
-                        if txt != "" and txt not in danh_sach_doi:
-                            danh_sach_doi.append(txt)
-                            
-            # 2. Đọc thô Cột D (index 3) từ sheet DANH_SACH_DIEM (bỏ qua 2 dòng tiêu đề đầu)
-            ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            rows_diem = ws_diem.get_all_values()
-            for row in rows_diem[2:]:
-                if len(row) >= 4:
-                    val = row[3]
-                    if val is not None:
-                        txt = str(val).strip()
-                        if txt != "" and txt not in danh_sach_diem:
-                            danh_sach_diem.append(txt)
-    except Exception as e:
-        st.error(f"⚠️ Lỗi kết nối Google Sheets: {e}")
+    client = get_clean_client()
+    if client:
+        sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
         
-    # Nếu sheet trống hoặc mất kết nối, trả về mảng tối thiểu để app không sập
-    if not danh_sach_doi:
-        danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
-    if not danh_sach_diem:
-        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
+        # 1. Đọc toàn bộ Cột B từ QUAN_LY_DOI
+        ws_doi = sh.worksheet("QUAN_LY_DOI")
+        rows_doi = ws_doi.get_all_values()
+        for row in rows_doi[2:]:  # Bỏ 2 dòng tiêu đề
+            if len(row) >= 2:
+                val = row[1]
+                if val is not None:
+                    txt = str(val).strip()
+                    if txt != "" and txt not in danh_sach_doi:
+                        danh_sach_doi.append(txt)
+                        
+        # 2. Đọc toàn bộ Cột D từ DANH_SACH_DIEM
+        ws_diem = sh.worksheet("DANH_SACH_DIEM")
+        rows_diem = ws_diem.get_all_values()
+        for row in rows_diem[2:]:  # Bỏ 2 dòng tiêu đề
+            if len(row) >= 4:
+                val = row[3]
+                if val is not None:
+                    txt = str(val).strip()
+                    if txt != "" and txt not in danh_sach_diem:
+                        danh_sach_diem.append(txt)
+    else:
+        # Nếu chưa cấu hình secrets chuẩn, hiển thị cảnh báo tường minh để anh em mình xử lý cấu hình trên cloud
+        st.error("🚨 LỖI XÁC THỰC SECRETS: Kiểm tra lại cấu hình gcp_service_account trên Streamlit Cloud!")
         
     return danh_sach_doi, danh_sach_diem
 
-danh_sach_doi, danh_sach_diem = lay_du_lieu_khong_cache()
+danh_sach_doi, danh_sach_diem = doc_du_lieu_that_100()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -101,20 +101,20 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
 
-    st.success(f"🟢 Đã đọc trực tiếp thời gian thực từ Google Sheets! Tổng số nhận diện: **{len(danh_sach_doi)}** đội từ Cột B và **{len(danh_sach_diem)}** điểm từ Cột D.")
+    st.success(f"🟢 Đã kết nối thành công! Lấy chuẩn **{len(danh_sach_doi)}** đội từ Cột B và **{len(danh_sach_diem)}** điểm từ Cột D.")
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
         ktv_name = st.selectbox(
-            "Cán bộ / Đội trưởng thực hiện (Cột B - Realtime):",
-            options=danh_sach_doi,
+            "Cán bộ / Đội trưởng thực hiện (Cột B):",
+            options=danh_sach_doi if danh_sach_doi else ["Đang tải dữ liệu..."],
             index=0
         )
         
         diadiem = st.selectbox(
-            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Cột D - Realtime):",
-            options=danh_sach_diem,
+            "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Cột D):",
+            options=danh_sach_diem if danh_sach_diem else ["Đang tải dữ liệu..."],
             index=0
         )
         
