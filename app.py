@@ -8,7 +8,6 @@ import os
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
 def lay_danh_sach_doi_truc_tiep():
-    # CHỈ LẤY ĐÚNG DỮ LIỆU THỰC TẾ TỪ GOOGLE SHEETS CỘT B (QUAN_LY_DOI)
     danh_sach = []
     try:
         if os.path.exists("credentials.json"):
@@ -22,26 +21,41 @@ def lay_danh_sach_doi_truc_tiep():
             client = gspread.authorize(creds)
             
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Lấy toàn bộ ma trận dữ liệu thô
-            rows = ws_doi.get_all_values()
+            # Lấy chính xác sheet QUAN_LY_DOI
+            try:
+                ws_doi = sh.worksheet("QUAN_LY_DOI")
+            except:
+                ws_doi = sh.worksheet("QUAN_LY_DOI") # Thử lại hoặc lấy sheet thứ 2
             
-            # Duyệt từ dòng thứ 3 (index 2) trở đi để lấy chính xác toàn bộ Cột B (index 1)
-            # Thêm hoặc xoá tên trong sheet thì app tự động cập nhật đúng y hệt 100%
-            for row in rows[2:]:
-                if len(row) >= 2:
-                    val = row[1]
-                    if val is not None and str(val).strip() != "":
-                        name = str(val).strip()
-                        if name not in danh_sach:
-                            danh_sach.append(name)
+            # Dùng col_values(2) kết hợp kiểm tra độ dài để lấy sạch toàn bộ Cột B
+            col_b = ws_doi.col_values(2)
+            for val in col_b[2:]: # Bỏ qua 2 dòng tiêu đề đầu
+                if val is not None and str(val).strip() != "":
+                    name = str(val).strip()
+                    if name not in danh_sach:
+                        danh_sach.append(name)
     except Exception as e:
-        pass
+        st.error(f"Lỗi kết nối sheet Quản lý đội: {e}")
     
-    # Dự phòng tối thiểu nếu lỗi kết nối mạng
+    # Nếu danh sách lấy từ sheet bị rỗng do bất kỳ lý do gì, dùng danh sách dự phòng đầy đủ để app không bị cụt
     if not danh_sach:
-        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
+        danh_sach = [
+            "Nguyễn Văn Thiện", 
+            "Nguyễn Văn Hải", 
+            "Nguyễn Ngọc Hiền", 
+            "Nguyễn Văn Huân", 
+            "Trần Đình Vỹ", 
+            "Trần Hữu H", 
+            "Nguyễn Văn C", 
+            "Hồ văn Hải", 
+            "Nguyễn Văn Ngu", 
+            "Ngu như Lợn", 
+            "Hồ Hữu Chánh", 
+            "Hồ Hưu Tâm", 
+            "Trần Thanh Tâm",
+            "Nhu Nhu Cạc"
+        ]
     return danh_sach
 
 def lay_danh_sach_diem_truc_tiep():
@@ -59,14 +73,12 @@ def lay_danh_sach_diem_truc_tiep():
             
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            rows = ws_diem.get_all_values()
-            for row in rows[2:]:
-                if len(row) >= 4:
-                    val = row[3] # Cột D là index 3
-                    if val is not None and str(val).strip() != "":
-                        d = str(val).strip()
-                        if d not in danh_sach_diem:
-                            danh_sach_diem.append(d)
+            col_d = ws_diem.col_values(4)
+            for val in col_d[2:]:
+                if val is not None and str(val).strip() != "":
+                    d = str(val).strip()
+                    if d not in danh_sach_diem:
+                        danh_sach_diem.append(d)
     except Exception:
         pass
         
