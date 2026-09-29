@@ -7,7 +7,6 @@ import os
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# 1. KHỞI TẠO CLIENT CHUẨN XÁC DÙNG CHUNG CHO TOÀN BỘ APP (KHỐI NÀY TRIỆT TIÊU LỖI INVALID JWT SIGNATURE)
 @st.cache_resource
 def get_gspread_client():
     try:
@@ -26,19 +25,18 @@ def get_gspread_client():
 
 client = get_gspread_client()
 
-# 2. HÀM LẤY DANH SÁCH CÁN BỘ TỪ CỘT B (QUAN_LY_DOI) - AN TOÀN VÀ ĐẦY ĐỦ 100%
-def lay_danh_sach_doi_chuan():
+# HÀM HOÀN TOÀN ĐỘNG 100% - KHÔNG CÓ DANH SÁCH CỨNG, CỨ NHẬP SHEET LÀ APP TỰ HIỆN ĐỦ
+def lay_danh_sach_doi_dong_tuyet_doi():
     danh_sach = []
     try:
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            # Lấy chính xác worksheet quản lý đội
             ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Đọc toàn bộ giá trị thô từ Cột B
+            # Lấy toàn bộ giá trị thô của Cột B từ Google Sheets
             col_b = ws_doi.col_values(2)
             
-            # Duyệt từ dòng 3 (bỏ qua 2 dòng tiêu đề đầu tiên), vét sạch mọi tên mới thêm hoặc xoá
+            # Quét từ dòng thứ 3 (index 2) trở xuống đến hết bảng, có bao nhiêu lấy bấy nhiêu
             for val in col_b[2:]:
                 if val is not None and str(val).strip() != "":
                     name = str(val).strip()
@@ -47,27 +45,9 @@ def lay_danh_sach_doi_chuan():
     except Exception as e:
         pass
     
-    # Danh sách dự phòng an toàn tuyệt đối nếu mất mạng
-    if not danh_sach:
-        danh_sach = [
-            "Nguyễn Văn Thiện", 
-            "Nguyễn Văn Hải", 
-            "Nguyễn Ngọc Hiền", 
-            "Nguyễn Văn Huân", 
-            "Trần Đình Vỹ", 
-            "Trần Hữu H", 
-            "Nguyễn Văn C", 
-            "Hồ văn Hải", 
-            "Nguyễn Văn Ngu", 
-            "Ngu như Lợn", 
-            "Hồ Hữu Chánh", 
-            "Hồ Hưu Tâm", 
-            "Trần Thanh Tâm"
-        ]
     return danh_sach
 
-# 3. HÀM LẤY DANH SÁCH ĐỊA ĐIỂM TỪ CỘT D (DANH_SACH_DIEM)
-def lay_danh_sach_diem_chuan():
+def lay_danh_sach_diem_dong_tuyet_doi():
     danh_sach_diem = []
     try:
         if client:
@@ -121,20 +101,18 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    # Lấy dữ liệu trực tiếp động 100% từ Google Sheets
-    danh_sach_doi = lay_danh_sach_doi_chuan()
-    danh_sach_diem = lay_danh_sach_diem_chuan()
+    # Lấy dữ liệu động trực tiếp từ Google Sheets, không dùng mảng tĩnh dự phòng nữa
+    danh_sach_doi = lay_danh_sach_doi_dong_tuyet_doi()
+    danh_sach_diem = lay_danh_sach_diem_dong_tuyet_doi()
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        # Dropdown Cán bộ lấy chuẩn từ Cột B (QUAN_LY_DOI)
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
             danh_sach_doi
         )
         
-        # Dropdown Địa điểm lấy từ Cột D (DANH_SACH_DIEM)
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
             danh_sach_diem
