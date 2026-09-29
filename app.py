@@ -1,56 +1,57 @@
 import streamlit as st
-import pandas as pd
-import requests
-import io
-
-st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
-
-# ID GOOGLE SHEET VÀ TÊN TAB (WORKSHEET) CỦA ANH
-# Lấy từ URL Google Sheet của anh: https://docs.google.com/spreadsheets/d/1_abcxyz...
-# Anh chỉ cần thay SPREADSHEET_ID bên dưới bằng ID thật của sheet anh nếu cần
-SPREADSHEET_ID = "1_abcxyz_thay_id_sheet_cua_anh_vao_day" 
-# Hoặc chúng ta dùng hàm đọc qua gspread cấu hình siêu gọn không dùng JWT rườm rà:
-
 import gspread
 import os
 import json
+from google.oauth2.service_account import Credentials
 
-def get_data_from_sheet(sheet_name, col_index):
-    danh_sach = []
+st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
+
+# KHỞI TẠO KẾT NỐI AN TOÀN TUYỆT ĐỐI KHÔNG DÙNG CACHE (ĐẢM BẢO F5 LÀ ĐỌC MỚI 100%)
+def get_connected_sheet():
     try:
         if os.path.exists("credentials.json"):
             with open("credentials.json", "r") as f:
                 creds_dict = json.load(f)
-            # Khởi tạo client gspread tối giản an toàn
-            gc = gspread.service_account_from_dict(creds_dict)
-            sh = gc.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
-            ws = sh.worksheet(sheet_name)
-            rows = ws.get_all_values()
-            for row in rows[2:]: # Bỏ qua 2 dòng tiêu đề
-                if len(row) >= col_index:
-                    val = row[col_index - 1]
-                    if val is not None and str(val).strip() != "":
-                        item = str(val).strip()
-                        if item not in danh_sach:
-                            danh_sach.append(item)
+            scopes = [
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            client = gspread.authorize(creds)
+            return client
     except Exception as e:
-        # Dự phòng thông minh: Nếu lỗi xác thực, trả về danh sách quét trực tiếp từ giao diện sheet hiện tại
+        st.sidebar.error(f"Lỗi xác thực: {e}")
+    return None
+
+# HÀM ĐỌC DỮ LIỆU ĐỘNG THUẦN TÚY: THÊM LÀ HIỆN - XOÁ LÀ MẤT NGAY LẬP TỨC
+def doc_danh_sach_chuan(worksheet_name, col_num):
+    danh_sach = []
+    try:
+        client = get_connected_sheet()
+        if client:
+            sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+            ws = sh.worksheet(worksheet_name)
+            
+            # Lấy toàn bộ giá trị ma trận thô từ worksheet
+            all_values = ws.get_all_values()
+            
+            # Quét từ dòng thứ 3 trở xuống (index từ 2, bỏ qua 2 dòng tiêu đề)
+            for row in all_values[2:]:
+                if len(row) >= col_num:
+                    val = row[col_num - 1]
+                    if val is not None and str(val).strip() != "":
+                        text = str(val).strip()
+                        if text not in danh_sach:
+                            danh_sach.append(text)
+    except Exception as e:
         pass
+        
     return danh_sach
 
-# LẤY TRỰC TIẾP DỮ LIỆU ĐỘNG TỪ CỘT B (QUAN_LY_DOI) VÀ CỘT D (DANH_SACH_DIEM)
-danh_sach_doi = get_data_from_sheet("QUAN_LY_DOI", 2)
-if not danh_sach_doi:
-    # Nếu sheet trống hoặc lỗi kết nối tạm thời, tự động lấy dữ liệu thực tế hiện tại của anh
-    danh_sach_doi = [
-        "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", 
-        "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", 
-        "Nguyễn Văn C", "Hồ văn Hải", "Nguyễn Văn Ngu", 
-        "Ngu như Lợn", "Hồ Hữu Chánh", "Hồ Hưu Tâm", 
-        "Trần Thanh Tâm", "Nhu Nhu Cạc", "Đừng Tiếp Nữa", "Chắc Ổn Rồi", "Xong Đi Nào", "ổn không"
-    ]
+# LẤY TRỰC TIẾP TỪ CỘT B (QUAN_LY_DOI) VÀ CỘT D (DANH_SACH_DIEM)
+danh_sach_doi = doc_danh_sach_chuan("QUAN_LY_DOI", 2)
+danh_sach_diem = doc_danh_sach_chuan("DANH_SACH_DIEM", 4)
 
-danh_sach_diem = get_data_from_sheet("DANH_SACH_DIEM", 4)
 if not danh_sach_diem:
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
 
@@ -92,10 +93,14 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
-        ktv_name = st.selectbox(
-            "Cán bộ / Đội trưởng thực hiện:",
-            danh_sach_doi
-        )
+        if danh_sach_doi:
+            ktv_name = st.selectbox(
+                "Cán bộ / Đội trưởng thực hiện:",
+                danh_sach_doi
+            )
+        else:
+            st.warning("⚠️ Đang kết nối lấy dữ liệu từ Google Sheets hoặc Cột B trống...")
+            ktv_name = None
         
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
@@ -131,11 +136,9 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         if submitted:
             if ktv_name and diadiem:
                 try:
-                    if os.path.exists("credentials.json"):
-                        with open("credentials.json", "r") as f:
-                            creds_dict = json.load(f)
-                        gc = gspread.service_account_from_dict(creds_dict)
-                        sh = gc.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+                    client = get_connected_sheet()
+                    if client:
+                        sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                         ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
                         ws_bc.append_row([ktv_name, diadiem, str(soluong_lap), trangthai, ghichu, gps_info])
                     st.success(f"✅ Gửi báo cáo thành công cho cán bộ [{ktv_name}] tại [{diadiem}]!")
@@ -156,11 +159,9 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
         if st.form_submit_button("GỬI ĐĂNG KÝ"):
             if reg_name and reg_phone:
                 try:
-                    if os.path.exists("credentials.json"):
-                        with open("credentials.json", "r") as f:
-                            creds_dict = json.load(f)
-                        gc = gspread.service_account_from_dict(creds_dict)
-                        sh = gc.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+                    client = get_connected_sheet()
+                    if client:
+                        sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                         ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
                         ws_dk.append_row([reg_name, reg_phone, reg_tuyen, "Chờ duyệt"])
                     st.success(f"Đã gửi đăng ký thành công cho {reg_name}!")
@@ -179,11 +180,9 @@ elif st.session_state.active_tab == "AD Duyệt TVĐK":
     if password == "880880":
         st.success("🔓 Xác thực thành công! Danh sách chờ duyệt:")
         try:
-            if os.path.exists("credentials.json"):
-                with open("credentials.json", "r") as f:
-                    creds_dict = json.load(f)
-                gc = gspread.service_account_from_dict(creds_dict)
-                sh = gc.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+            client = get_connected_sheet()
+            if client:
+                sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                 ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
                 data_dk = ws_dk.get_all_records()
                 if data_dk:
@@ -203,11 +202,9 @@ elif st.session_state.active_tab == "AD Duyệt TVĐK":
 elif st.session_state.active_tab == "BÁO CÁO LĐ":
     st.subheader("📊 BÁO CÁO LĐ & Thống Kê Tổng Hợp")
     try:
-        if os.path.exists("credentials.json"):
-            with open("credentials.json", "r") as f:
-                creds_dict = json.load(f)
-            gc = gspread.service_account_from_dict(creds_dict)
-            sh = gc.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+        client = get_connected_sheet()
+        if client:
+            sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_home = sh.worksheet("TRANG_CHU")
             data_home = ws_home.get_all_records()
             if data_home:
