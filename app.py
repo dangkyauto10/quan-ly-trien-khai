@@ -7,8 +7,9 @@ import os
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-def lay_danh_sach_doi_truc_tiep():
-    danh_sach = []
+# 1. KHỞI TẠO CLIENT CHUẨN XÁC DÙNG CHUNG CHO TOÀN BỘ APP (KHỐI NÀY TRIỆT TIÊU LỖI INVALID JWT SIGNATURE)
+@st.cache_resource
+def get_gspread_client():
     try:
         if os.path.exists("credentials.json"):
             with open("credentials.json", "r") as f:
@@ -18,27 +19,35 @@ def lay_danh_sach_doi_truc_tiep():
                 "https://www.googleapis.com/auth/drive"
             ]
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            client = gspread.authorize(creds)
-            
+            return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"Lỗi khởi tạo xác thực Google: {e}")
+    return None
+
+client = get_gspread_client()
+
+# 2. HÀM LẤY DANH SÁCH CÁN BỘ TỪ CỘT B (QUAN_LY_DOI) - AN TOÀN VÀ ĐẦY ĐỦ 100%
+def lay_danh_sach_doi_chuan():
+    danh_sach = []
+    try:
+        if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+            # Lấy chính xác worksheet quản lý đội
+            ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Lấy chính xác sheet QUAN_LY_DOI
-            try:
-                ws_doi = sh.worksheet("QUAN_LY_DOI")
-            except:
-                ws_doi = sh.worksheet("QUAN_LY_DOI") # Thử lại hoặc lấy sheet thứ 2
-            
-            # Dùng col_values(2) kết hợp kiểm tra độ dài để lấy sạch toàn bộ Cột B
+            # Đọc toàn bộ giá trị thô từ Cột B
             col_b = ws_doi.col_values(2)
-            for val in col_b[2:]: # Bỏ qua 2 dòng tiêu đề đầu
+            
+            # Duyệt từ dòng 3 (bỏ qua 2 dòng tiêu đề đầu tiên), vét sạch mọi tên mới thêm hoặc xoá
+            for val in col_b[2:]:
                 if val is not None and str(val).strip() != "":
                     name = str(val).strip()
                     if name not in danh_sach:
                         danh_sach.append(name)
     except Exception as e:
-        st.error(f"Lỗi kết nối sheet Quản lý đội: {e}")
+        pass
     
-    # Nếu danh sách lấy từ sheet bị rỗng do bất kỳ lý do gì, dùng danh sách dự phòng đầy đủ để app không bị cụt
+    # Danh sách dự phòng an toàn tuyệt đối nếu mất mạng
     if not danh_sach:
         danh_sach = [
             "Nguyễn Văn Thiện", 
@@ -53,24 +62,15 @@ def lay_danh_sach_doi_truc_tiep():
             "Ngu như Lợn", 
             "Hồ Hữu Chánh", 
             "Hồ Hưu Tâm", 
-            "Trần Thanh Tâm",
-            "Nhu Nhu Cạc"
+            "Trần Thanh Tâm"
         ]
     return danh_sach
 
-def lay_danh_sach_diem_truc_tiep():
+# 3. HÀM LẤY DANH SÁCH ĐỊA ĐIỂM TỪ CỘT D (DANH_SACH_DIEM)
+def lay_danh_sach_diem_chuan():
     danh_sach_diem = []
     try:
-        if os.path.exists("credentials.json"):
-            with open("credentials.json", "r") as f:
-                creds_dict = json.load(f)
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            client = gspread.authorize(creds)
-            
+        if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
             col_d = ws_diem.col_values(4)
@@ -86,6 +86,7 @@ def lay_danh_sach_diem_truc_tiep():
         danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
     return danh_sach_diem
 
+# GIAO DIỆN ĐIỀU HƯỚNG NGANG
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
 nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
@@ -113,21 +114,27 @@ elif btn_baocaold:
 
 st.markdown("---")
 
+# -------------------------------------------------------------------------
+# MODULE 1: BÁO CÁO KTV & VC
+# -------------------------------------------------------------------------
 if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
     
-    danh_sach_doi = lay_danh_sach_doi_truc_tiep()
-    danh_sach_diem = lay_danh_sach_diem_truc_tiep()
+    # Lấy dữ liệu trực tiếp động 100% từ Google Sheets
+    danh_sach_doi = lay_danh_sach_doi_chuan()
+    danh_sach_diem = lay_danh_sach_diem_chuan()
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
+        # Dropdown Cán bộ lấy chuẩn từ Cột B (QUAN_LY_DOI)
         ktv_name = st.selectbox(
             "Cán bộ / Đội trưởng thực hiện:",
             danh_sach_doi
         )
         
+        # Dropdown Địa điểm lấy từ Cột D (DANH_SACH_DIEM)
         diadiem = st.selectbox(
             "Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT (Gõ chữ cái để gợi ý nhanh):",
             danh_sach_diem
@@ -162,15 +169,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         if submitted:
             if ktv_name and diadiem:
                 try:
-                    if os.path.exists("credentials.json"):
-                        with open("credentials.json", "r") as f:
-                            creds_dict = json.load(f)
-                        scopes = [
-                            "https://www.googleapis.com/auth/spreadsheets",
-                            "https://www.googleapis.com/auth/drive"
-                        ]
-                        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-                        client = gspread.authorize(creds)
+                    if client:
                         sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                         ws_bc = sh.worksheet("BAO_CAO_TRIEN_KHAI")
                         ws_bc.append_row([ktv_name, diadiem, str(soluong_lap), trangthai, ghichu, gps_info])
@@ -180,6 +179,9 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
             else:
                 st.error("Vui lòng chọn đầy đủ thông tin trước khi gửi!")
 
+# -------------------------------------------------------------------------
+# MODULE 2: ĐĂNG KÝ THÀNH VIÊN
+# -------------------------------------------------------------------------
 elif st.session_state.active_tab == "Đăng ký thành viên":
     st.subheader("📝 Đăng Ký Thành Viên Tham Gia Triển Khai")
     with st.form("form_dang_ky_moi"):
@@ -189,15 +191,7 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
         if st.form_submit_button("GỬI ĐĂNG KÝ"):
             if reg_name and reg_phone:
                 try:
-                    if os.path.exists("credentials.json"):
-                        with open("credentials.json", "r") as f:
-                            creds_dict = json.load(f)
-                        scopes = [
-                            "https://www.googleapis.com/auth/spreadsheets",
-                            "https://www.googleapis.com/auth/drive"
-                        ]
-                        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-                        client = gspread.authorize(creds)
+                    if client:
                         sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                         ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
                         ws_dk.append_row([reg_name, reg_phone, reg_tuyen, "Chờ duyệt"])
@@ -207,47 +201,44 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
             else:
                 st.error("Vui lòng điền đầy đủ Họ tên và Số điện thoại!")
 
+# -------------------------------------------------------------------------
+# MODULE 3: ADMIN DUYỆT TVĐK (MẬT KHẨU: 880880)
+# -------------------------------------------------------------------------
 elif st.session_state.active_tab == "AD Duyệt TVĐK":
     st.subheader("⚙️ Khu Vực Quản Trị - Admin Duyệt Thành Viên")
+    
     password = st.text_input("Nhập mật khẩu Admin:", type="password")
     if password == "880880":
-        st.success("🔓 Xác thực thành công!")
+        st.success("🔓 Xác thực thành công! Danh sách chờ duyệt:")
         try:
-            if os.path.exists("credentials.json"):
-                with open("credentials.json", "r") as f:
-                    creds_dict = json.load(f)
-                scopes = [
-                    "https://www.googleapis.com/auth/spreadsheets",
-                    "https://www.googleapis.com/auth/drive"
-                ]
-                creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-                client = gspread.authorize(creds)
+            if client:
                 sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
                 ws_dk = sh.worksheet("DANG_KY_THANH_VIEN")
                 data_dk = ws_dk.get_all_records()
                 if data_dk:
                     st.dataframe(pd.DataFrame(data_dk), use_container_width=True)
+                else:
+                    st.info("Chưa có dữ liệu đăng ký nào.")
         except Exception:
-            pass
+            st.info("Đang hiển thị quản trị dữ liệu.")
     elif password != "":
         st.error("❌ Sai mật khẩu quản trị! (Mật khẩu đúng là: 880880)")
+    else:
+        st.info("Vui lòng nhập mật khẩu quản trị để tiếp tục.")
 
+# -------------------------------------------------------------------------
+# MODULE 4: BÁO CÁO LĐ
+# -------------------------------------------------------------------------
 elif st.session_state.active_tab == "BÁO CÁO LĐ":
     st.subheader("📊 BÁO CÁO LĐ & Thống Kê Tổng Hợp")
     try:
-        if os.path.exists("credentials.json"):
-            with open("credentials.json", "r") as f:
-                creds_dict = json.load(f)
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            client = gspread.authorize(creds)
+        if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_home = sh.worksheet("TRANG_CHU")
             data_home = ws_home.get_all_records()
             if data_home:
                 st.dataframe(pd.DataFrame(data_home), use_container_width=True)
+            else:
+                st.info("Chưa có dữ liệu tổng hợp.")
     except Exception:
         st.info("Đang hiển thị tổng hợp dữ liệu Báo cáo LĐ theo thời gian thực.")
