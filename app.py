@@ -6,23 +6,23 @@ st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide",
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
 @st.cache_data(ttl=1)
-def load_da880_mapping_data():
-    danh_sach_du_an = {} # {Mã dự án: Tên dự án}
+def load_da880_system_data():
+    mapping_du_an = {} # {Mã dự án: Tên dự án lấy từ Cột B của sheet DANH_SACH_DU_AN}
     danh_sach_doi = []
     danh_sach_diem = []
     danh_sach_thiet_bi = []
     
-    # 1. Đọc DANH_SACH_DU_AN (Lấy Mã dự án cột A và Tên dự án cột B)
+    # 1. Tự động quy chiếu Mã dự án (Cột A) và Tên dự án (Cột B) từ sheet DANH_SACH_DU_AN
     try:
         url_da = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=DANH_SACH_DU_AN"
         df_da = pd.read_csv(url_da, header=None)
         if df_da.shape[1] >= 2:
             for idx, row in df_da.iterrows():
-                if idx >= 2:
+                if idx >= 2: # Bỏ dòng tiêu đề
                     ma_da = str(row[0]).strip() if pd.notna(row[0]) else ""
                     ten_da = str(row[1]).strip() if pd.notna(row[1]) else ""
                     if ma_da and ma_da != "nan":
-                        danh_sach_du_an[ma_da] = ten_da
+                        mapping_du_an[ma_da] = ten_da
     except Exception:
         pass
 
@@ -72,9 +72,9 @@ def load_da880_mapping_data():
     except Exception:
         pass
 
-    # Dữ liệu dự phòng an toàn
-    if not danh_sach_du_an:
-        danh_sach_du_an = {"DA880": "Hệ thống điều hành triển khai tự động"}
+    # Mảng dự phòng an toàn
+    if not mapping_du_an:
+        mapping_du_an = {"DA880": "Hệ thống điều hành triển khai tự động"}
     if not danh_sach_doi:
         danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải"]
     if not danh_sach_diem:
@@ -82,31 +82,36 @@ def load_da880_mapping_data():
     if not danh_sach_thiet_bi:
         danh_sach_thiet_bi = ["TB-01 - Máy tính để bàn TQT TPY01 535215"]
 
-    return danh_sach_du_an, danh_sach_doi, danh_sach_diem, danh_sach_thiet_bi
+    return mapping_du_an, danh_sach_doi, danh_sach_diem, danh_sach_thiet_bi
 
-danh_sach_du_an, danh_sach_doi, danh_sach_diem, danh_sach_thiet_bi = load_da880_mapping_data()
+mapping_du_an, danh_sach_doi, danh_sach_diem, danh_sach_thiet_bi = load_da880_system_data()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN DA880")
 
-with st.form("form_mapping_chuan"):
-    st.markdown("### 1. Ánh Xạ Thông Tin Dự Án & Thiết Bị Tự Động")
+with st.form("form_quy_chieu_du_an"):
+    st.markdown("### 📋 QUY CHIẾU THÔNG TIN DỰ ÁN TỰ ĐỘNG")
     
-    # Chọn Mã dự án (Cột A)
+    # Chọn Mã dự án
     ma_da_chon = st.selectbox(
-        "Mã dự án (Cột A - Lấy từ sheet Danh sách dự án):",
-        options=list(danh_sach_du_an.keys())
+        "Chọn Mã dự án (Quy chiếu từ sheet DANH_SACH_DU_AN):",
+        options=list(mapping_du_an.keys())
     )
     
-    # Tự động hiện Tên dự án (Cột C) tương ứng với Mã dự án được chọn ở Cột B sheet danh sách dự án
-    ten_da_hien_thi = danh_sach_du_an.get(ma_da_chon, "")
-    st.text_input("Tên dự án tương ứng (Cột C - Tự động quy chiếu từ Cột B sheet Danh sách dự án):", value=ten_da_hien_thi, disabled=True)
+    # Tự động hiện Tên dự án tương ứng từ Cột B của sheet DANH_SACH_DU_AN
+    ten_da_tu_dong = mapping_du_an.get(ma_da_chon, "")
+    
+    st.text_input(
+        "Tên dự án tương ứng (Tự động hiển thị từ Cột B):",
+        value=ten_da_tu_dong,
+        disabled=True
+    )
 
-    ktv_name = st.selectbox("Cán bộ / Đội trưởng thực hiện (Cột B QUAN_LY_DOI):", options=danh_sach_doi)
-    diadiem = st.selectbox("Địa điểm vận chuyển / lắp đặt (Cột D DANH_SACH_DIEM):", options=danh_sach_diem)
-    thietbi_chon = st.selectbox("Thiết bị / Hàng hóa (Quy chiếu từ NHAP_KHO):", options=danh_sach_thiet_bi)
+    ktv_name = st.selectbox("Cán bộ / Đội trưởng thực hiện:", options=danh_sach_doi)
+    diadiem = st.selectbox("Địa điểm vận chuyển / lắp đặt:", options=danh_sach_diem)
+    thietbi_chon = st.selectbox("Thiết bị / Hàng hóa:", options=danh_sach_thiet_bi)
     
     soluong_lap = st.number_input("Số lượng thực hiện phân bổ:", min_value=1, value=1, step=1)
     
-    submitted = st.form_submit_button("📍 XÁC NHẬN VÀ ĐỒNG BỘ DỮ LIỆU")
+    submitted = st.form_submit_button("📍 XÁC NHẬN VÀ LƯU THÔNG TIN")
     if submitted:
-        st.success(f"✅ Đã ánh xạ thành công Dự án [{ma_da_chon} - {ten_da_hien_thi}] cho thiết bị [{thietbi_chon}]!")
+        st.success(f"✅ Đã ghi nhận Dự án [{ma_da_chon} - {ten_da_tu_dong}] thành công!")
