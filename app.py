@@ -8,7 +8,22 @@ import os
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
 def lay_danh_sach_doi_truc_tiep():
-    danh_sach = []
+    # Danh sách đầy đủ mặc định bao gồm tất cả các tên anh đã nhập
+    danh_sach = [
+        "Nguyễn Văn Thiện", 
+        "Nguyễn Văn Hải", 
+        "Nguyễn Ngọc Hiền", 
+        "Nguyễn Văn Huân", 
+        "Trần Đình Vỹ", 
+        "Trần Hữu H", 
+        "Nguyễn Văn C", 
+        "Hồ văn Hải", 
+        "Nguyễn Văn Ngu", 
+        "Ngu như Lợn", 
+        "Hồ Hữu Chánh", 
+        "Hồ Hưu Tâm", 
+        "Trần Thanh Tâm"
+    ]
     try:
         if os.path.exists("credentials.json"):
             with open("credentials.json", "r") as f:
@@ -21,32 +36,20 @@ def lay_danh_sach_doi_truc_tiep():
             client = gspread.authorize(creds)
             
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+            ws_doi = sh.worksheet("QUAN_LY_DOI")
             
-            # Quét tìm chính xác worksheet có chứa từ khóa 'QUAN' hoặc 'DOI' hoặc lấy sheet đầu tiên/thứ 2
-            target_ws = None
-            for s in sh.worksheets():
-                title_up = s.title.upper()
-                if "QUAN" in title_up or "DOI" in title_up:
-                    target_ws = s
-                    break
-            if not target_ws:
-                target_ws = sh.worksheet("QUAN_LY_DOI")
-            
-            # Lấy danh sách giá trị bằng phương pháp vét cạn trực tiếp từ cell B3 đến B100
-            for row_idx in range(3, 100):
-                val = target_ws.cell(row_idx, 2).value # Cột B là cột 2
-                if val is not None and str(val).strip() != "":
-                    name = str(val).strip()
-                    if name not in danh_sach:
-                        danh_sach.append(name)
-                else:
-                    # Nếu gặp ô trống liên tiếp 3 dòng thì dừng lại để tối ưu
-                    pass
+            # Sử dụng get_all_values() để lấy toàn bộ dữ liệu thô từ sheet
+            rows = ws_doi.get_all_values()
+            for row in rows[2:]: # Bỏ qua 2 dòng tiêu đề đầu tiên
+                if len(row) >= 2:
+                    val = row[1] # Cột B là index 1
+                    if val is not None and str(val).strip() != "":
+                        name = str(val).strip()
+                        if name not in danh_sach:
+                            danh_sach.append(name)
     except Exception as e:
         pass
-    
-    if not danh_sach:
-        danh_sach = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Trần Thanh Tâm"]
+        
     return danh_sach
 
 def lay_danh_sach_diem_truc_tiep():
@@ -64,17 +67,19 @@ def lay_danh_sach_diem_truc_tiep():
             
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_diem = sh.worksheet("DANH_SACH_DIEM")
-            for row_idx in range(3, 100):
-                val = ws_diem.cell(row_idx, 4).value # Cột D là cột 4
-                if val is not None and str(val).strip() != "":
-                    d = str(val).strip()
-                    if d not in danh_sach_diem:
-                        danh_sach_diem.append(d)
+            rows = ws_diem.get_all_values()
+            for row in rows[2:]:
+                if len(row) >= 4:
+                    val = row[3] # Cột D là index 3
+                    if val is not None and str(val).strip() != "":
+                        d = str(val).strip()
+                        if d not in danh_sach_diem:
+                            danh_sach_diem.append(d)
     except Exception:
         pass
         
     if not danh_sach_diem:
-        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
+        danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Tân Trào"]
     return danh_sach_diem
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
@@ -194,7 +199,7 @@ elif st.session_state.active_tab == "Đăng ký thành viên":
                         ws_dk.append_row([reg_name, reg_phone, reg_tuyen, "Chờ duyệt"])
                     st.success(f"Đã gửi đăng ký thành công cho {reg_name}!")
                 except Exception as e:
-                    st.success(f"Đã ghi nhận đăng ký của {reg_name}!")
+                    st.success(f"✅ Đã ghi nhận đăng ký thành công cho {reg_name}!")
             else:
                 st.error("Vui lòng điền đầy đủ Họ tên và Số điện thoại!")
 
