@@ -38,10 +38,10 @@ function phanBoDmChuan() {
   var items = [];
   var unitsSet = {};
   
-  // 1. Quét và thu thập toàn bộ danh mục thiết bị (TB-01 đến TB-05) và các đơn vị nhận ở cột F
+  // 1. Thu thập toàn bộ các dòng hàng hóa hợp lệ (TB-01 đến TB-05) và danh sách các đơn vị ở cột F
   for (var i = 0; i < values.length; i++) {
     var maDuAn    = values[i][0]; // Cột A: Mã dự án
-    var maTB      = values[i][1]; // Cột B: Mã SKU
+    var maTB      = values[i][1]; // Cột B: SKU
     var tenTB     = values[i][2]; // Cột C: Tên thiết bị
     var donVi     = values[i][3]; // Cột D: Đơn vị tính
     var soLuong   = values[i][4]; // Cột E: Số lượng
@@ -58,7 +58,7 @@ function phanBoDmChuan() {
       });
     }
     
-    // Thu thập các đơn vị/xã xuất hiện ở cột F (hỗ trợ cả trường hợp nhập nhiều đơn vị cách nhau bằng dấu phẩy)
+    // Thu thập các đơn vị/xã xuất hiện ở cột F (mỗi dòng cột F có thể là một xã hoặc cách nhau bằng dấu phẩy)
     if (doiNhan) {
       var splitUnits = String(doiNhan).split(",");
       for (var u = 0; u < splitUnits.length; u++) {
@@ -73,13 +73,13 @@ function phanBoDmChuan() {
   var units = Object.keys(unitsSet);
   
   if (items.length === 0 || units.length === 0) {
-    SpreadsheetApp.getUi().alert("❌ Chưa đủ dữ liệu thiết bị (TB-01 -> TB-05) hoặc chưa chọn đơn vị nhận ở cột F!");
+    SpreadsheetApp.getUi().alert("❌ Chưa có đủ danh mục thiết bị hoặc chưa điền đơn vị nhận ở cột F!");
     return;
   }
   
   var count = 0;
   
-  // 2. Phân bổ: Mỗi xã/đơn vị nhận được đầy đủ trọn bộ toàn bộ các mặt hàng
+  // 2. PHÂN BỔ CHUẨN XÁC: MỖI XÃ / ĐƠN VỊ ĐỀU NHẬN ĐƯỢC ĐẦY ĐỦ TRỌN BỘ CÁC MẶT HÀNG TỪ ITEMS
   for (var u = 0; u < units.length; u++) {
     var currentUnit = units[u];
     
@@ -90,9 +90,9 @@ function phanBoDmChuan() {
       sheetKho.appendRow([
         item.maDuAn,    // Cột A: Mã dự án
         item.maTB,      // Cột B: Mã SKU
-        tenDuAn,        // Cột C: Tên dự án (quy chiếu)
+        tenDuAn,        // Cột C: Tên dự án (quy chiếu tự động từ DANH_SACH_DU_AN)
         item.tenTB,     // Cột D: Tên thiết bị / Hàng hóa
-        item.soLuong,   // Cột E: Số lượng
+        item.soLuong,   // Cột E: Số lượng (y hệt nhau cho mỗi xã)
         item.donVi,     // Cột F: Đơn vị tính
         currentUnit,    // Cột G: Đội nhận thiết bị / xã
         "",             // Cột H: Địa điểm (để trống)
@@ -102,5 +102,5 @@ function phanBoDmChuan() {
     }
   }
   
-  SpreadsheetApp.getUi().alert("✅ Đã phân bổ thành công " + count + " dòng! Mỗi xã/đơn vị nhận đủ trọn bộ các mặt hàng từ TB-01 đến TB-05 đúng yêu cầu.");
+  SpreadsheetApp.getUi().alert("✅ Đã phân bổ thành công " + count + " dòng! Mỗi xã/đơn vị đã nhận đầy đủ trọn bộ các mặt hàng với số lượng chuẩn xác.");
 }
