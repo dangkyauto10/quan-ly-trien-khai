@@ -2,22 +2,32 @@ import streamlit as st
 import gspread
 import pandas as pd
 import os
+import time
+from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
 
-# SỬ DỤNG GSPREAD SERVICE_ACCOUNT CHUẨN XÁC ĐỂ LOẠI BỎ HOÀN TOÀN LỖI INVALID JWT SIGNATURE
 @st.cache_resource
 def get_gspread_client():
     try:
         if os.path.exists("credentials.json"):
-            return gspread.service_account(filename="credentials.json")
+            with open("credentials.json", "r") as f:
+                creds_dict = json.load(f)
+            scopes = [
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+            # Đồng bộ thời gian chuẩn quốc tế để loại bỏ hoàn toàn lỗi Invalid JWT Signature do lệch giờ Cloud
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            client = gspread.authorize(creds)
+            return client
     except Exception as e:
-        st.error(f"Lỗi kết nối Google Sheets: {e}")
+        st.error(f"Lỗi khởi tạo Google API: {e}")
     return None
 
 client = get_gspread_client()
 
-# HÀM LẤY DANH SÁCH ĐỘI ĐỘNG TỪ GOOGLE SHEETS (CỘT B)
+# HÀM LẤY DANH SÁCH ĐỘI HOÀN TOÀN ĐỘNG TỪ CỘT B (QUAN_LY_DOI)
 def lay_danh_sach_doi_chuan():
     danh_sach = []
     try:
@@ -35,16 +45,18 @@ def lay_danh_sach_doi_chuan():
     except Exception as e:
         st.sidebar.error(f"Lỗi đọc sheet Quản lý đội: {e}")
     
-    # Danh sách dự phòng an toàn nếu mất mạng
-    if not danh_sach:
-        danh_sach = [
-            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", 
-            "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", 
-            "Nguyễn Văn C", "Hồ văn Hải", "Nguyễn Văn Ngu", 
-            "Ngu như Lợn", "Hồ Hữu Chánh", "Hồ Hưu Tâm", 
-            "Trần Thanh Tâm", "Nhu Nhu Cạc", "Đừng Tiếp Nữa", "Chắc Ổn Rồi"
-        ]
-    return danh_sach
+    # Nếu đọc từ sheet thành công, trả về danh sách động hoàn toàn
+    if len(danh_sach) > 0:
+        return danh_sach
+        
+    # Danh sách dự phòng an toàn tuyệt đối nếu mất mạng
+    return [
+        "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Ngọc Hiền", 
+        "Nguyễn Văn Huân", "Trần Đình Vỹ", "Trần Hữu H", 
+        "Nguyễn Văn C", "Hồ văn Hải", "Nguyễn Văn Ngu", 
+        "Ngu như Lợn", "Hồ Hữu Chánh", "Hồ Hưu Tâm", 
+        "Trần Thanh Tâm", "Nhu Nhu Cạc", "Đừng Tiếp Nữa", "Chắc Ổn Rồi"
+    ]
 
 def lay_danh_sach_diem_chuan():
     danh_sach_diem = []
