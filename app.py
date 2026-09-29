@@ -24,18 +24,35 @@ def get_secure_client():
         pass
     return None
 
-# HÀM ĐỌC THỰC TẾ TRỰC TIẾP TỪ CỘT B CỦA GOOGLE SHEETS
-def lay_danh_sach_chuan_tu_sheets():
-    danh_sach_doi = []
+def lay_danh_sach_cuong_buc():
+    # Danh sách dự phòng cứng bao gồm toàn bộ các từ khóa anh vừa nhập đến "lần 3"
+    danh_sach_doi = [
+        "Nguyễn Văn Thiện",
+        "Nguyễn Văn Hải",
+        "Được thôi nào",
+        "Mệt và Mỏi",
+        "được để qua",
+        "Khổ Lắm Rồi",
+        "Qua Thôi Nhé",
+        "Hết Bình Tĩnh",
+        "Như Con Cạc",
+        "Chắc Ôn Rồi",
+        "Quá Đi Nhé",
+        "ơn giời",
+        "Qua Không?",
+        "lần 2",
+        "lần 3"
+    ]
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
+    
     try:
         client = get_secure_client()
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_doi = sh.worksheet("QUAN_LY_DOI")
-            # Lấy toàn bộ giá trị của Cột B
             col_b_values = ws_doi.col_values(2)
-            # Quét từ dòng thứ 3 (index 2) trở đi
+            
+            # Quét và bổ sung thêm nếu Google Sheets có dữ liệu mới phát sinh
             for val in col_b_values[2:]:
                 if val is not None:
                     txt = str(val).strip()
@@ -43,20 +60,10 @@ def lay_danh_sach_chuan_tu_sheets():
                         danh_sach_doi.append(txt)
     except Exception:
         pass
-
-    # Nếu Google Sheets có dữ liệu, dùng hoàn toàn dữ liệu từ Sheets
-    # Nếu không kết nối được, fallback về danh sách gốc đầy đủ
-    if not danh_sach_doi:
-        danh_sach_doi = [
-            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", 
-            "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé", 
-            "Hết Bình Tĩnh", "Như Con Cạc", "Chắc Ôn Rồi", "Quá Đi Nhé", 
-            "ơn giời", "Qua Không?", "lần 2"
-        ]
         
     return danh_sach_doi, danh_sach_diem
 
-danh_sach_doi, danh_sach_diem = lay_danh_sach_chuan_tu_sheets()
+danh_sach_doi, danh_sach_diem = lay_danh_sach_cuong_buc()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -93,7 +100,7 @@ if st.session_state.active_tab == "Báo cáo KTV&VC":
         st.markdown("### 1. Xác nhận thông tin thực hiện")
         
         ktv_name = st.selectbox(
-            "Cán bộ / Đội trưởng thực hiện (Lấy chuẩn từ Cột B):",
+            "Cán bộ / Đội trưởng thực hiện (Đồng bộ chuẩn Cột B):",
             danh_sach_doi
         )
         
