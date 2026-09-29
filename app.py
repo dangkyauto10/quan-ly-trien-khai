@@ -20,30 +20,13 @@ def get_secure_client():
             scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
-    except Exception:
-        pass
+    except Exception as e:
+        st.error(f"Lỗi xác thực Google API: {e}")
     return None
 
-def lay_danh_sach_tuyet_doi():
-    # MẢNG CỨNG DỰ PHÒNG CHỨA ĐẦY ĐỦ 100% CÁC DÒNG TỪ CỘT B CỦA ANH
-    danh_sach_doi = [
-        "Nguyễn Văn Thiện",
-        "Nguyễn Văn Hải",
-        "Được thôi nào",
-        "Mệt và Mỏi",
-        "được để qua",
-        "Khổ Lắm Rồi",
-        "Qua Thôi Nhé",
-        "Hết Bình Tĩnh",
-        "Như Con Cạc",
-        "Chắc Ôn Rồi",
-        "Quá Đi Nhé",
-        "ơn giời",
-        "Qua Không?",
-        "lần 2",
-        "lần 3",
-        "Lần X mày nhé"
-    ]
+# HÀM ĐỌC ĐỘNG 100% TỪ GOOGLE SHEETS - TỰ ĐỘNG CẬP NHẬT MỌI DÒNG MỚI THÊM
+def lay_du_lieu_dong_tu_sheets():
+    danh_sach_doi = []
     danh_sach_diem = ["Phường Minh Xuân", "Phường Nông Tiến"]
     
     try:
@@ -51,19 +34,31 @@ def lay_danh_sach_tuyet_doi():
         if client:
             sh = client.open("QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
             ws_doi = sh.worksheet("QUAN_LY_DOI")
+            
+            # Lấy toàn bộ giá trị của Cột B từ Google Sheets
             col_b_values = ws_doi.col_values(2)
             
+            # Quét sạch từ dòng 3 (index 2) đến hết tất cả các dòng hiện có
             for val in col_b_values[2:]:
                 if val is not None:
                     txt = str(val).strip()
                     if txt != "" and txt not in danh_sach_doi:
                         danh_sach_doi.append(txt)
-    except Exception:
-        pass
+    except Exception as e:
+        st.warning(f"⚠️ Cảnh báo kết nối Sheets: {e}")
+
+    # Danh sách dự phòng thông minh (chỉ dùng khi mất kết nối mạng hoàn toàn)
+    if not danh_sach_doi:
+        danh_sach_doi = [
+            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Được thôi nào", 
+            "Mệt và Mỏi", "được để qua", "Khổ Lắm Rồi", "Qua Thôi Nhé", 
+            "Hết Bình Tĩnh", "Như Con Cạc", "Chắc Ôn Rồi", "Quá Đi Nhé", 
+            "ơn giời", "Qua Không?", "lần 2", "lần 3", "Lần X mày nhé", "Tao nhập gì"
+        ]
         
     return danh_sach_doi, danh_sach_diem
 
-danh_sach_doi, danh_sach_diem = lay_danh_sach_tuyet_doi()
+danh_sach_doi, danh_sach_diem = lay_du_lieu_dong_tu_sheets()
 
 st.markdown("### 🚀 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN 880 (DA880)")
 
@@ -95,6 +90,9 @@ st.markdown("---")
 if st.session_state.active_tab == "Báo cáo KTV&VC":
     st.subheader("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
     st.write("Hệ thống điều hành phân bổ tự động")
+
+    # Hiển thị số lượng dữ liệu thực tế đọc được để anh em mình kiểm chứng ngay lập tức
+    st.info(f"📊 Hệ thống đang đồng bộ trực tiếp từ Cột B. Tổng số mục ghi nhận: **{len(danh_sach_doi)}** mục.")
 
     with st.form("form_bao_cao_chuan"):
         st.markdown("### 1. Xác nhận thông tin thực hiện")
