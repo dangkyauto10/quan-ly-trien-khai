@@ -33,8 +33,8 @@ function phanBoDmChuan() {
     var maDuAn  = String(values[i][0]).trim(); // Col A: Mã dự án
     var maTB    = String(values[i][1]).trim(); // Col B: Mã SKU
     var tenTB   = String(values[i][2]).trim(); // Col C: Tên thiết bị
-    var donVi   = String(values[i][3]).trim(); // Col D: Đơn vị tính (Bàn, Bộ, Chiếc...)
-    var soLuong = values[i][4];                // Col E: Số lượng (Con số: 2, 3, 13...)
+    var donVi   = String(values[i][3]).trim(); // Col D: Đơn vị tính
+    var soLuong = values[i][4];                // Col E: Số lượng
     var doiNhan = String(values[i][5]).trim(); // Col F: Đội nhận / Xã
     
     if (maTB && soLuong !== "") {
@@ -42,8 +42,8 @@ function phanBoDmChuan() {
         maDuAn: maDuAn,
         maTB: maTB,
         tenTB: tenTB,
-        donVi: donVi,       // Lưu đúng đơn vị tính
-        soLuong: soLuong    // Lưu đúng số lượng
+        donVi: donVi,
+        soLuong: soLuong
       });
     }
     
@@ -64,7 +64,7 @@ function phanBoDmChuan() {
     return;
   }
   
-  // Hàm tra cứu tên dự án an toàn từ DANH_SACH_DU_AN
+  // Hàm tra cứu tên dự án an toàn từ DANH_SACH_DU_AN (Cột A lấy Cột B)
   function getProjectName(mDa) {
     if (!sheetDA) return mDa;
     var daData = sheetDA.getDataRange().getValues();
@@ -80,7 +80,7 @@ function phanBoDmChuan() {
   
   var count = 0;
   
-  // 2. Ghi dữ liệu sang KHO_PHAN_BO với thứ tự cột được gán tuyệt đối chính xác:
+  // 2. Ghi dữ liệu sang KHO_PHAN_BO đúng từng vị trí cột:
   for (var u = 0; u < units.length; u++) {
     var currentUnit = units[u];
     
@@ -93,15 +93,15 @@ function phanBoDmChuan() {
         item.maTB,      // Col B: Mã thiết bị / SKU
         tenDuAn,        // Col C: Tên dự án (quy chiếu từ DANH_SACH_DU_AN)
         item.tenTB,     // Col D: Tên thiết bị / Hàng hóa
-        item.soLuong,   // Col E: SỐ LƯỢNG (Bắt buộc là số)
-        item.donVi,     // Col F: ĐƠN VỊ TÍNH (Bắt buộc là chữ: Bộ, Bàn...)
+        item.soLuong,   // Col E: Số lượng
+        item.donVi,     // Col F: Đơn vị tính
         currentUnit,    // Col G: Đội nhận thiết bị / xã
-        "",             // Col H: Địa điểm (để trống)
+        "",             // Col H: Địa điểm vận chuyển lắp đặt (để trống)
         ""              // Col I: Trạng thái Giao Nhận (để trống cho Admin xác nhận)
       ]);
       count++;
     }
   }
   
-  SpreadsheetApp.getUi().alert("✅ Phân bổ thành công " + count + " dòng! Cột Số lượng và Đơn vị tính đã khớp hoàn toàn.");
+  SpreadsheetApp.getUi().alert("✅ Phân bổ thành công " + count + " dòng! Tất cả các cột đã về đúng vị trí 100%.");
 }
