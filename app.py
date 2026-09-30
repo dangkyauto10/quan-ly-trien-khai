@@ -11,7 +11,7 @@ function phanBoDmChuan() {
     return;
   }
   
-  // Đọc từ cột A đến cột F (6 cột) từ dòng 3
+  // Đọc 6 cột đầu tiên từ dòng 3 của sheet DM_CHUAN
   var range = sheetDM.getRange(3, 1, lastRow - 2, 6);
   var values = range.getValues();
   
@@ -20,7 +20,7 @@ function phanBoDmChuan() {
     sheetKho = ss.insertSheet("KHO_PHAN_BO");
   }
   
-  // Xóa và thiết lập tiêu đề chuẩn xác cho KHO_PHAN_BO
+  // Thiết lập tiêu đề chuẩn tuyệt đối cho KHO_PHAN_BO
   sheetKho.clear();
   sheetKho.appendRow(["VỀ TRANG CHỦ", "TÌM KIẾM -->", "", "", "", "", "", "", ""]);
   sheetKho.appendRow([
@@ -29,7 +29,7 @@ function phanBoDmChuan() {
     "Đội nhận thiết bị", "Địa điểm vận chuyển lắp đặt", "Trạng thái Giao Nhận"
   ]);
   
-  // Đọc sheet DANH_SACH_DU_AN để lấy Tên dự án từ Mã dự án
+  // Đọc sheet DANH_SACH_DU_AN để tra cứu Tên dự án từ Mã dự án
   var sheetDA = ss.getSheetByName("DANH_SACH_DU_AN");
   var mapDA = {};
   if (sheetDA) {
@@ -46,28 +46,22 @@ function phanBoDmChuan() {
   var items = [];
   var unitsSet = {};
   
-  // Ánh xạ tường minh từng cột từ DM_CHUAN:
-  // values[i][0] -> Cột A: Mã dự án
-  // values[i][1] -> Cột B: Mã SKU
-  // values[i][2] -> Cột C: Tên thiết bị / Hàng hóa
-  // values[i][3] -> Cột D: Đơn vị tính
-  // values[i][4] -> Cột E: Số lượng
-  // values[i][5] -> Cột F: Đội nhận / Xã
+  // Ép chuẩn chỉ số mảng ứng với từng cột của DM_CHUAN:
   for (var i = 0; i < values.length; i++) {
-    var maDuAn  = String(values[i][0]).trim();
-    var maTB    = String(values[i][1]).trim();
-    var tenTB   = String(values[i][2]).trim();
-    var donVi   = String(values[i][3]).trim();
-    var soLuong = values[i][4];
-    var doiNhan = String(values[i][5]).trim();
+    var maDuAn  = String(values[i][0]).trim(); // Cột A
+    var maTB    = String(values[i][1]).trim(); // Cột B
+    var tenTB   = String(values[i][2]).trim(); // Cột C: Tên thiết bị / Hàng hóa
+    var donVi   = String(values[i][3]).trim(); // Cột D: Đơn vị tính
+    var soLuong = values[i][4];                // Cột E: Số lượng
+    var doiNhan = String(values[i][5]).trim(); // Cột F: Đội nhận / Xã
     
     if (maTB && soLuong !== "") {
       items.push({
         maDuAn: maDuAn,
         maTB: maTB,
-        tenTB: tenTB,     // Lưu chính xác Tên thiết bị
-        donVi: donVi,     // Lưu chính xác Đơn vị tính
-        soLuong: soLuong  // Lưu chính xác Số lượng
+        tenTB: tenTB,     // Lưu chuẩn Tên thiết bị
+        donVi: donVi,     // Lưu chuẩn Đơn vị tính
+        soLuong: soLuong  // Lưu chuẩn Số lượng
       });
     }
     
@@ -90,7 +84,7 @@ function phanBoDmChuan() {
   
   var count = 0;
   
-  // Đẩy sang KHO_PHAN_BO với thứ tự cột được gán cứng, không bao giờ lệch:
+  // Đẩy dữ liệu sang KHO_PHAN_BO đúng từng vị trí cột đã chốt:
   for (var u = 0; u < units.length; u++) {
     var currentUnit = units[u];
     
@@ -101,17 +95,17 @@ function phanBoDmChuan() {
       sheetKho.appendRow([
         item.maDuAn,    // Cột A: Mã dự án
         item.maTB,      // Cột B: Mã thiết bị / SKU
-        tenDuAn,        // Cột C: Tên dự án
-        item.tenTB,     // Cột D: Tên thiết bị / Hàng hóa
-        item.soLuong,   // Cột E: Số lượng
-        item.donVi,     // Cột F: Đơn vị tính
-        currentUnit,    // Cột G: Đội nhận thiết bị / xã
-        "",             // Cột H: Địa điểm vận chuyển lắp đặt (để trống)
-        ""              // Cột I: Trạng thái Giao Nhận (để trống)
+        tenDuAn,        // Cột C: Tên dự án (quy chiếu từ DANH_SACH_DU_AN)
+        item.tenTB,     // Cột D: Tên thiết bị / Hàng hóa (Lấy từ Cột C DM_CHUAN)
+        item.soLuong,   // Cột E: Số lượng (Lấy từ Cột E DM_CHUAN)
+        item.donVi,     // Cột F: Đơn vị tính (Lấy từ Cột D DM_CHUAN)
+        currentUnit,    // Cột G: Đội nhận thiết bị / xã (Lấy từ Cột F DM_CHUAN)
+        "",             // Cột H: Địa điểm (để trống)
+        ""              // Cột I: Trạng thái Giao Nhận (để trống cho Admin xác nhận)
       ]);
       count++;
     }
   }
   
-  SpreadsheetApp.getUi().alert("✅ Phân bổ thành công " + count + " dòng! Đã khóa cứng chuẩn vị trí từng cột.");
+  SpreadsheetApp.getUi().alert("✅ Phân bổ thành công " + count + " dòng! Đã khớp chuẩn tuyệt đối các cột.");
 }
