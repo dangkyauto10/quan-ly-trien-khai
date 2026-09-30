@@ -11,17 +11,16 @@ function phanBoDmChuan() {
     return;
   }
   
-  // Đọc dữ liệu từ dòng 3 của DM_CHUAN (lấy 6 cột: A đến F)
+  // Đọc dữ liệu từ cột A đến cột F (6 cột đầu tiên) bắt đầu từ dòng 3
   var range = sheetDM.getRange(3, 1, lastRow - 2, 6);
   var values = range.getValues();
   
-  // Mở hoặc tạo sheet KHO_PHAN_BO
   var sheetKho = ss.getSheetByName("KHO_PHAN_BO");
   if (!sheetKho) {
     sheetKho = ss.insertSheet("KHO_PHAN_BO");
   }
   
-  // Xóa sạch dữ liệu cũ trong KHO_PHAN_BO (giữ lại dòng tiêu đề 1 và 2) và ghi lại tiêu đề chuẩn
+  // Thiết lập lại tiêu đề chuẩn cho KHO_PHAN_BO
   sheetKho.clear();
   sheetKho.appendRow(["VỀ TRANG CHỦ", "TÌM KIẾM -->", "", "", "", "", "", "", ""]);
   sheetKho.appendRow([
@@ -30,7 +29,7 @@ function phanBoDmChuan() {
     "Đội nhận thiết bị", "Địa điểm vận chuyển lắp đặt", "Trạng thái Giao Nhận"
   ]);
   
-  // Đọc sheet DANH_SACH_DU_AN để lập bảng tra cứu Mã dự án -> Tên dự án
+  // Đọc sheet DANH_SACH_DU_AN để tra cứu Tên dự án chuẩn từ Mã dự án
   var sheetDA = ss.getSheetByName("DANH_SACH_DU_AN");
   var mapDA = {};
   if (sheetDA) {
@@ -47,14 +46,20 @@ function phanBoDmChuan() {
   var items = [];
   var unitsSet = {};
   
-  // Thu thập dữ liệu từ DM_CHUAN
+  // Duyệt qua từng dòng của DM_CHUAN với chỉ số mảng chính xác:
+  // Index 0 = Cột A (Mã dự án)
+  // Index 1 = Cột B (Mã SKU)
+  // Index 2 = Cột C (Tên thiết bị / Hàng hóa)
+  // Index 3 = Cột D (Đơn vị tính)
+  // Index 4 = Cột E (Số lượng)
+  // Index 5 = Cột F (Đội nhận / Xã)
   for (var i = 0; i < values.length; i++) {
-    var maDuAn  = String(values[i][0]).trim(); // Col A: Mã dự án
-    var maTB    = String(values[i][1]).trim(); // Col B: Mã SKU
-    var tenTB   = String(values[i][2]).trim(); // Col C: Tên thiết bị / Hàng hóa
-    var donVi   = String(values[i][3]).trim(); // Col D: Đơn vị tính
-    var soLuong = values[i][4];                // Col E: Số lượng
-    var doiNhan = String(values[i][5]).trim(); // Col F: Đội nhận / Xã
+    var maDuAn  = String(values[i][0]).trim();
+    var maTB    = String(values[i][1]).trim();
+    var tenTB   = String(values[i][2]).trim();
+    var donVi   = String(values[i][3]).trim();
+    var soLuong = values[i][4];
+    var doiNhan = String(values[i][5]).trim();
     
     if (maTB && soLuong !== "") {
       items.push({
@@ -85,28 +90,28 @@ function phanBoDmChuan() {
   
   var count = 0;
   
-  // Ghi dữ liệu sang KHO_PHAN_BO với ánh xạ cột chính xác tuyệt đối
+  // Ghi dữ liệu sang KHO_PHAN_BO với thứ tự cột chuẩn xác 100%:
   for (var u = 0; u < units.length; u++) {
     var currentUnit = units[u];
     
     for (var it = 0; it < items.length; it++) {
       var item = items[it];
-      var tenDuAn = mapDA[item.maDuAn] || item.maDuAn; // Lấy tên dự án từ danh sách, nếu không thấy lấy mã
+      var tenDuAn = mapDA[item.maDuAn] || item.maDuAn;
       
       sheetKho.appendRow([
         item.maDuAn,    // Cột A: Mã dự án
         item.maTB,      // Cột B: Mã thiết bị / SKU
-        tenDuAn,        // Cột C: Tên dự án (quy chiếu chuẩn)
-        item.tenTB,     // Cột D: Tên thiết bị / Hàng hóa
-        item.soLuong,   // Cột E: Số lượng
-        item.donVi,     // Cột F: Đơn vị tính
-        currentUnit,    // Cột G: Đội nhận thiết bị / xã
-        "",             // Cột H: Địa điểm vận chuyển lắp đặt (để trống)
+        tenDuAn,        // Cột C: Tên dự án (lấy từ DANH_SACH_DU_AN)
+        item.tenTB,     // Cột D: Tên thiết bị / Hàng hóa (chuẩn từ Cột C DM_CHUAN)
+        item.soLuong,   // Cột E: Số lượng (chuẩn từ Cột E DM_CHUAN)
+        item.donVi,     // Cột F: Đơn vị tính (chuẩn từ Cột D DM_CHUAN)
+        currentUnit,    // Cột G: Đội nhận thiết bị / xã (chuẩn từ Cột F DM_CHUAN)
+        "",             // Cột H: Địa điểm (để trống)
         ""              // Cột I: Trạng thái Giao Nhận (để trống cho Admin xác nhận)
       ]);
       count++;
     }
   }
   
-  SpreadsheetApp.getUi().alert("✅ Phân bổ thành công " + count + " dòng! Tất cả các cột đã chuẩn khớp 100%.");
+  SpreadsheetApp.getUi().alert("✅ Phân bổ thành công " + count + " dòng! Tất cả các cột đã về đúng vị trí tắp lự.");
 }
