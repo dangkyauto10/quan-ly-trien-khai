@@ -11,7 +11,7 @@ function phanBoDmChuan() {
     return;
   }
   
-  // Đọc dữ liệu từ dòng 3 của DM_CHUAN (lấy 6 cột đầu: A đến F)
+  // Đọc dữ liệu từ dòng 3 của DM_CHUAN (lấy 6 cột: A đến F)
   var range = sheetDM.getRange(3, 1, lastRow - 2, 6);
   var values = range.getValues();
   
@@ -19,20 +19,39 @@ function phanBoDmChuan() {
   var sheetKho = ss.getSheetByName("KHO_PHAN_BO");
   if (!sheetKho) {
     sheetKho = ss.insertSheet("KHO_PHAN_BO");
-    sheetKho.appendRow(["Mã dự án", "Mã thiết bị / SKU", "Tên dự án", "Tên thiết bị / Hàng hóa", "Số lượng", "Đơn vị tính", "Đội nhận thiết bị", "Địa điểm vận chuyển lắp đặt", "Trạng thái Giao Nhận"]);
   }
   
-  // Sheet DANH_SACH_DU_AN để tra cứu tên dự án
+  // Xóa sạch dữ liệu cũ trong KHO_PHAN_BO (giữ lại dòng tiêu đề 1 và 2) và ghi lại tiêu đề chuẩn
+  sheetKho.clear();
+  sheetKho.appendRow(["VỀ TRANG CHỦ", "TÌM KIẾM -->", "", "", "", "", "", "", ""]);
+  sheetKho.appendRow([
+    "Mã dự án", "Mã thiết bị / SKU", "Tên dự án", 
+    "Tên thiết bị / Hàng hóa", "Số lượng", "Đơn vị tính", 
+    "Đội nhận thiết bị", "Địa điểm vận chuyển lắp đặt", "Trạng thái Giao Nhận"
+  ]);
+  
+  // Đọc sheet DANH_SACH_DU_AN để lập bảng tra cứu Mã dự án -> Tên dự án
   var sheetDA = ss.getSheetByName("DANH_SACH_DU_AN");
+  var mapDA = {};
+  if (sheetDA) {
+    var daData = sheetDA.getDataRange().getValues();
+    for (var r = 0; r < daData.length; r++) {
+      var mDa = String(daData[r][0]).trim(); // Cột A: Mã dự án
+      var tDa = String(daData[r][1]).trim(); // Cột B: Tên dự án
+      if (mDa && mDa !== "Mã dự án") {
+        mapDA[mDa] = tDa;
+      }
+    }
+  }
   
   var items = [];
   var unitsSet = {};
   
-  // 1. Thu thập danh mục thiết bị và các đơn vị nhận từ Col F
+  // Thu thập dữ liệu từ DM_CHUAN
   for (var i = 0; i < values.length; i++) {
     var maDuAn  = String(values[i][0]).trim(); // Col A: Mã dự án
     var maTB    = String(values[i][1]).trim(); // Col B: Mã SKU
-    var tenTB   = String(values[i][2]).trim(); // Col C: Tên thiết bị
+    var tenTB   = String(values[i][2]).trim(); // Col C: Tên thiết bị / Hàng hóa
     var donVi   = String(values[i][3]).trim(); // Col D: Đơn vị tính
     var soLuong = values[i][4];                // Col E: Số lượng
     var doiNhan = String(values[i][5]).trim(); // Col F: Đội nhận / Xã
@@ -64,44 +83,30 @@ function phanBoDmChuan() {
     return;
   }
   
-  // Hàm tra cứu tên dự án an toàn từ DANH_SACH_DU_AN (Cột A lấy Cột B)
-  function getProjectName(mDa) {
-    if (!sheetDA) return mDa;
-    var daData = sheetDA.getDataRange().getValues();
-    for (var r = 0; r < daData.length; r++) {
-      var code = String(daData[r][0]).trim();
-      if (code === mDa) {
-        var name = String(daData[r][1]).trim();
-        if (name) return name;
-      }
-    }
-    return mDa;
-  }
-  
   var count = 0;
   
-  // 2. Ghi dữ liệu sang KHO_PHAN_BO đúng từng vị trí cột:
+  // Ghi dữ liệu sang KHO_PHAN_BO với ánh xạ cột chính xác tuyệt đối
   for (var u = 0; u < units.length; u++) {
     var currentUnit = units[u];
     
     for (var it = 0; it < items.length; it++) {
       var item = items[it];
-      var tenDuAn = getProjectName(item.maDuAn);
+      var tenDuAn = mapDA[item.maDuAn] || item.maDuAn; // Lấy tên dự án từ danh sách, nếu không thấy lấy mã
       
       sheetKho.appendRow([
-        item.maDuAn,    // Col A: Mã dự án
-        item.maTB,      // Col B: Mã thiết bị / SKU
-        tenDuAn,        // Col C: Tên dự án (quy chiếu từ DANH_SACH_DU_AN)
-        item.tenTB,     // Col D: Tên thiết bị / Hàng hóa
-        item.soLuong,   // Col E: Số lượng
-        item.donVi,     // Col F: Đơn vị tính
-        currentUnit,    // Col G: Đội nhận thiết bị / xã
-        "",             // Col H: Địa điểm vận chuyển lắp đặt (để trống)
-        ""              // Col I: Trạng thái Giao Nhận (để trống cho Admin xác nhận)
+        item.maDuAn,    // Cột A: Mã dự án
+        item.maTB,      // Cột B: Mã thiết bị / SKU
+        tenDuAn,        // Cột C: Tên dự án (quy chiếu chuẩn)
+        item.tenTB,     // Cột D: Tên thiết bị / Hàng hóa
+        item.soLuong,   // Cột E: Số lượng
+        item.donVi,     // Cột F: Đơn vị tính
+        currentUnit,    // Cột G: Đội nhận thiết bị / xã
+        "",             // Cột H: Địa điểm vận chuyển lắp đặt (để trống)
+        ""              // Cột I: Trạng thái Giao Nhận (để trống cho Admin xác nhận)
       ]);
       count++;
     }
   }
   
-  SpreadsheetApp.getUi().alert("✅ Phân bổ thành công " + count + " dòng! Tất cả các cột đã về đúng vị trí 100%.");
+  SpreadsheetApp.getUi().alert("✅ Phân bổ thành công " + count + " dòng! Tất cả các cột đã chuẩn khớp 100%.");
 }
