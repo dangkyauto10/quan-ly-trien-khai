@@ -28,15 +28,15 @@ if client:
     try:
         spreadsheet = client.open_by_key(SPREADSHEET_ID)
         
-        # 1. Đọc sheet DANH_SACH_DU_AN để quy chiếu Tên dự án
+        # 1. Đọc sheet DANH_SACH_DU_AN để quy chiếu Tên dự án (Col A -> Col B)
         sheet_da = spreadsheet.worksheet("DANH_SACH_DU_AN")
         data_da = sheet_da.get_all_values()
         map_da = {}
-        for row in data_da[2:]: # Bỏ qua tiêu đề
+        for row in data_da[2:]: # Bỏ qua 2 dòng tiêu đề
             if len(row) >= 2 and row[0].strip():
                 map_da[row[0].strip()] = row[1].strip()
 
-        # 2. Đọc sheet DM_CHUAN
+        # 2. Đọc sheet DM_CHUAN để lấy danh mục thiết bị mẫu
         sheet_dm = spreadsheet.worksheet("DM_CHUAN")
         data_dm = sheet_dm.get_all_values()
         
@@ -48,7 +48,7 @@ if client:
             if len(row) >= 6:
                 ma_da = row[0].strip()       # Col A: Mã dự án
                 ma_tb = row[1].strip()       # Col B: Mã SKU
-                ten_tb = row[2].strip()      # Col C: Tên thiết bị
+                ten_tb = row[2].strip()      # Col C: Tên thiết bị / Hàng hóa
                 don_vi_tinh = row[3].strip() # Col D: Đơn vị tính
                 so_luong = row[4].strip()    # Col E: Số lượng
                 don_vi_nhan_str = row[5].strip() # Col F: Đội nhận / Xã
@@ -73,45 +73,50 @@ if client:
         if items_list and units_set:
             df_preview = pd.DataFrame(items_list)
             st.dataframe(df_preview, use_container_width=True)
-            st.info(f"Đã nhận diện các đơn vị nhận: {list(units_set)}")
+            st.info(f"📍 Các đơn vị nhận phân bổ: {list(units_set)}")
             
-            if st.button("📍 THỰC HIỆN PHÂN BỔ VÀ ĐẨY DỮ LIỆU SANG KHO PHÂN BỔ"):
+            if st.button("🚀 THỰC HIỆN PHÂN BỔ VÀ ĐẨY DỮ LIỆU SANG KHO PHÂN BỔ"):
                 sheet_kho = spreadsheet.worksheet("KHO_PHAN_BO")
                 
+                # Làm sạch sheet KHO_PHAN_BO trước khi ghi mới để tránh rác/lệch cột cũ
+                sheet_kho.clear()
+                sheet_kho.append_row(["VỀ TRANG CHỦ", "TÌM KIẾM -->", "", "", "", "", "", "", ""])
+                sheet_kho.append_row([
+                    "Mã dự án",                   # Col A
+                    "Mã thiết bị / SKU",         # Col B
+                    "Tên dự án",                  # Col C (Quy chiếu từ DANH_SACH_DU_AN)
+                    "Tên thiết bị / Hàng hóa",    # Col D (Lấy từ Col C DM_CHUAN)
+                    "Số lượng",                   # Col E (Lấy từ Col E DM_CHUAN)
+                    "Đơn vị tính",                # Col F (Lấy từ Col D DM_CHUAN)
+                    "Đội nhận thiết bị",          # Col G (Lấy từ Col F DM_CHUAN)
+                    "Địa điểm vận chuyển lắp đặt",# Col H (Lấy theo đơn vị nhận)
+                    "Trạng thái Giao Nhận"        # Col I (Để trống cho Admin xác nhận)
+                ])
+                
                 rows_to_append = []
-                # Phân bổ: Từng xã/đơn vị nhận được ĐẦY ĐỦ trọn bộ tất cả các mặt hàng với số lượng y hệt nhau
+                # Phân bổ chuẩn: Mỗi xã/đơn vị nhận ĐẦY ĐỦ trọn bộ tất cả các mặt hàng với số lượng y hệt nhau
                 for dv_nhan in sorted(list(units_set)):
                     for item in items_list:
                         m_da = item["ma_da"]
-                        t_da = map_da.get(m_da, m_da) # Tra cứu tên dự án
+                        t_da = map_da.get(m_da, m_da) # Quy chiếu tên dự án
                         
-                        # Ánh xạ chuẩn xác từng cột theo đúng phom kho yêu cầu:
-                        # Col A: Mã dự án
-                        # Col B: Mã thiết bị / SKU
-                        # Col C: Tên dự án (quy chiếu từ DANH_SACH_DU_AN)
-                        # Col D: Tên thiết bị / Hàng hóa
-                        # Col E: Số lượng
-                        # Col F: Đơn vị tính
-                        # Col G: Đội nhận thiết bị
-                        # Col H: Địa điểm vận chuyển lắp đặt (lấy theo danh mục đơn vị phân bổ)
-                        # Col I: Trạng thái Giao Nhận (để trống cho AD xác nhận)
+                        # Ánh xạ chuẩn xác tuyệt đối từng cột theo đúng phom kho:
                         row_row = [
-                            m_da,                   # Col A
-                            item["ma_tb"],          # Col B
-                            t_da,                   # Col C
-                            item["ten_tb"],         # Col D
-                            item["so_luong"],       # Col E
-                            item["don_vi_tinh"],    # Col F
-                            dv_nhan,                # Col G
-                            dv_nhan,                # Col H (Địa điểm theo đúng danh mục)
-                            ""                      # Col I (Trạng thái để trống)
+                            m_da,                   # Col A: Mã dự án
+                            item["ma_tb"],          # Col B: Mã SKU
+                            t_da,                   # Col C: Tên dự án
+                            item["ten_tb"],         # Col D: Tên thiết bị / Hàng hóa
+                            item["so_luong"],       # Col E: Số lượng
+                            item["don_vi_tinh"],    # Col F: Đơn vị tính
+                            dv_nhan,                # Col G: Đội nhận thiết bị / xã
+                            dv_nhan,                # Col H: Địa điểm vận chuyển lắp đặt (theo danh mục đơn vị)
+                            ""                      # Col I: Trạng thái Giao Nhận (để trống)
                         ]
                         rows_to_append.append(row_row)
                 
                 if rows_to_append:
-                    # Ghi đè hoặc append vào KHO_PHAN_BO
                     sheet_kho.append_rows(rows_to_append)
-                    st.success(f"✅ Đã phân bổ thành công {len(rows_to_append)} dòng sang sheet KHO_PHAN_BO! Mỗi đơn vị nhận trọn bộ đầy đủ mặt hàng với số lượng chuẩn xác.")
+                    st.success(f"✅ Đã phân bổ thành công {len(rows_to_append)} dòng sang sheet KHO_PHAN_BO! Cấu trúc cột đã chuẩn chỉnh tuyệt đối, không có cột thời gian rườm rà.")
                 else:
                     st.warning("⚠️ Không có dữ liệu hợp lệ để phân bổ.")
         else:
