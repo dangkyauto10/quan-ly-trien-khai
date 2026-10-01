@@ -3,14 +3,16 @@ import gspread
 def thuc_hien_phan_bo_va_dong_bo_python(credentials_path, spreadsheet_name):
     """
     TUÂN THỦ TUYỆT ĐỐI PYTHON_FIRST: ALLOCATION_SYNC
-    1. Đọc dữ liệu từ DM_CHUAN và DANH_SACH_DU_AN để tạo danh sách phân bổ mới.
-    2. Ghi nối tiếp (append_rows) vào KHO_PHAN_BO: Tích lũy danh sách qua các lần phân bổ, KHÔNG BAO GIỜ xóa hay ghi đè dữ liệu cũ.
-    3. Đồng bộ tồn kho tự động sang cột F của sheet NHAP_KHO dựa trên tổng lượng đã phân bổ.
+    1. Lấy dữ liệu từ DM_CHUAN và map tên dự án từ DANH_SACH_DU_AN.
+    2. Ghi nối tiếp (append_rows) vào KHO_PHAN_BO: Tích lũy dồn danh sách qua các lần phân bổ, 
+       tuyệt đối KHÔNG gọi lệnh clear() hay xóa dữ liệu cũ.
+    3. Tự động tính toán tổng đã phân bổ và đồng bộ tồn kho chính xác vào Cột F của sheet NHAP_KHO (ALLOCATION_SYNC).
     """
+    # 1. Kết nối Google Sheets qua service account
     gc = gspread.service_account(filename=credentials_path)
     sh = gc.open(spreadsheet_name)
     
-    # 1. Lấy dữ liệu nguồn từ DM_CHUAN
+    # 2. Đọc dữ liệu nguồn từ DM_CHUAN
     sheet_dm = sh.worksheet("DM_CHUAN")
     values_dm = sheet_dm.get_all_values()
     if len(values_dm) < 3:
@@ -76,19 +78,19 @@ def thuc_hien_phan_bo_va_dong_bo_python(credentials_path, spreadsheet_name):
                 m_da, item["maTB"], t_da, item["tenTB"], item["soLuong"], item["donVi"], "", current_unit, ""
             ])
 
-    # 2. Ghi nối tiếp (Append) vào KHO_PHAN_BO - Đảm bảo KHÔNG XÓA DỮ LIỆU CŨ
+    # 3. Ghi nối tiếp (Append) vào KHO_PHAN_BO - ĐẢM BẢO TÍCH LŨY DANH SÁCH, KHÔNG XÓA DỮ LIỆU CŨ
     sheet_kho = sh.worksheet("KHO_PHAN_BO")
     if rows_to_append:
         sheet_kho.append_rows(rows_to_append, value_input_option='USER_ENTERED')
         print(f"[PYTHON_FIRST] Đã append thành công {len(rows_to_append)} dòng phân bổ mới vào KHO_PHAN_BO!")
 
-    # 3. Đồng bộ tồn kho sang NHAP_KHO (ALLOCATION_SYNC)
+    # 4. Đồng bộ tồn kho sang NHAP_KHO (ALLOCATION_SYNC)
     sheet_nhap = sh.worksheet("NHAP_KHO")
     nhap_values = sheet_nhap.get_all_values()
     if len(nhap_values) < 3:
         return
 
-    # Lấy toàn bộ dữ liệu hiện tại của KHO_PHAN_BO để tính tổng đã phân bổ
+    # Lấy toàn bộ dữ liệu hiện tại của KHO_PHAN_BO (bao gồm cả dữ liệu cũ lẫn mới append) để tính tổng đã phân bổ
     kho_all = sheet_kho.get_all_values()
     phan_bo_map = {}
     if len(kho_all) >= 3:
@@ -105,7 +107,7 @@ def thuc_hien_phan_bo_va_dong_bo_python(credentials_path, spreadsheet_name):
                     key = f"{m_da}_{m_sku}"
                     phan_bo_map[key] = phan_bo_map.get(key, 0) + sl_pb
 
-    # Tính toán tồn kho trừ lùi và cập nhật vào cột F của NHAP_KHO
+    # Tính toán tồn kho trừ lùi và cập nhật vào Cột F của NHAP_KHO
     ton_kho_values = []
     for r in range(2, len(nhap_values)):
         row = nhap_values[r]
