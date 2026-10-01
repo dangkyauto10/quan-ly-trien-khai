@@ -1,24 +1,26 @@
 import gspread
 
-def run_python_first_allocation_sync(credentials_path, spreadsheet_name):
+def thuc_hien_phan_bo_tich_luy_python(credentials_path, spreadsheet_name):
     """
-    [PYTHON_FIRST: ALLOCATION_SYNC - GIẢI PHÁP CHUẨN XÁC ĐỘC LẬP]
-    - Đọc dữ liệu từ DM_CHUAN (Cột A đến F).
-    - Append dữ liệu nối tiếp vào KHO_PHAN_BO (Bảo toàn 100% lịch sử cũ).
-    - Đồng bộ tồn kho trừ lùi vào Cột F của NHAP_KHO.
+    [PYTHON_FIRST: ALLOCATION_SYNC]
+    Yêu cầu chuẩn:
+    1. Đọc dữ liệu từ DM_CHUAN (Cột A đến F).
+    2. Sử dụng append_rows() để nối tiếp (tích lũy) dữ liệu phân bổ mới vào KHO_PHAN_BO.
+       -> Các lần phân bổ sau sẽ tự động xếp hàng nối đuôi kéo dài xuống dưới, BẢO TOÀN 100% dữ liệu cũ.
+    3. Đồng bộ tồn kho trừ lùi tự động vào Cột F của sheet NHAP_KHO.
     """
-    # 1. Khởi tạo kết nối gspread
+    # 1. Kết nối Google Sheets qua service account
     gc = gspread.service_account(filename=credentials_path)
     sh = gc.open(spreadsheet_name)
     
-    # 2. Lấy dữ liệu từ DM_CHUAN
+    # 2. Đọc dữ liệu nguồn từ DM_CHUAN
     sheet_dm = sh.worksheet("DM_CHUAN")
     dm_values = sheet_dm.get_all_values()
     if len(dm_values) < 3:
-        print("[PYTHON_FIRST] Sheet DM_CHUAN chưa có dữ liệu hợp lệ từ dòng 3.")
+        print("[PYTHON_FIRST] Sheet DM_CHUAN chưa có dữ liệu từ dòng 3.")
         return
 
-    # Lấy map tên dự án từ DANH_SACH_DU_AN
+    # Lấy bản đồ tên dự án từ DANH_SACH_DU_AN
     sheet_da = sh.worksheet("DANH_SACH_DU_AN")
     da_values = sheet_da.get_all_values()
     map_da = {}
@@ -28,7 +30,7 @@ def run_python_first_allocation_sync(credentials_path, spreadsheet_name):
         if m_da and m_da != "Mã dự án" and m_da != "Mã đội":
             map_da[m_da] = t_da
 
-    # 3. Quét và phân tách các dòng phân bổ từ DM_CHUAN
+    # 3. Quét và phân tách dữ liệu phân bổ từ DM_CHUAN (Đúng chuẩn cột A->F)
     items = []
     units = []
     
@@ -66,13 +68,13 @@ def run_python_first_allocation_sync(credentials_path, spreadsheet_name):
                     units.append(u_clean)
 
     if not items:
-        print("[PYTHON_FIRST] Không tìm thấy hàng hóa nào để phân bổ.")
+        print("[PYTHON_FIRST] Không tìm thấy dữ liệu phân bổ hợp lệ.")
         return
         
     if not units:
         units = [""]
 
-    # 4. Xây dựng danh sách dòng mới cần append
+    # 4. Xây dựng danh sách các dòng mới cần đưa vào KHO_PHAN_BO
     rows_to_append = []
     for u in units:
         for item in items:
@@ -85,24 +87,28 @@ def run_python_first_allocation_sync(credentials_path, spreadsheet_name):
                 item["tenTB"], 
                 item["soLuong"], 
                 item["donVi"], 
-                "",      # Cột G: Đội nhận thiết bị (để trống hoặc điền tùy ý)
-                u,       # Cột H: Địa điểm / Đơn vị nhận
-                ""       # Cột I: Trạng thái Giao Nhận
+                "",      # Cột G
+                u,       # Cột H: Đơn vị / Địa điểm nhận
+                ""       # Cột I
             ])
 
-    # 5. Thực hiện APPEND vào KHO_PHAN_BO (Tích lũy trọn vẹn, không bao giờ xóa dữ liệu cũ)
+    so_luong_diem = len(units)
+    so_luong_hang = len(rows_to_append)
+
+    # 5. GHI NỐI TIẾP (APPEND) VÀO KHO_PHAN_BO
+    # Hàm append_rows() tự động quét tìm dòng trống cuối cùng để chèn tiếp, giữ lại toàn bộ lịch sử trước đó.
     sheet_kho = sh.worksheet("KHO_PHAN_BO")
     if rows_to_append:
         sheet_kho.append_rows(rows_to_append, value_input_option='USER_ENTERED')
-        print(f"[PYTHON_FIRST] Đã append thành công {len(rows_to_append)} dòng mới vào KHO_PHAN_BO.")
+        print(f"[PYTHON_FIRST] Đã tích lũy thành công {so_luong_hang} dòng cho {so_luong_diem} điểm/đơn vị vào KHO_PHAN_BO.")
 
-    # 6. ALLOCATION_SYNC: Đồng bộ tính toán tồn kho sang sheet NHAP_KHO (Cột F)
+    # 6. ALLOCATION_SYNC: Đồng bộ tồn kho trừ lùi vào Cột F của sheet NHAP_KHO
     sheet_nhap = sh.worksheet("NHAP_KHO")
     nhap_values = sheet_nhap.get_all_values()
     if len(nhap_values) < 3:
         return
 
-    # Lấy toàn bộ dữ liệu lịch sử hiện tại của KHO_PHAN_BO để tính tổng đã phân bổ
+    # Lấy toàn bộ lịch sử KHO_PHAN_BO (bao gồm cả dữ liệu cũ và phần mới append) để tính tổng lượng đã phân bổ
     kho_all = sheet_kho.get_all_values()
     phan_bo_map = {}
     if len(kho_all) >= 3:
@@ -119,7 +125,7 @@ def run_python_first_allocation_sync(credentials_path, spreadsheet_name):
                     key = f"{m_da}_{m_sku}"
                     phan_bo_map[key] = phan_bo_map.get(key, 0) + sl_pb
 
-    # Cập nhật giá trị tồn kho tĩnh vào Cột F của NHAP_KHO
+    # Cập nhật tồn kho vào Cột F của NHAP_KHO
     ton_kho_values = []
     for r in range(2, len(nhap_values)):
         row = nhap_values[r]
@@ -142,8 +148,7 @@ def run_python_first_allocation_sync(credentials_path, spreadsheet_name):
 
     if ton_kho_values:
         sheet_nhap.update(f"F3:F{2 + len(ton_kho_values)}", ton_kho_values, value_input_option='USER_ENTERED')
-        print("[ALLOCATION_SYNC] Đã đồng bộ tồn kho thành công vào NHAP_KHO qua Python.")
+        print(f"[ALLOCATION_SYNC] Đã đồng bộ tồn kho thành công. Số điểm phân bổ đợt này: {so_luong_diem}")
 
 if __name__ == "__main__":
-    # Thay đường dẫn service_account và tên spreadsheet thực tế của anh khi chạy
-    run_python_first_allocation_sync("path/to/credentials.json", "QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+    thuc_hien_phan_bo_tich_luy_python("path/to/credentials.json", "QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
