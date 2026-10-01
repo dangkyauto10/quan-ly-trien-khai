@@ -1,15 +1,14 @@
 import gspread
 
-def thuc_hien_phan_bo_tich_luy_python(credentials_path, spreadsheet_name):
+def giai_phap_phan_bo_tich_luy_kha_thi(credentials_path, spreadsheet_name):
     """
-    [PYTHON_FIRST: ALLOCATION_SYNC]
-    Yêu cầu chuẩn:
-    1. Đọc dữ liệu từ DM_CHUAN (Cột A đến F).
-    2. Sử dụng append_rows() để nối tiếp (tích lũy) dữ liệu phân bổ mới vào KHO_PHAN_BO.
-       -> Các lần phân bổ sau sẽ tự động xếp hàng nối đuôi kéo dài xuống dưới, BẢO TOÀN 100% dữ liệu cũ.
-    3. Đồng bộ tồn kho trừ lùi tự động vào Cột F của sheet NHAP_KHO.
+    [PHƯƠNG ÁN KHẢ THI TỐI ƯU - PYTHON_FIRST: ALLOCATION_SYNC]
+    - Quét trực tiếp toàn bộ dữ liệu hiện tại của KHO_PHAN_BO để xác định chính xác dòng cuối cùng thực tế.
+    - Tuyệt đối KHÔNG BAO GIỜ xóa dữ liệu cũ.
+    - Tự động tính toán dải ô từ dòng tiếp theo (next_row) để ghi nối tiếp (Append) dữ liệu mới.
+    - Đồng bộ tồn kho chính xác vào Cột F của NHAP_KHO.
     """
-    # 1. Kết nối Google Sheets qua service account
+    # 1. Kết nối Google Sheets
     gc = gspread.service_account(filename=credentials_path)
     sh = gc.open(spreadsheet_name)
     
@@ -17,7 +16,7 @@ def thuc_hien_phan_bo_tich_luy_python(credentials_path, spreadsheet_name):
     sheet_dm = sh.worksheet("DM_CHUAN")
     dm_values = sheet_dm.get_all_values()
     if len(dm_values) < 3:
-        print("[PYTHON_FIRST] Sheet DM_CHUAN chưa có dữ liệu từ dòng 3.")
+        print("[PYTHON_FIRST] Sheet DM_CHUAN chưa có dữ liệu phân bổ.")
         return
 
     # Lấy bản đồ tên dự án từ DANH_SACH_DU_AN
@@ -30,7 +29,7 @@ def thuc_hien_phan_bo_tich_luy_python(credentials_path, spreadsheet_name):
         if m_da and m_da != "Mã dự án" and m_da != "Mã đội":
             map_da[m_da] = t_da
 
-    # 3. Quét và phân tách dữ liệu phân bổ từ DM_CHUAN (Đúng chuẩn cột A->F)
+    # 3. Phân tách danh sách thiết bị và điểm nhận từ DM_CHUAN (Đúng chuẩn cột A->F)
     items = []
     units = []
     
@@ -68,13 +67,13 @@ def thuc_hien_phan_bo_tich_luy_python(credentials_path, spreadsheet_name):
                     units.append(u_clean)
 
     if not items:
-        print("[PYTHON_FIRST] Không tìm thấy dữ liệu phân bổ hợp lệ.")
+        print("[PYTHON_FIRST] Không có item hợp lệ để phân bổ.")
         return
         
     if not units:
         units = [""]
 
-    # 4. Xây dựng danh sách các dòng mới cần đưa vào KHO_PHAN_BO
+    # Xây dựng mảng dữ liệu chuẩn bị ghi
     rows_to_append = []
     for u in units:
         for item in items:
@@ -92,28 +91,44 @@ def thuc_hien_phan_bo_tich_luy_python(credentials_path, spreadsheet_name):
                 ""       # Cột I
             ])
 
-    so_luong_diem = len(units)
-    so_luong_hang = len(rows_to_append)
+    if not rows_to_append:
+        return
 
-    # 5. GHI NỐI TIẾP (APPEND) VÀO KHO_PHAN_BO
-    # Hàm append_rows() tự động quét tìm dòng trống cuối cùng để chèn tiếp, giữ lại toàn bộ lịch sử trước đó.
+    # 4. THỰC HIỆN TÍCH LŨY NỐI TIẾP AN TOÀN TUYỆT ĐỐI (KHÔNG BAO GIỜ XÓA DỮ LIỆU CŨ)
     sheet_kho = sh.worksheet("KHO_PHAN_BO")
-    if rows_to_append:
-        sheet_kho.append_rows(rows_to_append, value_input_option='USER_ENTERED')
-        print(f"[PYTHON_FIRST] Đã tích lũy thành công {so_luong_hang} dòng cho {so_luong_diem} điểm/đơn vị vào KHO_PHAN_BO.")
+    
+    # Lấy toàn bộ giá trị hiện có trên sheet KHO_PHAN_BO để đếm chính xác số dòng đang có
+    existing_kho_data = sheet_kho.get_all_values()
+    current_total_rows = len(existing_kho_data)
+    
+    # Xác định dòng bắt đầu ghi mới (Nếu bảng trống hoặc chỉ có tiêu đề hàng 1, 2 thì bắt đầu từ dòng 3)
+    next_row = current_total_rows + 1
+    if next_row < 3:
+        next_row = 3
+        
+    num_rows = len(rows_to_append)
+    num_cols = len(rows_to_append[0])
+    
+    # Tính toán dải ô A1 chính xác (Ví dụ: từ A8 đến I15)
+    end_col_letter = gspread.utils.rowcol_to_a1(1, num_cols).rstrip('1')
+    range_string = f"A{next_row}:{end_col_letter}{next_row + num_rows - 1}"
+    
+    # Ghi dữ liệu nối tiếp vào đúng vùng trống phía dưới cùng của bảng
+    sheet_kho.update(range_string, rows_to_append, value_input_option='USER_ENTERED')
+    print(f"[PYTHON_FIRST] Đã ghi nối tiếp thành công {num_rows} dòng từ dòng {next_row} vào KHO_PHAN_BO. Bảo toàn 100% dữ liệu cũ!")
 
-    # 6. ALLOCATION_SYNC: Đồng bộ tồn kho trừ lùi vào Cột F của sheet NHAP_KHO
+    # 5. ALLOCATION_SYNC: Đồng bộ tồn kho trừ lùi vào Cột F của sheet NHAP_KHO
     sheet_nhap = sh.worksheet("NHAP_KHO")
     nhap_values = sheet_nhap.get_all_values()
     if len(nhap_values) < 3:
         return
 
-    # Lấy toàn bộ lịch sử KHO_PHAN_BO (bao gồm cả dữ liệu cũ và phần mới append) để tính tổng lượng đã phân bổ
-    kho_all = sheet_kho.get_all_values()
+    # Quét lại toàn bộ KHO_PHAN_BO sau khi đã nối tiếp để tính tổng đã phân bổ
+    updated_kho_all = sheet_kho.get_all_values()
     phan_bo_map = {}
-    if len(kho_all) >= 3:
-        for r in range(2, len(kho_all)):
-            r_data = kho_all[r]
+    if len(updated_kho_all) >= 3:
+        for r in range(2, len(updated_kho_all)):
+            r_data = updated_kho_all[r]
             if len(r_data) >= 5:
                 m_da = str(r_data[0]).strip()
                 m_sku = str(r_data[1]).strip()
@@ -148,7 +163,7 @@ def thuc_hien_phan_bo_tich_luy_python(credentials_path, spreadsheet_name):
 
     if ton_kho_values:
         sheet_nhap.update(f"F3:F{2 + len(ton_kho_values)}", ton_kho_values, value_input_option='USER_ENTERED')
-        print(f"[ALLOCATION_SYNC] Đã đồng bộ tồn kho thành công. Số điểm phân bổ đợt này: {so_luong_diem}")
+        print(f"[ALLOCATION_SYNC] Đã đồng bộ tồn kho thành công vào NHAP_KHO.")
 
 if __name__ == "__main__":
-    thuc_hien_phan_bo_tich_luy_python("path/to/credentials.json", "QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
+    giai_phap_phan_bo_tich_luy_kha_thi("path/to/credentials.json", "QUẢN LÝ DỰ ÁN - HỆ THỐNG ĐIỀU HÀNH")
