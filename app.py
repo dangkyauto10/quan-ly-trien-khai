@@ -109,7 +109,7 @@ function phanBoDmChuan() {
 }
 
 // ==========================================
-// 2. HÀM TÍNH TOÁN VÀ GHI DỮ LIỆU TĨNH VÀO CỘT TỒN KHO NHAP_KHO (QUÉT CHUẨN XÁC 100% KHI TRỐNG)
+// 2. HÀM TÍNH TOÁN TỒN KHO (CHỐT CHẶN AN TOÀN TUYỆT ĐỐI KHÔNG BỊ DỰ NỢ RÁC)
 // ==========================================
 function tinhToanTonKhoNhapKho() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -127,7 +127,6 @@ function tinhToanTonKhoNhapKho() {
   if (sheetKho) {
     var lastRowKho = sheetKho.getLastRow();
     if (lastRowKho >= 3) {
-      // Lấy toàn bộ dữ liệu từ dòng 3 đến hết
       var khoData = sheetKho.getRange(3, 1, lastRowKho - 2, 9).getValues();
       
       for (var k = 0; k < khoData.length; k++) {
@@ -135,8 +134,8 @@ function tinhToanTonKhoNhapKho() {
         var mSKU = String(khoData[k][1]).trim();       // Cột B: Mã SKU
         var soLuongPhanBo = parseFloat(khoData[k][4]); // Cột E: Số lượng
         
-        // Kiểm tra cực kỳ chặt chẽ: chỉ tính nếu có SKU thật và số lượng hợp lệ khác 0 hoặc rỗng
-        if (mSKU !== "" && !isNaN(soLuongPhanBo) && soLuongPhanBo !== 0) {
+        // KIỂM TRA CỰC KỲ KHẮT KHE: Chỉ khi SKU có chữ thật VÀ số lượng là số dương khác 0
+        if (mSKU !== "" && mSKU !== "null" && !isNaN(soLuongPhanBo) && soLuongPhanBo > 0) {
           hasActiveData = true;
           var key = mDA + "_" + mSKU;
           phanBoMap[key] = (phanBoMap[key] || 0) + soLuongPhanBo;
@@ -156,7 +155,7 @@ function tinhToanTonKhoNhapKho() {
     if (mSKU_nhap !== "") {
       var lookupKey = mDA_nhap + "_" + mSKU_nhap;
       
-      // NẾU KHO_PHAN_BO TRỐNG (hasActiveData = false): Tồn kho NHAP_KHO BẰNG ĐÚNG 100% TỔNG NHẬP THẦU
+      // Nếu không có dữ liệu phân bổ hợp lệ -> Tồn kho trả về đúng 100% Tổng nhập thầu
       var daPhanBo = hasActiveData ? (phanBoMap[lookupKey] || 0) : 0;
       var tonKho = tongNhapThau - daPhanBo;
       
@@ -166,7 +165,6 @@ function tinhToanTonKhoNhapKho() {
     }
   }
   
-  // Ghi giá trị tĩnh trực tiếp vào cột F của NHAP_KHO
   if (tonKhoValues.length > 0) {
     sheetNhap.getRange(3, 6, tonKhoValues.length, 1).setValues(tonKhoValues);
   }
@@ -183,7 +181,6 @@ function timKiemHoacKiemTraTrungLap() {
   var keyword = String(sheetKho.getRange(1, 5).getValue()).trim().toLowerCase();
   var lastRow = sheetKho.getLastRow();
   
-  // Luôn đồng bộ lại tồn kho trước mỗi lần thao tác check
   tinhToanTonKhoNhapKho();
   
   if (lastRow < 3) {
