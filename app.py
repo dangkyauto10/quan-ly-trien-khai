@@ -28,101 +28,88 @@ if client:
     try:
         spreadsheet = client.open_by_key(SPREADSHEET_ID)
         
-        # 1. Đọc sheet DANH_SACH_DU_AN: Cột A là Mã dự án, Cột B là Tên dự án (dùng để quy chiếu vào Cột C KHO_PHAN_BO)
+        # 1. Đọc sheet DANH_SACH_DU_AN: Col A = Mã dự án, Col B = Tên dự án
         sheet_da = spreadsheet.worksheet("DANH_SACH_DU_AN")
         data_da = sheet_da.get_all_values()
         map_da = {}
         for row in data_da[2:]: # Bỏ qua 2 dòng tiêu đề
             if len(row) >= 2 and row[0].strip():
-                ma_du_an_key = row[0].strip()
-                ten_du_an_val = row[1].strip() # Lấy chuẩn cột B của DANH_SACH_DU_AN
-                map_da[ma_du_an_key] = ten_du_an_val
+                m_da = row[0].strip()
+                t_da = row[1].strip() # Cột B: Tên dự án
+                map_da[m_da] = t_da
 
         # 2. Đọc sheet DM_CHUAN
         sheet_dm = spreadsheet.worksheet("DM_CHUAN")
         data_dm = sheet_dm.get_all_values()
         
-        st.markdown("#### 📋 Kiểm tra danh mục chuẩn thiết bị (DM_CHUAN)")
+        st.markdown("#### 📋 Kiểm tra dữ liệu DM_CHUAN")
         items_list = []
-        units_set = set()
         
         for row in data_dm[2:]: # Bỏ qua 2 dòng tiêu đề
-            if len(row) >= 6:
-                ma_da = row[0].strip()       # Col A: Mã dự án
-                ma_tb = row[1].strip()       # Col B: Mã SKU
-                ten_tb = row[2].strip()      # Col C: Tên thiết bị / Hàng hóa
-                don_vi_tinh = row[3].strip() # Col D: Đơn vị tính
-                so_luong = row[4].strip()    # Col E: Số lượng
-                don_vi_nhan_str = row[5].strip() # Col F: Đội nhận / Xã
-                
-                if ma_tb and so_luong != "":
-                    items_list.append({
-                        "ma_da": ma_da,
-                        "ma_tb": ma_tb,
-                        "ten_tb": ten_tb,
-                        "don_vi_tinh": don_vi_tinh,
-                        "so_luong": so_luong
-                    })
-                
-                if don_vi_nhan_str and don_vi_nhan_str.lower() != "nan":
-                    for dv in don_vi_nhan_str.split(","):
-                        dv_clean = dv.strip()
-                        if dv_clean:
-                            units_set.add(dv_clean)
-
-        if items_list and units_set:
-            df_preview = pd.DataFrame(items_list)
-            st.dataframe(df_preview, use_container_width=True)
-            st.info(f"📍 Các đơn vị nhận phân bổ: {list(units_set)}")
+            ma_da = row[0].strip() if len(row) > 0 else ""
+            ma_tb = row[1].strip() if len(row) > 1 else ""
+            ten_tb = row[2].strip() if len(row) > 2 else ""
+            don_vi = row[3].strip() if len(row) > 3 else ""
+            so_luong = row[4].strip() if len(row) > 4 else ""
             
-            if st.button("🚀 THỰC HIỆN PHÂN BỔ VÀ ĐẨY DỮ LIỆU SANG KHO PHÂN BỔ"):
+            # Thu thập thiết bị chuẩn từ DM_CHUAN (từ TB-01 đến TB-05)
+            if ma_tb and so_luong != "":
+                items_list.append({
+                    "ma_da": ma_da if ma_da else "DA880",
+                    "ma_tb": ma_tb,
+                    "ten_tb": ten_tb,
+                    "don_vi": don_vi,
+                    "so_luong": so_luong
+                })
+
+        if items_list:
+            st.write(f"Tìm thấy **{len(items_list)}** mặt hàng thiết bị chuẩn trong DM_CHUAN.")
+            
+            if st.button("🚀 XÁC NHẬN VÀ ĐẨY DỮ LIỆU SANG KHO_PHAN_BO"):
                 sheet_kho = spreadsheet.worksheet("KHO_PHAN_BO")
                 
-                # Làm sạch sheet KHO_PHAN_BO trước khi ghi mới
+                # Xóa sạch và tạo lại tiêu đề chuẩn cho KHO_PHAN_BO
                 sheet_kho.clear()
                 sheet_kho.append_row(["VỀ TRANG CHỦ", "TÌM KIẾM -->", "", "", "", "", "", "", ""])
                 sheet_kho.append_row([
                     "Mã dự án",                   # Col A
                     "Mã thiết bị / SKU",         # Col B
-                    "Tên dự án",                  # Col C (Quy chiếu chuẩn từ Cột B DANH_SACH_DU_AN)
+                    "Tên dự án",                  # Col C (Quy chiếu chuẩn từ Col B DANH_SACH_DU_AN)
                     "Tên thiết bị / Hàng hóa",    # Col D (Lấy từ Col C DM_CHUAN)
                     "Số lượng",                   # Col E (Lấy từ Col E DM_CHUAN)
                     "Đơn vị tính",                # Col F (Lấy từ Col D DM_CHUAN)
-                    "Đội nhận thiết bị",          # Col G (Lấy từ Col F DM_CHUAN)
-                    "Địa điểm vận chuyển lắp đặt",# Col H (Lấy theo đơn vị nhận)
+                    "Đội nhận thiết bị",          # Col G (Để trống cho Admin tự phân bổ)
+                    "Địa điểm vận chuyển lắp đặt",# Col H (Để trống)
                     "Trạng thái Giao Nhận"        # Col I (Để trống cho Admin xác nhận)
                 ])
                 
                 rows_to_append = []
-                # Phân bổ chuẩn: Mỗi xã/đơn vị nhận ĐẦY ĐỦ trọn bộ tất cả các mặt hàng với số lượng y hệt nhau
-                for dv_nhan in sorted(list(units_set)):
-                    for item in items_list:
-                        m_da = item["ma_da"]
-                        # Bắt buộc quy chiếu Tên dự án từ cột B của DANH_SACH_DU_AN qua map_da
-                        t_da = map_da.get(m_da, m_da) 
-                        
-                        row_row = [
-                            m_da,                   # Col A: Mã dự án
-                            item["ma_tb"],          # Col B: Mã SKU
-                            t_da,                   # Col C: Tên dự án (Lấy chuẩn từ Cột B DANH_SACH_DU_AN)
-                            item["ten_tb"],         # Col D: Tên thiết bị / Hàng hóa
-                            item["so_luong"],       # Col E: Số lượng
-                            item["don_vi_tinh"],    # Col F: Đơn vị tính
-                            dv_nhan,                # Col G: Đội nhận thiết bị / xã
-                            dv_nhan,                # Col H: Địa điểm vận chuyển lắp đặt (theo danh mục đơn vị)
-                            ""                      # Col I: Trạng thái Giao Nhận (để trống)
-                        ]
-                        rows_to_append.append(row_row)
+                for item in items_list:
+                    m_da = item["ma_da"]
+                    t_da = map_da.get(m_da, m_da) # Quy chiếu Tên dự án từ Col B DANH_SACH_DU_AN
+                    
+                    row_row = [
+                        m_da,             # Col A: Mã dự án
+                        item["ma_tb"],    # Col B: Mã thiết bị / SKU
+                        t_da,             # Col C: Tên dự án (Quy chiếu chuẩn từ Col B DANH_SACH_DU_AN)
+                        item["ten_tb"],   # Col D: Tên thiết bị / Hàng hóa
+                        item["so_luong"], # Col E: Số lượng
+                        item["don_vi"],   # Col F: Đơn vị tính
+                        "",               # Col G: Đội nhận thiết bị (Để trống cho Admin tự phân bổ)
+                        "",               # Col H: Địa điểm vận chuyển lắp đặt (Để trống)
+                        ""                # Col I: Trạng thái Giao Nhận (Để trống)
+                    ]
+                    rows_to_append.append(row_row)
                 
                 if rows_to_append:
                     sheet_kho.append_rows(rows_to_append)
-                    st.success(f"✅ Đã phân bổ thành công {len(rows_to_append)} dòng sang sheet KHO_PHAN_BO! Cột C đã quy chiếu chuẩn từ Cột B DANH_SACH_DU_AN.")
+                    st.success(f"✅ Đã đẩy thành công {len(rows_to_append)} dòng sang KHO_PHAN_BO! Cột đội nhận, địa điểm và trạng thái để trống để Admin tự chủ động phân bổ.")
                 else:
-                    st.warning("⚠️ Không có dữ liệu hợp lệ để phân bổ.")
+                    st.warning("⚠️ Không có dữ liệu để phân bổ.")
         else:
-            st.info("Chưa có đủ danh mục thiết bị hoặc chưa khai báo đơn vị nhận ở cột F.")
+            st.warning("⚠️️ Chưa có danh mục thiết bị ở sheet DM_CHUAN.")
             
     except Exception as e:
-        st.error(f"❌ Lỗi xử lý dữ liệu hệ thống: {e}")
+        st.error(f"❌ Lỗi: {e}")
 else:
-    st.warning("⚠️ Vui lòng cấu hình kết nối Google Sheets trong Secret.")
+    st.warning("⚠️ Chưa kết nối được Google Sheets.")
