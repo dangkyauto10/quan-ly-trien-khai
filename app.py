@@ -1,117 +1,62 @@
-import streamlit as st
 import pandas as pd
-from google.oauth2 import service_account
-import gspread
 
-st.set_page_config(page_title="Hệ Thống Điều Hành DA880", layout="wide", page_icon="🚀")
-
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-
-@st.cache_resource
-def init_google_sheets_connection():
-    try:
-        if "gcp_service_account" in st.secrets:
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            creds = service_account.Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-            client = gspread.authorize(creds)
-            return client
-    except Exception as e:
-        st.error(f"Lỗi xác thực Google Sheets: {e}")
-    return None
-
-client = init_google_sheets_connection()
-SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
-
-st.markdown("### 🚀 TRUNG TÂM PHÂN BỔ & ĐIỀU HÀNH DỰ ÁN DA880")
-
-if client:
-    try:
-        spreadsheet = client.open_by_key(SPREADSHEET_ID)
+def xu_ly_phan_bo_va_ton_kho(df_dm_chuan, df_nhap_kho, df_kho_phan_bo_hien_tai, df_danh_sach_du_an):
+    """
+    1. Nối tiếp (append) dữ liệu phân bổ mới từ DM_CHUAN vào KHO_PHAN_BO.
+    2. Tính toán tồn kho / chờ phân bổ bên NHAP_KHO:
+       - Nếu KHO_PHAN_BO trống -> Tồn kho NHAP_KHO = 100% Tổng nhập thầu.
+       - Nếu có phân bổ -> Trừ đi tổng số lượng đã phân bổ cộng dồn theo (Mã Dự Án + SKU).
+       - Khi phân bổ hết sạch số lượng -> Tồn kho về 0.
+    """
+    
+    # Bước 1: Xử lý dữ liệu phân bổ mới từ DM_CHUAN
+    # (Map mã dự án, tách đội nhận, sinh các dòng phân bổ mới...)
+    danh_sach_phan_bo_moi = []
+    
+    # Giả lập gom dữ liệu phân bổ mới nối tiếp vào kho phân bổ hiện tại
+    if df_kho_phan_bo_hien_tai is not None and not df_kho_phan_bo_hien_tai.empty:
+        df_kho_phan_bo_moi = pd.concat([df_kho_phan_bo_hien_tai, pd.DataFrame(danh_sach_phan_bo_moi)], ignore_index=True)
+    else:
+        df_kho_phan_bo_moi = pd.DataFrame(danh_sach_phan_bo_moi)
         
-        # 1. Đọc sheet DANH_SACH_DU_AN: Col A = Mã dự án, Col B = Tên dự án
-        sheet_da = spreadsheet.worksheet("DANH_SACH_DU_AN")
-        data_da = sheet_da.get_all_values()
-        map_da = {}
-        for row in data_da[2:]: # Bỏ qua 2 dòng tiêu đề
-            if len(row) >= 2 and row[0].strip():
-                m_da = row[0].strip()
-                t_da = row[1].strip() # Cột B: Tên dự án chuẩn
-                map_da[m_da] = t_da
-
-        # 2. Đọc sheet DM_CHUAN
-        sheet_dm = spreadsheet.worksheet("DM_CHUAN")
-        data_dm = sheet_dm.get_all_values()
-        
-        st.markdown("#### 📋 Kiểm tra danh mục thiết bị chuẩn (DM_CHUAN)")
-        items_list = []
-        
-        for row in data_dm[2:]: # Bỏ qua 2 dòng tiêu đề
-            ma_da = row[0].strip() if len(row) > 0 else ""
-            ma_tb = row[1].strip() if len(row) > 1 else ""
-            ten_tb = row[2].strip() if len(row) > 2 else ""
-            don_vi = row[3].strip() if len(row) > 3 else ""
-            so_luong = row[4].strip() if len(row) > 4 else ""
+    # Bước 2: Tính toán tồn kho bên NHAP_KHO
+    # Tạo từ điển cộng dồn số lượng đã phân bổ theo khóa: "MãDA_SKU"
+    phan_bo_map = {}
+    has_active_data = False
+    
+    if not df_kho_phan_bo_moi.empty:
+        for _, row in df_kho_phan_bo_moi.iterrows():
+            ma_da = str(row.get('MaDuAn', '')).strip()
+            ma_sku = str(row.get('MaSKU', '')).strip()
+            so_luong_pb = float(row.get('SoLuong', 0) or 0)
             
-            # Thu thập thiết bị chuẩn từ DM_CHUAN (từ TB-01 đến TB-05)
-            if ma_tb and so_luong != "":
-                items_list.append({
-                    "ma_da": ma_da if ma_da else "DA880",
-                    "ma_tb": ma_tb,
-                    "ten_tb": ten_tb,
-                    "don_vi": don_vi,
-                    "so_luong": so_luong
-                })
-
-        if items_list:
-            df_preview = pd.DataFrame(items_list)
-            st.dataframe(df_preview, use_container_width=True)
+            if ma_sku and so_luong_pb != 0:
+                has_active_data = True
+                key = f"{ma_da}_{ma_sku}"
+                phan_bo_map[key] = phan_bo_map.get(key, 0) + so_luong_pb
+                
+    # Bước 3: Cập nhật cột "Tồn kho / chờ phân bổ" bên NHAP_KHO
+    danh_sach_ton_kho = []
+    for _, row in df_nhap_kho.iterrows():
+        ma_da_nhap = str(row.get('MaDuAn', '')).strip()
+        ma_sku_nhap = str(row.get('MaSKU', '')).strip()
+        tong_nhap_thau = float(row.get('TongNhapThau', 0) or 0)
+        
+        if ma_sku_nhap:
+            lookup_key = f"{ma_da_nhap}_{ma_sku_nhap}"
             
-            # Tạo nút bấm màu xanh trên giao diện web đúng y hệt nội dung yêu cầu
-            if st.button("👉 🚀 XÁC NHẬN VÀ ĐẨY DỮ LIỆU SANG KHO_PHAN_BO", type="primary"):
-                sheet_kho = spreadsheet.worksheet("KHO_PHAN_BO")
-                
-                # Xóa sạch và tạo lại tiêu đề chuẩn cho KHO_PHAN_BO
-                sheet_kho.clear()
-                sheet_kho.append_row(["VỀ TRANG CHỦ", "TÌM KIẾM -->", "", "", "", "", "", "", ""])
-                sheet_kho.append_row([
-                    "Mã dự án",                   # Col A
-                    "Mã thiết bị / SKU",         # Col B
-                    "Tên dự án",                  # Col C (Quy chiếu chuẩn từ Col B DANH_SACH_DU_AN)
-                    "Tên thiết bị / Hàng hóa",    # Col D (Lấy từ Col C DM_CHUAN)
-                    "Số lượng",                   # Col E (Lấy từ Col E DM_CHUAN)
-                    "Đơn vị tính",                # Col F (Lấy từ Col D DM_CHUAN)
-                    "Đội nhận thiết bị",          # Col G (Để trống cho Admin tự phân bổ)
-                    "Địa điểm vận chuyển lắp đặt",# Col H (Để trống)
-                    "Trạng thái Giao Nhận"        # Col I (Để trống cho Admin xác nhận)
-                ])
-                
-                rows_to_append = []
-                for item in items_list:
-                    m_da = item["ma_da"]
-                    t_da = map_da.get(m_da, m_da) # Quy chiếu Tên dự án từ Col B DANH_SACH_DU_AN
-                    
-                    row_row = [
-                        m_da,             # Col A: Mã dự án
-                        item["ma_tb"],    # Col B: Mã thiết bị / SKU
-                        t_da,             # Col C: Tên dự án (Quy chiếu chuẩn từ Col B DANH_SACH_DU_AN)
-                        item["ten_tb"],   # Col D: Tên thiết bị / Hàng hóa
-                        item["so_luong"], # Col E: Số lượng
-                        item["don_vi"],   # Col F: Đơn vị tính
-                        "",               # Col G: Đội nhận thiết bị (Để trống)
-                        "",               # Col H: Địa điểm vận chuyển lắp đặt (Để trống)
-                        ""                # Col I: Trạng thái Giao Nhận (Để trống)
-                    ]
-                    rows_to_append.append(row_row)
-                
-                if rows_to_append:
-                    sheet_kho.append_rows(rows_to_append)
-                    st.success(f"✅ Đã đẩy thành công {len(rows_to_append)} dòng sang KHO_PHAN_BO! Cấu trúc các cột A đến I đã chuẩn xác tuyệt đối.")
-                else:
-                    st.warning("⚠️ Không có dữ liệu để phân bổ.")
+            # Nếu KHO_PHAN_BO trống (hoặc đã xóa hết) -> Tồn kho = 100% Tổng nhập thầu
+            # Nếu có phân bổ -> Trừ đi tổng số lượng đã phân bổ cộng dồn
+            da_phan_bo = phan_bo_map.get(lookup_key, 0) if has_active_data else 0
+            ton_kho = tong_nhap_thau - da_phan_bo
+            
+            # Đảm bảo không bị âm nếu phân bổ vượt quá (tùy nghiệp vụ, có thể chặn ở 0)
+            ton_kho = max(0, ton_kho)
+            
+            danh_sach_ton_kho.append(ton_kho)
         else:
-            st.warning("⚠️ Chưa có danh mục thiết bị ở sheet DM_CHUAN.")
+            danh_sach_ton_kho.append("")
             
-    except Exception as e:
-        st.error(f"❌ Lỗi hệ thống: {e}")
-else:
-    st.warning("⚠️ Chưa kết nối được Google Sheets.")
+    df_nhap_kho['TonKhoDuAn'] = danh_sach_ton_kho
+    
+    return df_kho_phan_bo_moi, df_nhap_kho
