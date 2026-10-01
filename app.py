@@ -35,14 +35,14 @@ if client:
         for row in data_da[2:]: # Bỏ qua 2 dòng tiêu đề
             if len(row) >= 2 and row[0].strip():
                 m_da = row[0].strip()
-                t_da = row[1].strip() # Cột B: Tên dự án
+                t_da = row[1].strip() # Cột B: Tên dự án chuẩn
                 map_da[m_da] = t_da
 
         # 2. Đọc sheet DM_CHUAN
         sheet_dm = spreadsheet.worksheet("DM_CHUAN")
         data_dm = sheet_dm.get_all_values()
         
-        st.markdown("#### 📋 Kiểm tra dữ liệu DM_CHUAN")
+        st.markdown("#### 📋 Kiểm tra danh mục thiết bị chuẩn (DM_CHUAN)")
         items_list = []
         
         for row in data_dm[2:]: # Bỏ qua 2 dòng tiêu đề
@@ -63,9 +63,11 @@ if client:
                 })
 
         if items_list:
-            st.write(f"Tìm thấy **{len(items_list)}** mặt hàng thiết bị chuẩn trong DM_CHUAN.")
+            df_preview = pd.DataFrame(items_list)
+            st.dataframe(df_preview, use_container_width=True)
             
-            if st.button("🚀 XÁC NHẬN VÀ ĐẨY DỮ LIỆU SANG KHO_PHAN_BO"):
+            # Tạo nút bấm màu xanh trên giao diện web đúng y hệt nội dung yêu cầu
+            if st.button("👉 🚀 XÁC NHẬN VÀ ĐẨY DỮ LIỆU SANG KHO_PHAN_BO", type="primary"):
                 sheet_kho = spreadsheet.worksheet("KHO_PHAN_BO")
                 
                 # Xóa sạch và tạo lại tiêu đề chuẩn cho KHO_PHAN_BO
@@ -95,7 +97,7 @@ if client:
                         item["ten_tb"],   # Col D: Tên thiết bị / Hàng hóa
                         item["so_luong"], # Col E: Số lượng
                         item["don_vi"],   # Col F: Đơn vị tính
-                        "",               # Col G: Đội nhận thiết bị (Để trống cho Admin tự phân bổ)
+                        "",               # Col G: Đội nhận thiết bị (Để trống)
                         "",               # Col H: Địa điểm vận chuyển lắp đặt (Để trống)
                         ""                # Col I: Trạng thái Giao Nhận (Để trống)
                     ]
@@ -103,13 +105,13 @@ if client:
                 
                 if rows_to_append:
                     sheet_kho.append_rows(rows_to_append)
-                    st.success(f"✅ Đã đẩy thành công {len(rows_to_append)} dòng sang KHO_PHAN_BO! Cột đội nhận, địa điểm và trạng thái để trống để Admin tự chủ động phân bổ.")
+                    st.success(f"✅ Đã đẩy thành công {len(rows_to_append)} dòng sang KHO_PHAN_BO! Cấu trúc các cột A đến I đã chuẩn xác tuyệt đối.")
                 else:
                     st.warning("⚠️ Không có dữ liệu để phân bổ.")
         else:
-            st.warning("⚠️️ Chưa có danh mục thiết bị ở sheet DM_CHUAN.")
+            st.warning("⚠️ Chưa có danh mục thiết bị ở sheet DM_CHUAN.")
             
     except Exception as e:
-        st.error(f"❌ Lỗi: {e}")
+        st.error(f"❌ Lỗi hệ thống: {e}")
 else:
     st.warning("⚠️ Chưa kết nối được Google Sheets.")
