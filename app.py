@@ -1,92 +1,49 @@
-import streamlit as st
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import pandas as pd
-from datetime import datetime
-
-# --- CẤU HÌNH KẾT NỐI GOOGLE SHEETS ---
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds_dict = st.secrets["gcp_service_account"] if "gcp_service_account" in st.secrets else "credentials.json"
-
-try:
-    if isinstance(creds_dict, dict):
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    else:
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-    client = gspread.authorize(creds)
-    # Mở Google Sheets theo Key dự án
-    sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
-    spreadsheet = client.open_by_url(sheet_url)
-except Exception as e:
-    st.error(f"Lỗi kết nối Google Sheets: {e}")
-
-st.title("🚀 Hệ Thống Quản Lý Vận Chuyển & Lắp Đặt Dự Án")
-
-# --- MODULE 1: ĐỒNG BỘ VẬN CHUYỂN (VAN_CHUYEN) ---
-st.header("📦 Quản Lý Vận Chuyển")
-if st.button("Đồng bộ dữ liệu từ Kho phân bổ sang Vận chuyển"):
+# --- MODULE 2: ĐỒNG BỘ TỪ KHO PHÂN BỔ SANG LẮP ĐẶT (LAP_DAT) ---
+st.header("🛠️ Quản Lý Lắp Đặt")
+if st.button("Đồng bộ dữ liệu sang Lắp Đặt"):
     try:
         sheet_kho = spreadsheet.worksheet("KHO_PHAN_BO")
-        sheet_vc = spreadsheet.worksheet("VAN_CHUYEN")
+        sheet_ld = spreadsheet.worksheet("LAP_DAT")
         
         kho_data = sheet_kho.get_all_values()
         if len(kho_data) < 3:
             st.warning("Sheet KHO_PHAN_BO chưa có dữ liệu!")
         else:
             rows_to_append = []
+            # Duyệt qua dữ liệu từ dòng 3 của KHO_PHAN_BO (index từ 2)
             for row in kho_data[2:]:
                 if not any(row): continue
-                ma_du_an = row[0]
-                doi_nhan = row[7]
-                ten_tb = row[3]
-                so_luong = row[4]
                 
-                rows_to_append.append([
-                    ma_du_an,
-                    doi_nhan,
-                    ten_tb,
-                    so_luong,
-                    "Đang vận chuyển",
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                ])
-            
-            if rows_to_append:
-                sheet_vc.append_rows(rows_to_append)
-                st.success("✅ Đồng bộ vận chuyển thành công!")
-    except Exception as e:
-        st.error(f"Lỗi: {e}")
-
-# --- MODULE 2: XỬ LÝ LẮP ĐẶT (LAP_DAT) ---
-st.header("🛠️ Quản Lý Lắp Đặt")
-if st.button("Khởi tạo danh sách Lắp đặt từ Vận chuyển"):
-    try:
-        sheet_vc = spreadsheet.worksheet("VAN_CHUYEN")
-        sheet_ld = spreadsheet.worksheet("LAP_DAT")
-        
-        vc_data = sheet_vc.get_all_values()
-        if len(vc_data) < 3:
-            st.warning("Sheet VAN_CHUYEN chưa có dữ liệu!")
-        else:
-            rows_to_append = []
-            for row in vc_data[2:]:
-                if not any(row): continue
-                ma_du_an = row[0]
-                doi_nhan = row[1]
-                ten_tb = row[2]
-                so_luong = row[3]
+                # Lấy dữ liệu từ các cột nguồn KPB (Lưu ý: Index mảng bắt đầu từ 0)
+                # Cột A (index 0), Cột D (index 3), Cột E (index 4), Cột F (index 5), Cột G (index 6), Cột H (index 7)
+                val_A_kpb = row[0] if len(row) > 0 else ""  # Mã dự án
+                val_D_kpb = row[3] if len(row) > 3 else ""  # Tên thiết bị / Hàng hóa
+                val_E_kpb = row[4] if len(row) > 4 else ""  # Số lượng
+                val_F_kpb = row[5] if len(row) > 5 else ""  # Đơn vị tính
+                val_G_kpb = row[6] if len(row) > 6 else ""  # (Cột G KPB)
+                val_H_kpb = row[7] if len(row) > 7 else ""  # (Cột H KPB - Đội nhận / Điểm giao)
                 
-                rows_to_append.append([
-                    ma_du_an,
-                    doi_nhan,
-                    ten_tb,
-                    so_luong,
-                    doi_nhan,
-                    "Đang lắp đặt",
-                    ""
-                ])
+                # Mapping chuẩn theo đúng yêu cầu:
+                # - A KPB -> B LD (Index 1)
+                # - D KPB -> D LD (Index 3)
+                # - E KPB -> E LD (Index 4)
+                # - F KPB -> F LD (Index 5)
+                # - G KPB -> Cột C LD (Index 2 - Đội nhận thiết bị)
+                # - H KPB -> G LD (Index 6)
+                
+                # Tạo một dòng đủ rộng cho LAP_DAT (giả sử tối thiểu 7 cột từ A đến G)
+                new_row = [""] * 7
+                new_row[1] = val_A_kpb  # Cột B của LD
+                new_row[3] = val_D_kpb  # Cột D của LD
+                new_row[4] = val_E_kpb  # Cột E của LD
+                new_row[5] = val_F_kpb  # Cột F của LD
+                new_row[2] = val_G_kpb  # Cột C của LD (Đội nhận thiết bị)
+                new_row[6] = val_H_kpb  # Cột G của LD
+                
+                rows_to_append.append(new_row)
             
             if rows_to_append:
                 sheet_ld.append_rows(rows_to_append)
-                st.success("✅ Khởi tạo danh sách lắp đặt thành công!")
+                st.success("✅ Đồng bộ dữ liệu sang Lắp Đặt thành công!")
     except Exception as e:
         st.error(f"Lỗi: {e}")
