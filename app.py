@@ -1,49 +1,92 @@
-function dongBoTonKhoNhapKho() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetKho = ss.getSheetByName("KHO_PHAN_BO");
-  var sheetNhap = ss.getSheetByName("NHAP_KHO");
-  if (!sheetKho || !sheetNhap) {
-    ss.toast("Không tìm thấy sheet KHO_PHAN_BO hoặc NHAP_KHO!", "Lỗi", 3);
-    return;
-  }
-  
-  // 1. Quét dữ liệu đã phân bổ từ KHO_PHAN_BO
-  var khoData = sheetKho.getDataRange().getValues();
-  var phanBoMap = {};
-  
-  for (var r = 2; r < khoData.length; r++) {
-    var mDa = String(khoData[r][0]).trim();
-    var mSku = String(khoData[r][1]).trim();
-    var slPb = parseFloat(khoData[r][4]) || 0;
-    if (mSku) {
-      var key = mDa + "_" + mSku;
-      phanBoMap[key] = (phanBoMap[key] || 0) + slPb;
-    }
-  }
-  
-  // 2. Quét sheet NHAP_KHO và tính toán lại tồn kho (Tổng nhập - Đã phân bổ)
-  var nhapData = sheetNhap.getDataRange().getValues();
-  var tonKhoValues = [];
-  
-  for (var r = 2; r < nhapData.length; r++) {
-    var row = nhapData[r];
-    var mDaNhap = String(row[0]).trim();
-    var mSkuNhap = String(row[1]).trim();
-    var tongNhap = parseFloat(row[4]) || 0; // Cột E: Tổng nhập thầu
-    
-    if (mSkuNhap) {
-      var lookupKey = mDaNhap + "_" + mSkuNhap;
-      var daPb = phanBoMap[lookupKey] || 0;
-      var tonKho = tongNhap - daPb; // Nếu KHO_PHAN_BO trống, daPb = 0 => Tồn kho = Tổng nhập
-      tonKhoValues.push([tonKho]);
-    } else {
-      tonKhoValues.push([""]);
-    }
-  }
-  
-  // 3. Cập nhật lại Cột F của NHAP_KHO
-  if (tonKhoValues.length > 0) {
-    sheetNhap.getRange(3, 6, tonKhoValues.length, 1).setValues(tonKhoValues);
-    ss.toast("✅ Đã đồng bộ lại toàn bộ tồn kho vào NHAP_KHO thành công!", "Thành công", 4);
-  }
-}
+import streamlit as st
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import pandas as pd
+from datetime import datetime
+
+# --- CẤU HÌNH KẾT NỐI GOOGLE SHEETS ---
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds_dict = st.secrets["gcp_service_account"] if "gcp_service_account" in st.secrets else "credentials.json"
+
+try:
+    if isinstance(creds_dict, dict):
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    else:
+        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    client = gspread.authorize(creds)
+    # Mở Google Sheets theo Key dự án
+    sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
+    spreadsheet = client.open_by_url(sheet_url)
+except Exception as e:
+    st.error(f"Lỗi kết nối Google Sheets: {e}")
+
+st.title("🚀 Hệ Thống Quản Lý Vận Chuyển & Lắp Đặt Dự Án")
+
+# --- MODULE 1: ĐỒNG BỘ VẬN CHUYỂN (VAN_CHUYEN) ---
+st.header("📦 Quản Lý Vận Chuyển")
+if st.button("Đồng bộ dữ liệu từ Kho phân bổ sang Vận chuyển"):
+    try:
+        sheet_kho = spreadsheet.worksheet("KHO_PHAN_BO")
+        sheet_vc = spreadsheet.worksheet("VAN_CHUYEN")
+        
+        kho_data = sheet_kho.get_all_values()
+        if len(kho_data) < 3:
+            st.warning("Sheet KHO_PHAN_BO chưa có dữ liệu!")
+        else:
+            rows_to_append = []
+            for row in kho_data[2:]:
+                if not any(row): continue
+                ma_du_an = row[0]
+                doi_nhan = row[7]
+                ten_tb = row[3]
+                so_luong = row[4]
+                
+                rows_to_append.append([
+                    ma_du_an,
+                    doi_nhan,
+                    ten_tb,
+                    so_luong,
+                    "Đang vận chuyển",
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                ])
+            
+            if rows_to_append:
+                sheet_vc.append_rows(rows_to_append)
+                st.success("✅ Đồng bộ vận chuyển thành công!")
+    except Exception as e:
+        st.error(f"Lỗi: {e}")
+
+# --- MODULE 2: XỬ LÝ LẮP ĐẶT (LAP_DAT) ---
+st.header("🛠️ Quản Lý Lắp Đặt")
+if st.button("Khởi tạo danh sách Lắp đặt từ Vận chuyển"):
+    try:
+        sheet_vc = spreadsheet.worksheet("VAN_CHUYEN")
+        sheet_ld = spreadsheet.worksheet("LAP_DAT")
+        
+        vc_data = sheet_vc.get_all_values()
+        if len(vc_data) < 3:
+            st.warning("Sheet VAN_CHUYEN chưa có dữ liệu!")
+        else:
+            rows_to_append = []
+            for row in vc_data[2:]:
+                if not any(row): continue
+                ma_du_an = row[0]
+                doi_nhan = row[1]
+                ten_tb = row[2]
+                so_luong = row[3]
+                
+                rows_to_append.append([
+                    ma_du_an,
+                    doi_nhan,
+                    ten_tb,
+                    so_luong,
+                    doi_nhan,
+                    "Đang lắp đặt",
+                    ""
+                ])
+            
+            if rows_to_append:
+                sheet_ld.append_rows(rows_to_append)
+                st.success("✅ Khởi tạo danh sách lắp đặt thành công!")
+    except Exception as e:
+        st.error(f"Lỗi: {e}")
