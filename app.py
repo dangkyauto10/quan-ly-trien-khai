@@ -25,34 +25,22 @@ def load_kho_data():
 
 @st.cache_data(ttl=30)
 def load_danh_sach_diem():
-    diem_set = set()
-    # 1. Thử đọc từ sheet DANH_SACH_DIỂM trước
+    diem_list = []
     try:
+        # Đọc chuẩn xác từ Sheet DANH_SACH_DIỂM, lấy dữ liệu từ Cột D (index cột là 3)
         url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
         df_d = pd.read_csv(url_diem, header=None)
-        for col in df_d.columns:
-            vals = df_d.iloc[1:, col].dropna().astype(str).str.strip().tolist()
-            for v in vals:
-                if v and v.lower() != 'nan' and len(v) > 1:
-                    diem_set.add(v)
-    except:
+        if len(df_d.columns) > 3:
+            # Lấy từ dòng thứ 3 trở đi (bỏ qua tiêu đề), cột D (index 3)
+            raw_vals = df_d.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
+            for v in raw_vals:
+                if v and v.lower() != 'nan' and v != '-- Chọn địa điểm --':
+                    diem_list.append(v)
+    except Exception as e:
         pass
         
-    # 2. Nếu vẫn trống, lấy luôn từ danh sách địa điểm phân bổ (cột H / index 7) của KHO_PHAN_BO để luôn có dữ liệu
-    try:
-        df_k = load_kho_data()
-        if len(df_k.columns) > 7:
-            vals = df_k.iloc[2:, 7].dropna().astype(str).str.strip().tolist()
-            for v in vals:
-                if v and v.lower() != 'nan':
-                    diem_set.add(v)
-    except:
-        pass
-        
-    if not diem_set:
-        diem_set = {"Điểm 01", "Điểm 02", "Điểm 03", "Toàn bộ các điểm (Toàn tuyến dự án)"}
-        
-    return sorted(list(diem_set))
+    # Loại bỏ trùng lặp nhưng giữ nguyên thứ tự hoặc sắp xếp gọn gàng
+    return sorted(list(set(diem_list)))
 
 try:
     df_data = load_kho_data()
@@ -97,16 +85,16 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thông Tin Thành Viên Mới")
-    st.caption("Chọn hoặc gõ tìm kiếm các dự án/địa bàn phụ trách (có thể chọn 1 đến nhiều điểm cùng lúc).")
+    st.caption("Chọn hoặc gõ tìm kiếm các dự án/địa bàn phụ trách từ danh sách Cột D (Sheet DANH_SACH_DIỂM).")
     
     reg_name = st.text_input("Họ và tên:")
     reg_phone = st.text_input("Số điện thoại:")
     
-    # Dùng st.pills hoặc st.multiselect hỗ trợ hiện sẵn danh sách và cho phép gõ tìm
+    # Cho phép chọn nhiều dự án/địa bàn đồng thời lấy từ Cột D chuẩn xác
     selected_diaban = st.multiselect(
-        "Địa bàn phụ trách (Chọn nhiều dự án):",
+        "Địa bàn phụ trách (Chọn nhiều dự án từ Cột D):",
         options=dia_ban_options,
-        default=[]
+        placeholder="Gõ hoặc chọn các địa bàn..."
     )
     
     reg_spec = st.selectbox("Chuyên môn:", [
@@ -119,10 +107,10 @@ if st.session_state.page == "register":
         if not reg_name or not reg_phone:
             st.warning("⚠️ Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
         elif not selected_diaban:
-            st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn/dự án phụ trách!")
+            st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn phụ trách!")
         else:
             diaban_str = ", ".join(selected_diaban)
-            st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_diaban)} dự án:** `{diaban_str}`.\n\n⏳ Đang chờ Admin phê duyệt.")
+            st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_diaban)} địa bàn:** `{diaban_str}`.\n\n⏳ Đang chờ Admin phê duyệt.")
             
     st.stop()
 
