@@ -1,9 +1,8 @@
 import streamlit as st
 import gspread
-from google.oauth2.service_account import Credentials
 from datetime import datetime
 
-# --- CẤU HÌNH GIAO DIỆN STREAMLIT (TỐI ƯU CHO MOBILE) ---
+# --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
 
 st.markdown(
@@ -15,20 +14,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- KẾT NỐI GOOGLE SHEETS BẰNG GOOGLE-AUTH (KHÔNG BAO GIỜ LỖI JWT) ---
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-
+# --- KẾT NỐI GOOGLE SHEETS DỨT ĐIỂM (DÙNG CHUẨN GSPREAD NATIVE) ---
 @st.cache_resource
 def init_connection():
-    # Sử dụng chuẩn google-auth đọc trực tiếp tệp credentials.json
-    creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
-    client = gspread.authorize(creds)
+    # Sử dụng hàm chuẩn gốc của gspread đọc trực tiếp file credentials.json
+    gc = gspread.service_account(filename="credentials.json")
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
-    return client.open_by_url(sheet_url)
+    return gc.open_by_url(sheet_url)
 
 try:
     spreadsheet = init_connection()
-    st.success("✅ Kết nối Google Sheets thành công tuyệt đối!")
 except Exception as e:
     st.error(f"❌ Lỗi kết nối Google Sheets: {e}")
     st.stop()
