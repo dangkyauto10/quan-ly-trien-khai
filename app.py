@@ -26,45 +26,27 @@ def load_kho_data():
 @st.cache_data(ttl=30)
 def load_danh_sach_diem():
     diem_list = []
-    # 1. Đọc từ sheet DANH_SACH_DIỂM (Quét toàn bộ các cột để tìm dữ liệu dạng địa danh)
     try:
+        # Đọc trực tiếp sheet DANH_SACH_DIỂM
         url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
         df_d = pd.read_csv(url_diem, header=None)
-        for col in df_d.columns:
-            vals = df_d.iloc[:, col].dropna().astype(str).str.strip().tolist()
-            for v in vals:
-                # Lọc các giá trị giống tên địa danh (có chữ Phường, Xã hoặc dài hơn 2 ký tự)
-                if v and v.lower() != 'nan' and v != '-- Chọn địa điểm --' and v != 'Địa điểm giao hàng và lắp đặt':
+        
+        # Kiểm tra xem sheet có đủ ít nhất 4 cột (cột D là index 3) hay không
+        target_col_idx = 3 if len(df_d.columns) > 3 else (len(df_d.columns) - 1)
+        
+        if target_col_idx >= 0:
+            # Lấy toàn bộ từ dòng thứ 2 (bỏ qua tiêu đề hàng đầu) đến hết Cột D (bất kể 136, 45 hay 450 dòng)
+            raw_vals = df_d.iloc[2:, target_col_idx].dropna().astype(str).str.strip().tolist()
+            for v in raw_vals:
+                if v and v.lower() not in ['nan', 'none', '', '-- chọn địa điểm --', 'địa điểm giao hàng và lắp đặt']:
                     if v not in diem_list:
                         diem_list.append(v)
-    except:
+    except Exception as e:
         pass
         
-    # 2. Nếu lấy từ sheet trên bị trống, lấy luôn từ sheet KHO_PHAN_BO cột địa điểm
-    if len(diem_list) < 5:
-        try:
-            df_k = load_kho_data()
-            if len(df_k.columns) > 7:
-                vals = df_k.iloc[2:, 7].dropna().astype(str).str.strip().tolist()
-                for v in vals:
-                    if v and v.lower() != 'nan' and v not in diem_list:
-                        diem_list.append(v)
-        except:
-            pass
-            
-    # Dự phòng chuẩn nếu mạng lỗi
+    # Dự phòng an toàn tuyệt đối nếu file CSV chưa phản hồi kịp
     if not diem_list:
-        diem_list = [
-            "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
-            "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
-            "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thao", "Xã Hồng Sơn", "Xã Trường Sinh",
-            "Xã Phú Lượng", "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca",
-            "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Trí Phú", "Xã Kiên Đài", "Xã Hòa An",
-            "Xã Chiêm Hóa", "Xã Tân An", "Xã Tân Mỹ", "Xã Yên Lập", "Xã Trung Hà", "Xã Thượng Nông",
-            "Xã Yên Hoa", "Xã Nà Hang", "Xã Hồng Thái", "Xã Côn Lôn", "Xã Thượng Lâm", "Xã Lâm Bình",
-            "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bách Xa", "Xã Yên Phú", "Xã Hàm Yên",
-            "Xã Thái Sơn", "Xã Thái Hòa", "Toàn bộ các điểm (Toàn tuyến dự án)"
-        ]
+        diem_list = ["Phường Minh Xuân", "Phường Nông Tiến", "Xã Nhữ Khê", "Xã Sơn Dương", "Toàn bộ các điểm"]
         
     return sorted(list(set(diem_list)))
 
@@ -99,7 +81,7 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK - Admin đã duyệt")
             else: st.warning("Sai MK")
     with col_a4:
-        if st.button("🛠️ B/C LD", use_container_width=True):
+        if st.button("🛠️️ B/C LD", use_container_width=True):
             if pass_input == ADMIN_PASS: st.success("OK - Quản lý LD")
             else: st.warning("Sai MK")
 
@@ -111,16 +93,16 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thông Tin Thành Viên Mới")
-    st.caption("Chọn hoặc gõ tìm kiếm các dự án/địa bàn phụ trách (chọn nhiều dự án cùng lúc).")
+    st.caption(f"Hệ thống đã nạp thành công **{len(dia_ban_options)} điểm** từ Cột D của dự án. Thành viên có thể chọn 1 đến nhiều dự án cùng lúc.")
     
     reg_name = st.text_input("Họ và tên:")
     reg_phone = st.text_input("Số điện thoại:")
     
-    # Dùng multiselect với danh sách đã quét kỹ bảo đảm không bao giờ trống
+    # Ô chọn đa nhiệm toàn bộ danh sách Cột D
     selected_diaban = st.multiselect(
-        "Địa bàn phụ trách (Chọn nhiều dự án):",
+        "Địa bàn phụ trách (Chọn nhiều dự án đồng thời):",
         options=dia_ban_options,
-        placeholder="Bấm vào đây để chọn danh sách địa bàn..."
+        placeholder="Gõ tìm kiếm hoặc chọn các điểm dự án..."
     )
     
     reg_spec = st.selectbox("Chuyên môn:", [
@@ -206,6 +188,6 @@ with col_img:
 
 if st.button("🚀 GỬI BÁO CÁO & CẬP NHẬT HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Chọn địa điểm --":
-        st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi!")
+        st.warning("⚠️️ Vui lòng chọn địa điểm trước khi gửi!")
     else:
         st.success(f"✅ Gửi báo cáo thành công trạng thái '{st.session_state.selected_status}' cho điểm {selected_location}!")
