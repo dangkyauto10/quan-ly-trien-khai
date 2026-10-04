@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import urllib.parse
 from datetime import datetime
 
 # --- CẤU HÌNH GIAO DIỆN GỌN GÀNG ---
@@ -16,54 +15,32 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS ---
-SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
-
+# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (ỔN ĐỊNH TUYỆT ĐỐI) ---
 @st.cache_data(ttl=60)
-def load_kho_data():
-    sheet_encoded = urllib.parse.quote("KHO_PHAN_BO")
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_encoded}"
-    return pd.read_csv(csv_url, header=None)
-
-# HÀM LẤY CHÍNH XÁC 100% TOÀN BỘ CỘT D TỪ SHEET DANH_SACH_DIỂM
-@st.cache_data(ttl=60)
-def load_danh_sach_diem_cot_d():
-    diem_list = []
-    try:
-        sheet_encoded = urllib.parse.quote("DANH_SACH_DIỂM")
-        url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_encoded}"
-        df_d = pd.read_csv(url_diem, header=None)
-        
-        # Cột D tương ứng với index 3 trong Python. Lấy từ dòng index 2 đến hết
-        if len(df_d.columns) > 3:
-            raw_vals = df_d.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
-            for v in raw_vals:
-                if v and v.lower() not in ['nan', 'none', '', '-- chọn địa điểm --', 'địa điểm giao hàng và lắp đặt', 'tỉnh', 'huyện']:
-                    if v not in diem_list:
-                        diem_list.append(v)
-    except Exception as e:
-        pass
-        
-    # Dự phòng an toàn tuyệt đối nếu link sheet chưa phản hồi
-    if not diem_list:
-        diem_list = ["Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm"]
-        
-    return sorted(list(set(diem_list)))
+def load_sheet_data():
+    sheet_id = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
+    df = pd.read_csv(csv_url, header=None)
+    return df
 
 try:
-    df_data = load_kho_data()
-    locations_cot_d = load_danh_sach_diem_cot_d()
+    df_data = load_sheet_data()
 except Exception as e:
     st.error(f"❌ Lỗi tải dữ liệu: {e}")
     st.stop()
 
-# Xử lý dữ liệu kho phân bổ cho màn hình chính
+# Xử lý dữ liệu bảng lấy trọn bộ danh sách điểm từ dữ liệu gốc
 if len(df_data) < 3:
-    st.warning("Sheet KHO_PHAN_BO chưa đủ dữ liệu!")
+    st.warning("Sheet chưa đủ dữ liệu!")
     st.stop()
 
 rows = df_data.iloc[2:].values.tolist()
-locations_kho = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip() and str(row[7]).strip().lower() != 'nan'])))
+
+# Trích xuất toàn bộ danh sách điểm chuẩn (từ cột D / cột H tương ứng trong hệ thống)
+all_diem_list = sorted(list(set([str(row[3]).strip() for row in rows if len(row) > 3 and pd.notna(row[3]) and str(row[3]).strip() and str(row[3]).strip().lower() not in ['nan', 'địa điểm giao hàng và lắp đặt', 'tỉnh', 'huyện']])))
+
+if not all_diem_list or len(all_diem_list) < 5:
+    all_diem_list = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip() and str(row[7]).strip().lower() not in ['nan']])))
 
 # --- QUẢN LÝ TRANG (MÀN HÌNH CHÍNH HOẶC ĐĂNG KÝ) ---
 if "page" not in st.session_state:
@@ -101,16 +78,16 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Đã nạp chính xác **{len(locations_cot_d)} điểm** từ Cột D sheet DANH_SACH_DIỂM. Thành viên có thể chọn 1 đến 5 dự án cùng lúc.")
+    st.caption(f"✅ Đã nạp thành công **{len(all_diem_list)} điểm** từ hệ thống. Thành viên có thể chọn đồng thời từ 1 đến 5 dự án.")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
         reg_phone = st.text_input("Số điện thoại liên hệ:")
         
-        # Sử dụng đúng toàn bộ danh sách từ Cột D cho phép gõ tìm kiếm và chọn nhiều dự án
+        # Ô chọn đa nhiệm chuẩn xác tuyệt đối, hỗ trợ gõ tìm kiếm và chọn nhiều dự án
         selected_projects = st.multiselect(
-            "Chọn địa bàn / dự án phụ trách (Lấy từ Cột D, chọn 1 đến 5 dự án):",
-            options=locations_cot_d,
+            "Chọn địa bàn / dự án phụ trách (Chọn 1 đến 5 dự án cùng lúc):",
+            options=all_diem_list,
             placeholder="Gõ tìm kiếm hoặc chọn địa bàn..."
         )
         
@@ -139,7 +116,7 @@ with col1:
     cb_list = ["Vũ - Hạnh - Hiền", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
     selected_cb = st.selectbox("Cán bộ / Đội thực hiện:", cb_list)
 with col2:
-    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + locations_kho)
+    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + all_diem_list)
 
 total_devices = 0
 matched_rows_indices = []
