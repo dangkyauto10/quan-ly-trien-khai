@@ -3,6 +3,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
+# --- CẤU HÌNH GIAO DIỆN STREAMLIT (TỐI ƯU CHO MOBILE) ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
 
 st.markdown(
@@ -14,12 +15,11 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- KẾT NỐI GOOGLE SHEETS ---
+# --- KẾT NỐI GOOGLE SHEETS TỪ SECRETS ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 @st.cache_resource
 def init_connection():
-    # Lấy và làm sạch chuỗi private_key từ secrets
     sec = st.secrets["gcp_service_account"]
     pk = str(sec["private_key"]).replace("\\n", "\n")
     
@@ -38,14 +38,11 @@ def init_connection():
     
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
-    
-    # URL Google Sheets chính xác của anh
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
     return client.open_by_url(sheet_url)
 
 try:
     spreadsheet = init_connection()
-    st.success("✅ Kết nối Google Sheets thành công tuyệt đối!")
 except Exception as e:
     st.error(f"❌ Lỗi kết nối Google Sheets: {e}")
     st.stop()
