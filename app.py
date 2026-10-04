@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-# --- CẤU HÌNH GIAO DIỆN ---
+# --- CẤU HÌNH GIAO DIỆN GỌN GÀNG ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
 
 st.markdown(
     """
     <style>
         [data-testid="stSidebar"] {display: none;}
+        .block-container {padding-top: 1rem; padding-bottom: 1rem;}
     </style>
     """,
     unsafe_allow_html=True
@@ -24,39 +25,33 @@ def load_sheet_data():
 
 try:
     df_data = load_sheet_data()
-    st.success("✅ Kết nối hệ thống thành công!")
 except Exception as e:
     st.error(f"❌ Lỗi tải dữ liệu: {e}")
     st.stop()
 
-# --- GIAO DIỆN CHÍNH ---
-st.title("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
-st.caption("Hệ thống điều hành phân bổ tự động hiện trường")
+# --- GIAO DIỆN CHÍNH (GỌN TRONG 1 MÀN HÌNH) ---
+st.title("📱 ĐIỀU HÀNH HIỆN TRƯỜNG")
 
-pass_input = st.text_input("🔑 Nhập Pass Quản Trị:", type="password", placeholder="Nhập mật khẩu...")
-ADMIN_PASS = "S90880"
+# Gom khu vực quản trị vào một menu xổ xuống (Expander) cho gọn gàng không chiếm diện tích
+with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=False):
+    pass_input = st.text_input("Nhập Pass Quản Trị:", type="password", placeholder="Mật khẩu...")
+    ADMIN_PASS = "S90880"
+    
+    col_a1, col_a2, col_a3, col_a4 = st.columns(4)
+    with col_a1:
+        if st.button("📝 Đăng ký", use_container_width=True): st.info("Đang phát triển.")
+    with col_a2:
+        if st.button("📊 Báo cáo", use_container_width=True): st.info("Đang phát triển.")
+    with col_a3:
+        if st.button("🛡️ AD Duyệt", use_container_width=True):
+            if pass_input == ADMIN_PASS: st.success("OK")
+            else: st.warning("Sai MK")
+    with col_a4:
+        if st.button("🛠️ B/C LD", use_container_width=True):
+            if pass_input == ADMIN_PASS: st.success("OK")
+            else: st.warning("Sai MK")
 
-col_btn1, col_btn2 = st.columns(2)
-with col_btn1:
-    if st.button("📝 Đăng ký thành viên"):
-        st.info("Chức năng Đăng ký thành viên đang phát triển.")
-    if st.button("📊 Báo cáo KTV & VC"):
-        st.info("Chức năng Báo cáo KTV & VC đang phát triển.")
-with col_btn2:
-    if st.button("🛡️ AD Duyệt TVĐK"):
-        if pass_input == ADMIN_PASS:
-            st.success("✅ Xác thực AD thành công!")
-        else:
-            st.warning("⚠️ Sai mật khẩu quản trị!")
-    if st.button("🛠️ BÁO CÁO LD"):
-        if pass_input == ADMIN_PASS:
-            st.success("✅ Xác thực Quản lý Lắp đặt thành công!")
-        else:
-            st.warning("⚠️ Sai mật khẩu quản trị!")
-
-st.markdown("---")
-
-# Xử lý dữ liệu dạng bảng từ dòng thứ 3 (index 2)
+# Xử lý dữ liệu bảng
 if len(df_data) < 3:
     st.warning("Sheet KHO_PHAN_BO chưa đủ dữ liệu!")
     st.stop()
@@ -64,11 +59,14 @@ if len(df_data) < 3:
 rows = df_data.iloc[2:].values.tolist()
 locations = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip()])))
 
-st.subheader("1. Xác nhận thông tin thực hiện")
-cb_list = ["Vũ - Hạnh - Hiền (Nguyễn Văn A)", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
-selected_cb = st.selectbox("Cán bộ / Đội trưởng thực hiện:", cb_list)
-
-selected_location = st.selectbox("Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT:", ["-- Chọn địa điểm --"] + locations)
+# --- PHẦN 1: THÔNG TIN THỰC HIỆN (BỐ TRÍ SONG SONG 2 CỘT) ---
+st.markdown("---")
+col1, col2 = st.columns(2)
+with col1:
+    cb_list = ["Vũ - Hạnh - Hiền", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
+    selected_cb = st.selectbox("Cán bộ / Đội thực hiện:", cb_list)
+with col2:
+    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + locations)
 
 total_devices = 0
 matched_rows_indices = []
@@ -82,51 +80,47 @@ if selected_location != "-- Chọn địa điểm --":
                 total_devices += qty
             except:
                 pass
-    st.markdown(f"📦 **Số lượng thiết bị được phân bổ cho điểm này:** `{total_devices} thiết bị`")
-else:
-    st.info("👆 Vui lòng chọn địa điểm để app tự động tải danh mục thiết bị.")
+    st.caption(📦 📦 **Phân bổ:** `{total_devices} thiết bị`")
 
-actual_qty = st.number_input("Số lượng thiết bị thực tế lắp đội / giao hàng:", min_value=0, value=total_devices, step=1)
+# Số lượng thực tế và GPS đặt cạnh nhau
+col_q, col_g = st.columns(2)
+with col_q:
+    actual_qty = st.number_input("Số lượng thực tế:", min_value=0, value=total_devices, step=1)
+with col_g:
+    st.write("") # Tạo khoảng trống căn chỉnh nút
+    if st.button("📍 Check-in GPS", use_container_width=True):
+        st.success("📍 Đã ghi nhận GPS!")
 
-if st.button("📍 Thêm lấy vị trí hiện tại (Check-in GPS)"):
-    st.success("📍 Đã ghi nhận tọa độ GPS hiện tại thành công!")
-
-st.file_uploader("📷 Thêm phần chụp ảnh Báo cáo / Nghiệm thu", type=["jpg", "png", "jpeg"])
-
+# --- PHẦN 2: TRẠNG THÁI & BÁO CÁO (4 NÚT GỌN GÀNG TRÊN 1 HÀNG) ---
 st.markdown("---")
+st.markdown("**2. Trạng Thái Hoàn Thành:**")
 
-# --- 2. TRẠNG THÁI BÁO CÁO & NGHIỆM THU (CHUYỂN THÀNH CÁC NÚT BẤM TIỆN LỢI) ---
-st.subheader("2. Trạng Thái Báo Cáo & Nghiệm Thu")
-st.write("Chọn trạng thái hoàn thành:")
-
-# Dùng state lưu trạng thái được chọn
 if "selected_status" not in st.session_state:
     st.session_state.selected_status = "Đang vận chuyển"
 
-# Chia thành 2 hàng nút bấm cho dễ nhìn trên di động
-r1_col1, r1_col2 = st.columns(2)
-with r1_col1:
-    if st.button("🚚 Đang vận chuyển", use_container_width=True):
-        st.session_state.selected_status = "Đang vận chuyển"
-with r1_col2:
-    if st.button("✅ Đã giao hàng xong", use_container_width=True):
-        st.session_state.selected_status = "Đã giao hàng xong"
+# Gom 4 nút trạng thái thành 1 hàng ngang duy nhất siêu gọn
+b1, b2, b3, b4 = st.columns(4)
+with b1:
+    if st.button("🚚 Đang V/C", use_container_width=True): st.session_state.selected_status = "Đang vận chuyển"
+with b2:
+    if st.button("✅ Đã Giao", use_container_width=True): st.session_state.selected_status = "Đã giao hàng xong"
+with b3:
+    if st.button("⚙️ Đang Lắp", use_container_width=True): st.session_state.selected_status = "Đang lắp đặt"
+with b4:
+    if st.button("🎉 Hoàn Thành", use_container_width=True): st.session_state.selected_status = "Đã lắp đặt xong"
 
-r2_col1, r2_col2 = st.columns(2)
-with r2_col1:
-    if st.button("⚙️ Đang lắp đặt", use_container_width=True):
-        st.session_state.selected_status = "Đang lắp đặt"
-with r2_col2:
-    if st.button("🎉 Đã lắp đặt xong", use_container_width=True):
-        st.session_state.selected_status = "Đã lắp đặt xong"
+st.caption(f"📌 Đang chọn: **{st.session_state.selected_status}**")
 
-# Hiển thị trạng thái đang được chọn
-st.info(f"📌 Trạng thái hiện tại: **{st.session_state.selected_status}**")
+# Ghi chú và Ảnh chụp bố trí 2 cột ngang
+col_note, col_img = st.columns(2)
+with col_note:
+    notes = st.text_area("Ghi chú / Phát sinh:", placeholder="Nhập ghi chú...", height=70)
+with col_img:
+    st.file_uploader("📷 Ảnh nghiệm thu", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
 
-notes = st.text_area("Ghi chú / Vấn đề phát sinh tại hiện trường:", placeholder="Nhập ghi chú nếu có...")
-
-if st.button("🚀 Gửi Báo Cáo & Cập Nhật Hệ Thống", type="primary"):
+# Nút gửi báo cáo lớn nổi bật ở dưới cùng
+if st.button("🚀 GỬI BÁO CÁO & CẬP NHẬT HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Chọn địa điểm --":
-        st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi báo cáo!")
+        st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi!")
     else:
-        st.success(f"✅ Gửi báo cáo thành công! Đã cập nhật trạng thái '{st.session_state.selected_status}' cho điểm {selected_location}.")
+        st.success(f"✅ Gửi báo cáo thành công trạng thái '{st.session_state.selected_status}' cho điểm {selected_location}!")
