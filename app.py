@@ -6,7 +6,6 @@ from datetime import datetime
 # --- CẤU HÌNH GIAO DIỆN STREAMLIT (TỐI ƯU CHO MOBILE) ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
 
-# Ẩn sidebar theo yêu cầu
 st.markdown(
     """
     <style>
@@ -21,11 +20,8 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 
 @st.cache_resource
 def init_connection():
-    # Lấy dictionary cấu hình từ st.secrets (xử lý tự động chuẩn xác private_key)
     creds_dict = dict(st.secrets["gcp_service_account"])
-    
-    # Đảm bảo ký tự xuống dòng của private_key được định dạng đúng nếu bị lỗi
-    if "\\n" in creds_dict["private_key"]:
+    if "private_key" in creds_dict and "\\n" in creds_dict["private_key"]:
         creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
@@ -35,7 +31,6 @@ def init_connection():
 
 try:
     spreadsheet = init_connection()
-    st.success(" kết nối Google Sheets thành công!")
 except Exception as e:
     st.error(f"❌ Lỗi kết nối Google Sheets: {e}")
     st.stop()
@@ -82,7 +77,7 @@ if len(all_data) < 3:
 rows = all_data[2:]
 locations = sorted(list(set([row[7].strip() for row in rows if len(row) > 7 and row[7].strip()])))
 
-# --- MÔ-ĐUN 1: XÁC NHẬN THÔNG TIN THỰC HIỆN ---
+# --- MÔ-DUN 1: XÁC NHẬN THÔNG TIN THỰC HIỆN ---
 st.subheader("1. Xác nhận thông tin thực hiện")
 
 cb_list = ["Vũ - Hạnh - Hiền (Nguyễn Văn A)", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
@@ -115,7 +110,7 @@ st.file_uploader("📷 Thêm phần chụp ảnh Báo cáo / Nghiệm thu", type
 
 st.markdown("---")
 
-# --- MÔ-ĐUN 2: TRẠNG THÁI BÁO CÁO & NGHIỆM THU ---
+# --- MÔ-DUN 2: TRẠNG THÁI BÁO CÁO & NGHIỆM THU ---
 st.subheader("2. Trạng Thái Báo Cáo & Nghiệm Thu")
 
 status_options = [
