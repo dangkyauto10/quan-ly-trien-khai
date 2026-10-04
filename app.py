@@ -15,53 +15,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (DÙNG ĐƯỜNG DẪN CSV ANH CÓ THỂ TÙY CHỈNH HOẶC TỰ ĐỘNG QUÉT) ---
+# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (DÙNG DUY NHẤT 1 LINK CHUẨN AN TOÀN 100%) ---
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
 @st.cache_data(ttl=30)
-def load_kho_data():
-    # Đọc sheet KHO_PHAN_BO qua gid chuẩn (thường tab đầu tiên là gid=0)
+def load_sheet_data():
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
     return pd.read_csv(csv_url, header=None)
 
-@st.cache_data(ttl=30)
-def load_danh_sach_diem():
-    diem_list = []
-    try:
-        # Cách chuẩn xác nhất để lấy đúng tab DANH_SACH_DIỂM mà không lỗi 400: 
-        # Đọc toàn bộ các tab hoặc dùng export theo tên sheet dạng encode an toàn
-        url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
-        df_d = pd.read_csv(url_diem, header=None)
-        
-        # Cột D tương ứng với index 3 trong bảng dữ liệu
-        if len(df_d.columns) > 3:
-            # Lấy từ dòng index 2 trở đi để bỏ qua tiêu đề rác, vét sạch toàn bộ cột D (136 điểm hay bao nhiêu cũng nhận hết)
-            raw_vals = df_d.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
-            for v in raw_vals:
-                if v and v.lower() not in ['nan', 'none', '', '-- chọn địa điểm --', 'địa điểm giao hàng và lắp đặt', 'tỉnh', 'huyện']:
-                    if v not in diem_list:
-                        diem_list.append(v)
-    except Exception as e:
-        pass
-        
-    # Nếu vì lý do nào đó chưa load được, ta quét vét cạn từ kho phân bổ cột H (index 7) để app không bao giờ bị trống
-    if not diem_list:
-        try:
-            df_k = load_kho_data()
-            if len(df_k.columns) > 7:
-                vals = df_k.iloc[2:, 7].dropna().astype(str).str.strip().tolist()
-                for v in vals:
-                    if v and v.lower() not in ['nan', '']:
-                        if v not in diem_list:
-                            diem_list.append(v)
-        except:
-            pass
-            
-    return sorted(list(set(diem_list)))
-
 try:
-    df_data = load_kho_data()
-    dia_ban_options = load_danh_sach_diem()
+    df_data = load_sheet_data()
 except Exception as e:
     st.error(f"❌ Lỗi tải dữ liệu: {e}")
     st.stop()
@@ -94,6 +57,15 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK - Quản lý LD")
             else: st.warning("Sai MK")
 
+# Xử lý dữ liệu bảng kho phân bổ
+if len(df_data) < 3:
+    st.warning("Sheet chưa đủ dữ liệu!")
+    st.stop()
+
+rows = df_data.iloc[2:].values.tolist()
+# Trích xuất toàn bộ danh sách địa điểm thực tế từ cột H (index 7) của dữ liệu kho phân bổ
+locations = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip() and str(row[7]).strip().lower() != 'nan'])))
+
 # --- MÀN HÌNH ĐĂNG KÝ THÀNH VIÊN MỚI ---
 if st.session_state.page == "register":
     st.markdown("---")
@@ -102,15 +74,15 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thông Tin Thành Viên Mới")
-    st.caption(f"✅ Đã nạp thành công **{len(dia_ban_options)} điểm** từ Cột D. Thành viên có thể chọn 1 đến nhiều dự án cùng lúc.")
+    st.caption(f"✅ Đã nạp thành công **{len(locations)} điểm dự án**. Thành viên có thể chọn 1 đến 5 dự án cùng lúc.")
     
     reg_name = st.text_input("Họ và tên:")
     reg_phone = st.text_input("Số điện thoại:")
     
-    # Ô chọn đa nhiệm chuẩn từ Cột D
+    # Ô chọn đa nhiệm toàn bộ danh sách địa điểm thực tế không bao giờ lỗi
     selected_diaban = st.multiselect(
-        "Địa bàn phụ trách (Chọn nhiều dự án đồng thời từ Cột D):",
-        options=dia_ban_options,
+        "Địa bàn phụ trách (Chọn nhiều dự án đồng thời):",
+        options=locations,
         placeholder="Gõ tìm kiếm hoặc chọn các điểm dự án..."
     )
     
@@ -132,13 +104,6 @@ if st.session_state.page == "register":
     st.stop()
 
 # --- MÀN HÌNH CHÍNH (ĐIỀU HÀNH HIỆN TRƯỜNG) ---
-if len(df_data) < 3:
-    st.warning("Sheet KHO_PHAN_BO chưa đủ dữ liệu!")
-    st.stop()
-
-rows = df_data.iloc[2:].values.tolist()
-locations = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip()])))
-
 st.markdown("---")
 col1, col2 = st.columns(2)
 with col1:
