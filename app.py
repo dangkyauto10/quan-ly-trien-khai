@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import urllib.parse
 from datetime import datetime
 
 # --- CẤU HÌNH GIAO DIỆN GỌN GÀNG ---
@@ -16,63 +15,27 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (ĐẢM BẢO CHUẨN XÁC 100% NGUỒN CỘT D) ---
-SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
-
+# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (ĐƯỜNG DẪN GỐC ỔN ĐỊNH TUYỆT ĐỐI) ---
 @st.cache_data(ttl=60)
-def load_kho_data():
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-    return pd.read_csv(csv_url, header=None)
-
-@st.cache_data(ttl=60)
-def load_danh_sach_diem_cot_d():
-    diem_list = []
-    # Thử đọc trực tiếp sheet DANH_SACH_DIỂM bằng mã hóa tên an toàn
-    for sheet_name in ["DANH_SACH_DIỂM", "DANH_SACH_DIEM"]:
-        try:
-            encoded_name = urllib.parse.quote(sheet_name)
-            url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={encoded_name}"
-            df = pd.read_csv(url, header=None)
-            # Cột D tương ứng index 3, lấy từ dòng thứ 3 trở đi để vét sạch toàn bộ điểm
-            if len(df.columns) > 3:
-                vals = df.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
-                for v in vals:
-                    if v and v.lower() not in ['nan', 'none', '', '-- chọn địa điểm --', 'địa điểm giao hàng và lắp đặt', 'tỉnh', 'huyện']:
-                        if v not in diem_list:
-                            diem_list.append(v)
-            if diem_list:
-                break
-        except:
-            pass
-            
-    # Dự phòng an toàn nếu không đọc được qua tên sheet, lấy trực tiếp từ cột H của kho phân bổ
-    if not diem_list:
-        try:
-            df_k = load_kho_data()
-            if len(df_k.columns) > 7:
-                vals = df_k.iloc[2:, 7].dropna().astype(str).str.strip().tolist()
-                for v in vals:
-                    if v and v.lower() not in ['nan', '']:
-                        if v not in diem_list:
-                            diem_list.append(v)
-        except:
-            pass
-            
-    return sorted(list(set(diem_list)))
+def load_sheet_data():
+    sheet_id = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&sheet=KHO_PHAN_BO"
+    df = pd.read_csv(csv_url, header=None)
+    return df
 
 try:
-    df_data = load_kho_data()
-    locations_cot_d = load_danh_sach_diem_cot_d()
+    df_data = load_sheet_data()
 except Exception as e:
     st.error(f"❌ Lỗi tải dữ liệu: {e}")
     st.stop()
 
+# Xử lý dữ liệu bảng để trích xuất danh sách địa điểm thực tế
 if len(df_data) < 3:
     st.warning("Sheet KHO_PHAN_BO chưa đủ dữ liệu!")
     st.stop()
 
 rows = df_data.iloc[2:].values.tolist()
-locations_kho = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip() and str(row[7]).strip().lower() != 'nan'])))
+locations = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip() and str(row[7]).strip().lower() != 'nan'])))
 
 # --- QUẢN LÝ TRANG (MÀN HÌNH CHÍNH HOẶC ĐĂNG KÝ) ---
 if "page" not in st.session_state:
@@ -102,7 +65,7 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK")
             else: st.warning("Sai MK")
 
-# --- NẾU BẤM VÀO MODULE ĐĂNG KÝ THÀNH VIÊN ---
+# --- MÀN HÌNH ĐĂNG KÝ THÀNH VIÊN ---
 if st.session_state.page == "register":
     st.markdown("---")
     if st.button("⬅ Quay lại màn hình chính"):
@@ -110,16 +73,16 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Đã nạp thành công **{len(locations_cot_d)} điểm** từ Cột D. Thành viên có thể chọn đồng thời từ 1 đến 5 dự án.")
+    st.caption(f"✅ Đã nạp thành công **{len(locations)} điểm dự án**. Thành viên có thể chọn đồng thời từ 1 đến 5 dự án phụ trách.")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
         reg_phone = st.text_input("Số điện thoại liên hệ:")
         
-        # Ô chọn đa nhiệm toàn bộ danh sách Cột D, hỗ trợ gõ tìm kiếm và chọn nhiều dự án cùng lúc
+        # Ô chọn đa nhiệm mượt mà, hỗ trợ tìm kiếm và chọn nhiều dự án cùng lúc
         selected_projects = st.multiselect(
-            "Chọn địa bàn / dự án phụ trách (Lấy từ Cột D, chọn 1 đến 5 dự án):",
-            options=locations_cot_d,
+            "Chọn địa bàn / dự án phụ trách (Chọn 1 đến 5 dự án cùng lúc):",
+            options=locations,
             placeholder="Gõ tìm kiếm hoặc chọn địa bàn..."
         )
         
@@ -148,7 +111,7 @@ with col1:
     cb_list = ["Vũ - Hạnh - Hiền", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
     selected_cb = st.selectbox("Cán bộ / Đội thực hiện:", cb_list)
 with col2:
-    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + locations_kho)
+    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + locations)
 
 total_devices = 0
 matched_rows_indices = []
