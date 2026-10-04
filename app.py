@@ -1,7 +1,6 @@
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import pandas as pd
 from datetime import datetime
 
 # --- CẤU HÌNH KẾT NỐI GOOGLE SHEETS ---
@@ -70,7 +69,7 @@ if st.button("Đồng bộ dữ liệu sang Lắp Đặt"):
             for row in kho_data[2:]:
                 if not any(row): continue
                 
-                # Lấy dữ liệu từ KHO_PHAN_BO (KPB)
+                # Lấy dữ liệu từ KHO_PHAN_BO (KPB) theo đúng index Python (bắt đầu từ 0)
                 val_A = row[0] if len(row) > 0 else ""  # Mã dự án (A KPB)
                 val_D = row[3] if len(row) > 3 else ""  # Tên thiết bị (D KPB)
                 val_E = row[4] if len(row) > 4 else ""  # Số lượng (E KPB)
@@ -78,31 +77,20 @@ if st.button("Đồng bộ dữ liệu sang Lắp Đặt"):
                 val_G = row[6] if len(row) > 6 else ""  # Đội nhận thiết bị (G KPB)
                 val_H = row[7] if len(row) > 7 else ""  # Địa điểm lắp (H KPB)
                 
-                # Ánh xạ chuẩn xác từng cột theo giao diện sheet LAP_DAT:
-                # Cột A: Mã công việc (để trống tự sinh hoặc đánh số)
-                # Cột B (index 1): Mã dự án <- A KPB
-                # Cột C (index 2): Đội nhận thiết bị <- G KPB
-                # Cột D (index 3): Tên thiết bị / Hàng hóa <- D KPB
-                # Cột E (index 4): Số lượng thiết bị lắp <- E KPB
-                # Cột F (index 5): ĐVT <- F KPB
-                # Cột G (index 6): Địa điểm lắp <- H KPB
-                # Cột H (index 7): Tình trạng thực hiện ("Đang lắp đặt")
-                # Cột I (index 8): Thời gian hoàn thành
-                # Cột J (index 9): Link Google Maps
-                
+                # Khởi tạo dòng 10 cột tương ứng từ A đến J trên sheet LAP_DAT
                 new_row = [""] * 10
-                new_row[1] = val_A
-                new_row[2] = val_G
-                new_row[3] = val_D
-                new_row[4] = val_E
-                new_row[5] = val_F
-                new_row[6] = val_H
-                new_row[7] = "Đang lắp đặt"
+                new_row[1] = val_A  # Cột B: Mã dự án
+                new_row[2] = val_G  # Cột C: Đội nhận thiết bị
+                new_row[3] = val_D  # Cột D: Tên thiết bị / Hàng hóa
+                new_row[4] = val_E  # Cột E: Số lượng thiết bị lắp
+                new_row[5] = val_F  # Cột F: ĐVT
+                new_row[6] = val_H  # Cột G: Địa điểm lắp
+                new_row[7] = "Đang lắp đặt"  # Cột H: Tình trạng thực hiện
                 
                 rows_to_append.append(new_row)
             
             if rows_to_append:
                 sheet_ld.append_rows(rows_to_append)
-                st.success("✅ Đồng bộ dữ liệu sang Lắp Đặt thành công!")
+                st.success("✅ Đồng bộ dữ liệu sang Lắp Đặt thành công với ánh xạ cột chuẩn xác!")
     except Exception as e:
         st.error(f"Lỗi: {e}")
