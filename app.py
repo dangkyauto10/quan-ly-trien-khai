@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import urllib.request
-import json
 
 # --- CẤU HÌNH GIAO DIỆN GỌN GÀNG ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
@@ -17,38 +15,40 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ID GOOGLE SHEETS & DANH SÁCH 136 ĐIỂM DỰ ÁN ---
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-danh_sach_du_an = [
-    "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
-    "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
-    "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thọ", "Xã Hồng Sơn", "Xã Trường Sinh",
-    "Xã Phú Lượng", "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca",
-    "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Trí Phú", "Xã Kiên Đài", "Xã Hòa An",
-    "Xã Chiêm Hóa", "Xã Tân An", "Xã Tân Mỹ", "Xã Yên Lập", "Xã Trung Hà", "Xã Thượng Nông",
-    "Xã Yên Hoa", "Xã Nà Hang", "Xã Hồng Thái", "Xã Côn Lôn", "Xã Thượng Lâm", "Xã Lâm Bình",
-    "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bạch Xa", "Xã Yên Phú", "Xã Hàm Yên",
-    "Xã Thái Sơn", "Xã Thái Hòa", "Xã Bình Xa", "Xã Phù Lưu", "Xã Đồng Tâm", "Xã Liên Hiệp",
-    "Xã Bằng Hành", "Xã Bắc Quang", "Xã Tân Quang", "Xã Hùng An", "Xã Vĩnh Tuy", "Xã Đồng Yên",
-    "Xã Bằng Lang", "Xã Xuân Giang", "Xã Quang Bình", "Xã Tân Trịnh", "Xã Tiên Yên", "Xã Yên Thành",
-    "Xã Thông Nguyên", "Xã Nậm Dịch", "Xã Hồ Thầu", "Xã Hoàng Su Phì", "Xã Pờ Ly Ngài", "Xã Thàng Tín",
-    "Xã Bản Máy", "Xã Xín Mần", "Xã Pà Vầy Sủ", "Xã Nấm Dẩn", "Xã Khuôn Lùng", "Xã Trung Thịnh",
-    "Xã Quảng Nguyên", "Xã Tiên Nguyên", "Xã Tân Tiến", "Phường Hà Giang 1", "Phường Hà Giang 2",
-    "Xã Ngọc Đường", "Xã Vị Xuyên", "Xã Phú Linh", "Xã Linh Hồ", "Xã Việt Lâm", "Xã Bạch Ngọc",
-    "Xã Tùng Bá", "Xã Thuận Hòa", "Xã Thượng Sơn", "Xã Cao Bồ", "Xã Minh Tân", "Xã Thanh Thủy",
-    "Xã Lao Chải", "Xã Bắc Mê", "Xã Minh Ngọc", "Xã Minh Sơn", "Xã Yên Cường", "Xã Đường Hồng",
-    "Xã Giáp Trung", "Xã Cán Tỷ", "Xã Lùng Tám", "Xã Quản Bạ", "Xã Tùng Vài", "Xã Nghĩa Thuận",
-    "Xã Bạch Đích", "Xã Thắng Mố", "Xã Yên Minh", "Xã Mậu Duệ", "Xã Du Già", "Xã Đường Thượng",
-    "Xã Ngọc Long", "Xã Lũng Phìn", "Xã Sà Phìn", "Xã Phố Bảng", "Xã Đồng Văn", "Xã Lũng Cú",
-    "Xã Niêm Sơn", "Xã Tát Ngà", "Xã Sủng Máng", "Xã Mèo Vạc", "Xã Khâu Vai", "Xã Sơn Vĩ",
-    "Báo phát thanh và truyền hình tỉnh", "Đảng ủy Các cơ quan Đảng tỉnh", "Ban Tổ chức Tỉnh ủy",
-    "Đảng ủy UBND tỉnh", "Đảng ủy Công an tỉnh", "Trường Chính trị tỉnh", "UB MTTQVN tỉnh",
-    "Đảng ủy Quân sự tỉnh", "Văn phòng Tỉnh ủy", "Ban Nội chính Tỉnh ủy", "Ban Tuyên giáo và dân vận Tỉnh ủy",
-    "Cơ quan UBKT Tỉnh ủy"
-]
+# --- HÀM 100% TỰ ĐỘNG QUÉT TRỰC TIẾP TỪ CỘT D CỦA GOOGLE SHEETS (KHÔNG CÓ DỮ LIỆU CỨNG) ---
+@st.cache_data(ttl=5)
+def load_danh_sach_tu_cot_d():
+    diem_list = []
+    # Tự động quét các tab có thể chứa danh sách điểm
+    sheet_names = ["DANH_SACH_DIỂM", "DANH_SACH_DIEM", "KHO_PHAN_BO"]
+    
+    for s_name in sheet_names:
+        try:
+            url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={s_name}"
+            df = pd.read_csv(url, header=None)
+            # Lọc lấy toàn bộ dữ liệu từ Cột D (index 3)
+            if len(df.columns) > 3:
+                vals = df.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
+                for v in vals:
+                    if v and v.lower() not in ['nan', 'none', '', '0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt']:
+                        if v not in diem_list and not v.startswith("TỔNG"):
+                            diem_list.append(v)
+            if diem_list:
+                break
+        except:
+            pass
+            
+    # Nếu sheet chưa load kịp hoặc trống, trả về mảng thông báo cơ bản để không sập app
+    if not diem_list:
+        diem_list = ["-- Đang đồng bộ dữ liệu từ Cột D Google Sheets --"]
+        
+    return sorted(list(set(diem_list)))
 
-# --- HÀM TẢI DỮ LIỆU ĐĂNG KÝ TỪ GOOGLE SHEETS ---
+danh_sach_du_an = load_danh_sach_tu_cot_d()
+
+# --- HÀM TẢI DỮ LIỆU ĐĂNG KÝ ĐỂ ADMIN DUYỆT ---
 @st.cache_data(ttl=5)
 def load_dang_ky_data():
     try:
@@ -94,7 +94,7 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             else: 
                 st.warning("Sai MK")
     with col_a4:
-        if st.button("🛠️ B/C LD", use_container_width=True):
+        if st.button("🛠️️ B/C LD", use_container_width=True):
             if pass_input in ADMIN_PASSWORDS: 
                 st.info("Chức năng Báo cáo Lãnh đạo đang phát triển.")
             else: 
@@ -154,7 +154,7 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Hệ thống đã nạp sẵn chuẩn **{len(danh_sach_du_an)} điểm dự án**. Thành viên chọn đồng thời nhiều điểm triển khai.")
+    st.caption(f"✅ Đang tải danh sách động trực tiếp từ Cột D Google Sheets. Thành viên chọn đồng thời nhiều điểm triển khai.")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
