@@ -19,63 +19,48 @@ except Exception as e:
 
 st.title("🚀 Hệ Thống Quản Lý Lắp Đặt Dự Án")
 
-st.header("🛠️ Quản Lý Lắp Đặt")
-if st.button("Đồng bộ dữ liệu từ Kho phân bổ sang Lắp Đặt"):
+st.header("🛠️ Đồng Bộ: Kho Phân Bổ ➔ Lắp Đặt")
+if st.button("Thực thi đồng bộ sang Lắp Đặt"):
     try:
         sheet_kho = spreadsheet.worksheet("KHO_PHAN_BO")
         sheet_ld = spreadsheet.worksheet("LAP_DAT")
         
         kho_data = sheet_kho.get_all_values()
         if len(kho_data) < 3:
-            st.warning("Sheet KHO_PHAN_BO chưa có dữ liệu!")
+            st.warning("Sheet KHO_PHAN_BO chưa có dữ liệu hợp lệ (từ dòng 3 trở đi)!")
         else:
             rows_to_append = []
+            # Bỏ qua 2 dòng tiêu đề đầu tiên, quét dữ liệu từ dòng 3 (index 2)
             for idx, row in enumerate(kho_data[2:], start=1):
                 if not any(row): continue
                 
-                # Lấy đúng dữ liệu từ KHO_PHAN_BO (index mảng Python từ 0):
-                # row[0] = Cột A (Mã dự án)
-                # row[3] = Cột D (Tên thiết bị)
-                # row[4] = Cột E (Số lượng)
-                # row[5] = Cột F (ĐVT)
-                # row[6] = Cột G (Đội nhận thiết bị)
-                # row[7] = Cột H (Địa điểm lắp)
+                # Trích xuất dữ liệu chuẩn theo đúng Index mảng Python (bắt đầu từ 0)
+                ma_du_an   = row[0] if len(row) > 0 else ""  # KPB Cột A
+                ten_tb     = row[3] if len(row) > 3 else ""  # KPB Cột D
+                so_luong   = row[4] if len(row) > 4 else ""  # KPB Cột E
+                don_vi     = row[5] if len(row) > 5 else ""  # KPB Cột F
+                doi_nhan   = row[6] if len(row) > 6 else ""  # KPB Cột G
+                dia_diem   = row[7] if len(row) > 7 else ""  # KPB Cột H
                 
-                ma_du_an   = row[0] if len(row) > 0 else ""
-                ten_tb     = row[3] if len(row) > 3 else ""
-                so_luong   = row[4] if len(row) > 4 else ""
-                don_vi     = row[5] if len(row) > 5 else ""
-                doi_nhan   = row[6] if len(row) > 6 else ""
-                dia_diem   = row[7] if len(row) > 7 else ""
-                
-                # Ánh xạ chuẩn 10 cột khớp 100% giao diện sheet LAP_DAT (từ A đến J):
-                # [0] Cột A: Mã công việc (Tự sinh CV_1, CV_2,...)
-                # [1] Cột B: Mã dự án <- Cột A KPB
-                # [2] Cột C: Đội nhận thiết bị <- Cột G KPB
-                # [3] Cột D: Tên thiết bị / Hàng hóa <- Cột D KPB
-                # [4] Cột E: Số lượng thiết bị lắp <- Cột E KPB
-                # [5] Cột F: ĐVT <- Cột F KPB
-                # [6] Cột G: Địa điểm lắp <- Cột H KPB
-                # [7] Cột H: Tình trạng thực hiện ("Đang lắp đặt")
-                # [8] Cột I: Thời gian hoàn thành (để trống)
-                # [9] Cột J: Link Google Maps (để trống)
-                
+                # Xếp đúng vị trí từng cột từ A đến J trên sheet LAP_DAT:
                 row_data = [
-                    f"CV_{idx}",    # A
-                    ma_du_an,       # B
-                    doi_nhan,       # C
-                    ten_tb,         # D
-                    so_luong,       # E
-                    don_vi,         # F
-                    dia_diem,       # G
-                    "Đang lắp đặt", # H
-                    "",             # I
-                    ""              # J
+                    f"CV_{idx}",    # Cột A: Mã công việc
+                    ma_du_an,       # Cột B: Mã dự án (A KPB)
+                    doi_nhan,       # Cột C: Đội nhận thiết bị (G KPB)
+                    ten_tb,         # Cột D: Tên thiết bị / Hàng hóa (D KPB)
+                    so_luong,       # Cột E: Số lượng thiết bị lắp (E KPB)
+                    don_vi,         # Cột F: ĐVT (F KPB)
+                    dia_diem,       # Cột G: Địa điểm lắp (H KPB)
+                    "Đang lắp đặt", # Cột H: Tình trạng thực hiện
+                    "",             # Cột I: Thời gian hoàn thành
+                    ""              # Cột J: Link Google Maps
                 ]
                 rows_to_append.append(row_data)
             
             if rows_to_append:
                 sheet_ld.append_rows(rows_to_append)
-                st.success("✅ Đồng bộ dữ liệu sang Lắp Đặt thành công tuyệt đối!")
+                st.success(f"✅ Đã đồng bộ thành công {len(rows_to_append)} dòng từ Kho phân bổ sang Lắp đặt!")
+            else:
+                st.warning("Không tìm thấy dòng dữ liệu nào để đồng bộ.")
     except Exception as e:
-        st.error(f"Lỗi: {e}")
+        st.error(f"Lỗi khi thực thi: {e}")
