@@ -18,28 +18,29 @@ st.markdown(
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# --- HÀM ĐỌC ĐỘNG CHUẨN XÁC 100% TỪ CỘT D CỦA SHEET "DANH_SACH_DIEM" ---
+# --- HÀM LỌC CHUẨN XÁC 100% CỘT D (BỎ QUA HOÀN TOÀN CÁC DÒNG TIÊU ĐỀ TRÊN CÙNG) ---
 @st.cache_data(ttl=5)
 def load_danh_sach_tu_cot_d():
     diem_list = []
     try:
-        # Mã hóa tên sheet để tránh lỗi ký tự đặc biệt
         sheet_name_encoded = urllib.parse.quote("DANH_SACH_DIEM")
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_name_encoded}"
         df = pd.read_csv(url, header=None)
         
-        # Cột D tương ứng với index là 3 trong pandas (A=0, B=1, C=2, D=3)
-        if len(df.columns) > 3:
-            # Lấy toàn bộ dữ liệu cột D, duyệt từ dòng đầu tiên đến hết
-            for val in df.iloc[:, 3].dropna().astype(str).str.strip():
+        # Cột D là index 3. Cắt bỏ 5 dòng đầu tiên (chứa tiêu đề ngang, tên tab, rác hệ thống) để lấy dữ liệu thực tế bên dưới
+        if len(df.columns) > 3 and len(df) > 5:
+            raw_vals = df.iloc[5:, 3].dropna().astype(str).str.strip().tolist()
+            for val in raw_vals:
                 val_lower = val.lower()
-                # Loại bỏ các tiêu đề cột, từ khóa rác hoặc ô trống không phải tên điểm dự án
+                # Lọc sạch mọi từ khóa rác, số liệu, tên tab hệ thống
                 is_invalid = (
                     not val or 
                     len(val) < 2 or
                     val_lower in ['nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt', 'nghiệm thu', 'danh sách điểm', 'kho phân bổ', 'địa bàn', 'tên điểm'] or
                     val.startswith("TỔNG") or 
                     val.startswith("DANH SÁCH") or
+                    val.startswith("NGHIỆM") or
+                    val.startswith("KHO") or
                     val.startswith("STT")
                 )
                 if not is_invalid and val not in diem_list:
@@ -51,9 +52,9 @@ def load_danh_sach_tu_cot_d():
 
 danh_sach_du_an = load_danh_sach_tu_cot_d()
 
-# Nếu không kết nối được sheet, hiển thị thông báo rõ ràng thay vì lấy dữ liệu cứng
+# Nếu không load được, thông báo trực quan
 if not danh_sach_du_an:
-    danh_sach_du_an = ["-- Đang kết nối hoặc Sheet DANH_SACH_DIEM chưa có dữ liệu ở Cột D --"]
+    danh_sach_du_an = ["-- Đang đồng bộ danh sách từ Cột D --"]
 
 # --- HÀM TẢI DỮ LIỆU ĐĂNG KÝ ĐỂ ADMIN DUYỆT ---
 @st.cache_data(ttl=5)
@@ -161,7 +162,7 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Đã tải động **{len(danh_sach_du_an)} điểm** trực tiếp từ Cột D của sheet `DANH_SACH_DIEM`.")
+    st.caption(f"✅ Đã tải động thành công **{len(danh_sach_du_an)} điểm** từ Cột D của sheet `DANH_SACH_DIEM`.")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
