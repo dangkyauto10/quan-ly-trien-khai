@@ -66,31 +66,45 @@ if st.button("Đồng bộ dữ liệu sang Lắp Đặt"):
             st.warning("Sheet KHO_PHAN_BO chưa có dữ liệu!")
         else:
             rows_to_append = []
-            for row in kho_data[2:]:
+            for idx, row in enumerate(kho_data[2:], start=1):
                 if not any(row): continue
                 
-                # Lấy dữ liệu từ KHO_PHAN_BO (KPB) theo đúng index Python (bắt đầu từ 0)
-                val_A = row[0] if len(row) > 0 else ""  # Mã dự án (A KPB)
-                val_D = row[3] if len(row) > 3 else ""  # Tên thiết bị (D KPB)
-                val_E = row[4] if len(row) > 4 else ""  # Số lượng (E KPB)
-                val_F = row[5] if len(row) > 5 else ""  # ĐVT (F KPB)
-                val_G = row[6] if len(row) > 6 else ""  # Đội nhận thiết bị (G KPB)
-                val_H = row[7] if len(row) > 7 else ""  # Địa điểm lắp (H KPB)
+                # Trích xuất dữ liệu từ KHO_PHAN_BO an toàn
+                ma_du_an = row[0] if len(row) > 0 else ""       # Cột A KPB
+                ten_tb = row[3] if len(row) > 3 else ""         # Cột D KPB
+                so_luong = row[4] if len(row) > 4 else ""       # Cột E KPB
+                don_vi_tinh = row[5] if len(row) > 5 else ""    # Cột F KPB
+                doi_nhan = row[6] if len(row) > 6 else ""       # Cột G KPB
+                dia_diem = row[7] if len(row) > 7 else ""       # Cột H KPB
                 
-                # Khởi tạo dòng 10 cột tương ứng từ A đến J trên sheet LAP_DAT
-                new_row = [""] * 10
-                new_row[1] = val_A  # Cột B: Mã dự án
-                new_row[2] = val_G  # Cột C: Đội nhận thiết bị
-                new_row[3] = val_D  # Cột D: Tên thiết bị / Hàng hóa
-                new_row[4] = val_E  # Cột E: Số lượng thiết bị lắp
-                new_row[5] = val_F  # Cột F: ĐVT
-                new_row[6] = val_H  # Cột G: Địa điểm lắp
-                new_row[7] = "Đang lắp đặt"  # Cột H: Tình trạng thực hiện
+                # Ánh xạ chuẩn 10 cột khớp đúng với sheet LAP_DAT từ A đến J:
+                # [0] Cột A: Mã công việc
+                # [1] Cột B: Mã dự án
+                # [2] Cột C: Đội nhận thiết bị
+                # [3] Cột D: Tên thiết bị / Hàng hóa
+                # [4] Cột E: Số lượng thiết bị lắp
+                # [5] Cột F: ĐVT
+                # [6] Cột G: Địa điểm lắp
+                # [7] Cột H: Tình trạng thực hiện
+                # [8] Cột I: Thời gian hoàn thành
+                # [9] Cột J: Link Google Maps
                 
-                rows_to_append.append(new_row)
+                row_data = [
+                    f"CV_{idx}",    # Cột A
+                    ma_du_an,       # Cột B
+                    doi_nhan,       # Cột C
+                    ten_tb,         # Cột D
+                    so_luong,       # Cột E
+                    don_vi_tinh,    # Cột F
+                    dia_diem,       # Cột G
+                    "Đang lắp đặt", # Cột H
+                    "",             # Cột I
+                    ""              # Cột J
+                ]
+                rows_to_append.append(row_data)
             
             if rows_to_append:
                 sheet_ld.append_rows(rows_to_append)
-                st.success("✅ Đồng bộ dữ liệu sang Lắp Đặt thành công với ánh xạ cột chuẩn xác!")
+                st.success("✅ Đồng bộ sang Lắp Đặt thành công đúng từng cột!")
     except Exception as e:
         st.error(f"Lỗi: {e}")
