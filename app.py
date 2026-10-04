@@ -18,62 +18,42 @@ st.markdown(
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# --- HÀM TẢI DỮ LIỆU ĐỊA ĐIỂM AN TOÀN TUYỆT ĐỐI ---
+# --- HÀM ĐỌC ĐỘNG CHUẨN XÁC 100% TỪ CỘT D CỦA SHEET "DANH_SACH_DIEM" ---
 @st.cache_data(ttl=5)
-def load_danh_sach_diem():
+def load_danh_sach_tu_cot_d():
     diem_list = []
     try:
-        # Tải trực tiếp tab DANH_SACH_DIỂM từ Google Sheets
-        sheet_name_encoded = urllib.parse.quote("DANH_SACH_DIỂM")
+        # Mã hóa tên sheet để tránh lỗi ký tự đặc biệt
+        sheet_name_encoded = urllib.parse.quote("DANH_SACH_DIEM")
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_name_encoded}"
         df = pd.read_csv(url, header=None)
         
-        # Lấy dữ liệu từ cột D (index 3), bỏ qua 3 dòng tiêu đề đầu tiên
+        # Cột D tương ứng với index là 3 trong pandas (A=0, B=1, C=2, D=3)
         if len(df.columns) > 3:
-            raw_vals = df.iloc[3:, 3].dropna().astype(str).str.strip().tolist()
-            for v in raw_vals:
-                v_lower = v.lower()
-                # Chỉ lấy các giá trị thực tế hợp lệ, loại bỏ hoàn toàn rác hoặc tên tab
-                if v and v_lower not in ['nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt', 'nghiệm thu', 'danh sách điểm', 'kho phân bổ']:
-                    if not v.startswith("TỔNG") and not v.startswith("DANH SÁCH") and len(v) > 2:
-                        if v not in diem_list:
-                            diem_list.append(v)
+            # Lấy toàn bộ dữ liệu cột D, duyệt từ dòng đầu tiên đến hết
+            for val in df.iloc[:, 3].dropna().astype(str).str.strip():
+                val_lower = val.lower()
+                # Loại bỏ các tiêu đề cột, từ khóa rác hoặc ô trống không phải tên điểm dự án
+                is_invalid = (
+                    not val or 
+                    len(val) < 2 or
+                    val_lower in ['nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt', 'nghiệm thu', 'danh sách điểm', 'kho phân bổ', 'địa bàn', 'tên điểm'] or
+                    val.startswith("TỔNG") or 
+                    val.startswith("DANH SÁCH") or
+                    val.startswith("STT")
+                )
+                if not is_invalid and val not in diem_list:
+                    diem_list.append(val)
     except Exception as e:
         pass
         
-    # Mảng dự phòng chuẩn xác 100% nếu đường truyền mạng Google Sheets gián đoạn
-    if not diem_list:
-        diem_list = [
-            "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
-            "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
-            "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thọ", "Xã Hồng Sơn", "Xã Trường Sinh",
-            "Xã Phú Lượng", "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca",
-            "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Trí Phú", "Xã Kiên Đài", "Xã Hòa An",
-            "Xã Chiêm Hóa", "Xã Tân An", "Xã Tân Mỹ", "Xã Yên Lập", "Xã Trung Hà", "Xã Thượng Nông",
-            "Xã Yên Hoa", "Xã Nà Hang", "Xã Hồng Thái", "Xã Côn Lôn", "Xã Thượng Lâm", "Xã Lâm Bình",
-            "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bạch Xa", "Xã Yên Phú", "Xã Hàm Yên",
-            "Xã Thái Sơn", "Xã Thái Hòa", "Xã Bình Xa", "Xã Phù Lưu", "Xã Đồng Tâm", "Xã Liên Hiệp",
-            "Xã Bằng Hành", "Xã Bắc Quang", "Xã Tân Quang", "Xã Hùng An", "Xã Vĩnh Tuy", "Xã Đồng Yên",
-            "Xã Bằng Lang", "Xã Xuân Giang", "Xã Quang Bình", "Xã Tân Trịnh", "Xã Tiên Yên", "Xã Yên Thành",
-            "Xã Thông Nguyên", "Xã Nậm Dịch", "Xã Hồ Thầu", "Xã Hoàng Su Phì", "Xã Pờ Ly Ngài", "Xã Thàng Tín",
-            "Xã Bản Máy", "Xã Xín Mần", "Xã Pà Vầy Sủ", "Xã Nấm Dẩn", "Xã Khuôn Lùng", "Xã Trung Thịnh",
-            "Xã Quảng Nguyên", "Xã Tiên Nguyên", "Xã Tân Tiến", "Phường Hà Giang 1", "Phường Hà Giang 2",
-            "Xã Ngọc Đường", "Xã Vị Xuyên", "Xã Phú Linh", "Xã Linh Hồ", "Xã Việt Lâm", "Xã Bạch Ngọc",
-            "Xã Tùng Bá", "Xã Thuận Hòa", "Xã Thượng Sơn", "Xã Cao Bồ", "Xã Minh Tân", "Xã Thanh Thủy",
-            "Xã Lao Chải", "Xã Bắc Mê", "Xã Minh Ngọc", "Xã Minh Sơn", "Xã Yên Cường", "Xã Đường Hồng",
-            "Xã Giáp Trung", "Xã Cán Tỷ", "Xã Lùng Tám", "Xã Quản Bạ", "Xã Tùng Vài", "Xã Nghĩa Thuận",
-            "Xã Bạch Đích", "Xã Thắng Mố", "Xã Yên Minh", "Xã Mậu Duệ", "Xã Du Già", "Xã Đường Thượng",
-            "Xã Ngọc Long", "Xã Lũng Phìn", "Xã Sà Phìn", "Xã Phố Bảng", "Xã Đồng Văn", "Xã Lũng Cú",
-            "Xã Niêm Sơn", "Xã Tát Ngà", "Xã Sủng Máng", "Xã Mèo Vạc", "Xã Khâu Vai", "Xã Sơn Vĩ",
-            "Báo phát thanh và truyền hình tỉnh", "Đảng ủy Các cơ quan Đảng tỉnh", "Ban Tổ chức Tỉnh ủy",
-            "Đảng ủy UBND tỉnh", "Đảng ủy Công an tỉnh", "Trường Chính trị tỉnh", "UB MTTQVN tỉnh",
-            "Đảng ủy Quân sự tỉnh", "Văn phòng Tỉnh ủy", "Ban Nội chính Tỉnh ủy", "Ban Tuyên giáo và dân vận Tỉnh ủy",
-            "Cơ quan UBKT Tỉnh ủy"
-        ]
-        
-    return sorted(list(set(diem_list)))
+    return diem_list
 
-danh_sach_du_an = load_danh_sach_diem()
+danh_sach_du_an = load_danh_sach_tu_cot_d()
+
+# Nếu không kết nối được sheet, hiển thị thông báo rõ ràng thay vì lấy dữ liệu cứng
+if not danh_sach_du_an:
+    danh_sach_du_an = ["-- Đang kết nối hoặc Sheet DANH_SACH_DIEM chưa có dữ liệu ở Cột D --"]
 
 # --- HÀM TẢI DỮ LIỆU ĐĂNG KÝ ĐỂ ADMIN DUYỆT ---
 @st.cache_data(ttl=5)
@@ -181,14 +161,14 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Đã nạp thành công **{len(danh_sach_du_an)} điểm dự án**[cite: 1, 2]. Thành viên chọn đồng thời nhiều điểm triển khai.")
+    st.caption(f"✅ Đã tải động **{len(danh_sach_du_an)} điểm** trực tiếp từ Cột D của sheet `DANH_SACH_DIEM`.")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
         reg_phone = st.text_input("Số điện thoại liên hệ:")
         
         selected_projects = st.multiselect(
-            "Chọn các điểm giao hàng và lắp đặt phụ trách (Chọn nhiều điểm cùng lúc)[cite: 1, 2]:",
+            "Chọn các điểm giao hàng và lắp đặt phụ trách (Chọn nhiều điểm cùng lúc):",
             options=danh_sach_du_an,
             placeholder="Gõ tìm kiếm hoặc chọn địa bàn..."
         )
@@ -207,7 +187,7 @@ if st.session_state.page == "register":
                 st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn/dự án phụ trách!")
             else:
                 projects_str = ", ".join(selected_projects)
-                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_projects)} điểm dự án[cite: 1, 2]:**\n`{projects_str}`.\n\n⏳ Hệ thống đã ghi nhận thành công.")
+                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_projects)} điểm dự án:**\n`{projects_str}`.\n\n⏳ Hệ thống đã ghi nhận thành công.")
                 
     st.stop()
 
