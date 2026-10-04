@@ -2,7 +2,6 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-import json
 
 # --- CẤU HÌNH GIAO DIỆN STREAMLIT (TỐI ƯU CHO MOBILE) ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
@@ -16,15 +15,13 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- KẾT NỐI GOOGLE SHEETS BẢO MẬT TỪ SECRETS ---
+# --- KẾT NỐI GOOGLE SHEETS AN TOÀN TỪ SECRETS ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 @st.cache_resource
 def init_connection():
-    # Đọc chuỗi JSON bảo mật từ Streamlit Secrets và chuyển đổi an toàn tuyệt đối
-    creds_json_str = st.secrets["GOOGLE_CREDS"]
-    creds_dict = json.loads(creds_json_str)
-    
+    # Đọc trực tiếp từ cấu hình phân rã gcp_service_account trong Streamlit Secrets
+    creds_dict = dict(st.secrets["gcp_service_account"])
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
@@ -126,7 +123,7 @@ notes = st.text_area("Ghi chú / Vấn đề phát sinh tại hiện trường:"
 
 if st.button("🚀 Gửi Báo Cáo & Cập Nhật Hệ Thống", type="primary"):
     if selected_location == "-- Chọn địa điểm --":
-        st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi báo cáo!")
+        st.warning("⚠️ Vuint lòng chọn địa điểm trước khi gửi báo cáo!")
     else:
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
