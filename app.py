@@ -1,10 +1,12 @@
 import streamlit as st
 import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
 # --- CẤU HÌNH GIAO DIỆN STREAMLIT (TỐI ƯU CHO MOBILE) ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
 
+# Ẩn sidebar theo yêu cầu
 st.markdown(
     """
     <style>
@@ -14,16 +16,26 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- KẾT NỐI GOOGLE SHEETS TRỰC TIẾP AN TOÀN 100% ---
+# --- KẾT NỐI GOOGLE SHEETS TỪ SECRETS (CHUẨN XÁC & BẢO MẬT) ---
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+
 @st.cache_resource
 def init_connection():
-    # Sử dụng phương thức chuẩn của gspread đọc trực tiếp tệp credentials.json nguyên bản
-    gc = gspread.service_account(filename="credentials.json")
+    # Lấy dictionary cấu hình từ st.secrets (xử lý tự động chuẩn xác private_key)
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    
+    # Đảm bảo ký tự xuống dòng của private_key được định dạng đúng nếu bị lỗi
+    if "\\n" in creds_dict["private_key"]:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    client = gspread.authorize(creds)
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
-    return gc.open_by_url(sheet_url)
+    return client.open_by_url(sheet_url)
 
 try:
     spreadsheet = init_connection()
+    st.success(" kết nối Google Sheets thành công!")
 except Exception as e:
     st.error(f"❌ Lỗi kết nối Google Sheets: {e}")
     st.stop()
@@ -86,7 +98,6 @@ if selected_location != "-- Chọn địa điểm --":
         if len(row) > 7 and row[7].strip() == selected_location:
             matched_rows_indices.append(idx)
             try:
-				# Cột E (index 4) là số lượng thiết bị
                 qty = int(row[4]) if len(row) > 4 and row[4].isdigit() else 0
                 total_devices += qty
             except:
@@ -125,7 +136,6 @@ if st.button("🚀 Gửi Báo Cáo & Cập Nhật Hệ Thống", type="primary")
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             updated_count = 0
             for r_idx in matched_rows_indices:
-                # Cập nhật trạng thái vào cột J (index 10) và thời gian vào cột K (index 11)
                 sheet_kho.update_cell(r_idx, 10, selected_status)
                 sheet_kho.update_cell(r_idx, 11, timestamp)
                 updated_count += 1
