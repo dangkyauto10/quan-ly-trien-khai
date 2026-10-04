@@ -1,6 +1,5 @@
 import streamlit as st
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
 # --- CẤU HÌNH GIAO DIỆN STREAMLIT (TỐI ƯU CHO MOBILE) ---
@@ -15,17 +14,13 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- KẾT NỐI GOOGLE SHEETS AN TOÀN TỪ SECRETS ---
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-
+# --- KẾT NỐI GOOGLE SHEETS TRỰC TIẾP AN TOÀN 100% ---
 @st.cache_resource
 def init_connection():
-    # Đọc trực tiếp từ cấu hình phân rã gcp_service_account trong Streamlit Secrets
-    creds_dict = dict(st.secrets["gcp_service_account"])
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    client = gspread.authorize(creds)
+    # Sử dụng phương thức chuẩn của gspread đọc trực tiếp tệp credentials.json nguyên bản
+    gc = gspread.service_account(filename="credentials.json")
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
-    return client.open_by_url(sheet_url)
+    return gc.open_by_url(sheet_url)
 
 try:
     spreadsheet = init_connection()
@@ -91,6 +86,7 @@ if selected_location != "-- Chọn địa điểm --":
         if len(row) > 7 and row[7].strip() == selected_location:
             matched_rows_indices.append(idx)
             try:
+				# Cột E (index 4) là số lượng thiết bị
                 qty = int(row[4]) if len(row) > 4 and row[4].isdigit() else 0
                 total_devices += qty
             except:
@@ -123,12 +119,13 @@ notes = st.text_area("Ghi chú / Vấn đề phát sinh tại hiện trường:"
 
 if st.button("🚀 Gửi Báo Cáo & Cập Nhật Hệ Thống", type="primary"):
     if selected_location == "-- Chọn địa điểm --":
-        st.warning("⚠️ Vuint lòng chọn địa điểm trước khi gửi báo cáo!")
+        st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi báo cáo!")
     else:
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             updated_count = 0
             for r_idx in matched_rows_indices:
+                # Cập nhật trạng thái vào cột J (index 10) và thời gian vào cột K (index 11)
                 sheet_kho.update_cell(r_idx, 10, selected_status)
                 sheet_kho.update_cell(r_idx, 11, timestamp)
                 updated_count += 1
