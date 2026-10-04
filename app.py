@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import requests
 from datetime import datetime
 
 # --- CẤU HÌNH GIAO DIỆN ---
@@ -15,10 +14,9 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- GIẢI PHÁP TỔNG THỂ: ĐỌC GOOGLE SHEETS QUA PUBLIC CSV (VĨNH BIỆT MỌI LỖI XÁC THỰC) ---
+# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (PUBLIC CSV) ---
 @st.cache_data(ttl=60)
 def load_sheet_data():
-    # Sử dụng link xuất bản CSV công khai của Google Sheets (hoặc link chia sẻ dạng export?format=csv)
     sheet_id = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
     csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&sheet=KHO_PHAN_BO"
     df = pd.read_csv(csv_url, header=None)
@@ -26,7 +24,7 @@ def load_sheet_data():
 
 try:
     df_data = load_sheet_data()
-    st.success("✅ Đọc dữ liệu Google Sheets thành công tuyệt đối!")
+    st.success("✅ Kết nối hệ thống thành công!")
 except Exception as e:
     st.error(f"❌ Lỗi tải dữ liệu: {e}")
     st.stop()
@@ -63,7 +61,6 @@ if len(df_data) < 3:
     st.warning("Sheet KHO_PHAN_BO chưa đủ dữ liệu!")
     st.stop()
 
-# Lấy các dòng từ index 2 trở đi
 rows = df_data.iloc[2:].values.tolist()
 locations = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip()])))
 
@@ -98,9 +95,33 @@ st.file_uploader("📷 Thêm phần chụp ảnh Báo cáo / Nghiệm thu", type
 
 st.markdown("---")
 
+# --- 2. TRẠNG THÁI BÁO CÁO & NGHIỆM THU (CHUYỂN THÀNH CÁC NÚT BẤM TIỆN LỢI) ---
 st.subheader("2. Trạng Thái Báo Cáo & Nghiệm Thu")
-status_options = ["Đang vận chuyển", "Đã giao hàng xong", "Đang lắp đặt", "Đã lắp đặt xong"]
-selected_status = st.selectbox("Chọn trạng thái hoàn thành:", status_options)
+st.write("Chọn trạng thái hoàn thành:")
+
+# Dùng state lưu trạng thái được chọn
+if "selected_status" not in st.session_state:
+    st.session_state.selected_status = "Đang vận chuyển"
+
+# Chia thành 2 hàng nút bấm cho dễ nhìn trên di động
+r1_col1, r1_col2 = st.columns(2)
+with r1_col1:
+    if st.button("🚚 Đang vận chuyển", use_container_width=True):
+        st.session_state.selected_status = "Đang vận chuyển"
+with r1_col2:
+    if st.button("✅ Đã giao hàng xong", use_container_width=True):
+        st.session_state.selected_status = "Đã giao hàng xong"
+
+r2_col1, r2_col2 = st.columns(2)
+with r2_col1:
+    if st.button("⚙️ Đang lắp đặt", use_container_width=True):
+        st.session_state.selected_status = "Đang lắp đặt"
+with r2_col2:
+    if st.button("🎉 Đã lắp đặt xong", use_container_width=True):
+        st.session_state.selected_status = "Đã lắp đặt xong"
+
+# Hiển thị trạng thái đang được chọn
+st.info(f"📌 Trạng thái hiện tại: **{st.session_state.selected_status}**")
 
 notes = st.text_area("Ghi chú / Vấn đề phát sinh tại hiện trường:", placeholder="Nhập ghi chú nếu có...")
 
@@ -108,4 +129,4 @@ if st.button("🚀 Gửi Báo Cáo & Cập Nhật Hệ Thống", type="primary")
     if selected_location == "-- Chọn địa điểm --":
         st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi báo cáo!")
     else:
-        st.success(f"✅ Gửi báo cáo thành công cho điểm {selected_location}!")
+        st.success(f"✅ Gửi báo cáo thành công! Đã cập nhật trạng thái '{st.session_state.selected_status}' cho điểm {selected_location}.")
