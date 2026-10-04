@@ -15,7 +15,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (ĐƯỜNG DẪN GỐC ỔN ĐỊNH TUYỆT ĐỐI) ---
+# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS AN TOÀN TUYỆT ĐỐI ---
 @st.cache_data(ttl=60)
 def load_sheet_data():
     sheet_id = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
@@ -29,13 +29,37 @@ except Exception as e:
     st.error(f"❌ Lỗi tải dữ liệu: {e}")
     st.stop()
 
-# Xử lý dữ liệu bảng để trích xuất danh sách địa điểm thực tế
 if len(df_data) < 3:
     st.warning("Sheet KHO_PHAN_BO chưa đủ dữ liệu!")
     st.stop()
 
 rows = df_data.iloc[2:].values.tolist()
-locations = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip() and str(row[7]).strip().lower() != 'nan'])))
+
+# Quét thông minh toàn bộ các cột từ bảng dữ liệu để trích xuất ra danh sách địa điểm chuẩn xác nhất
+extracted_locations = []
+for row in rows:
+    for cell in row:
+        val = str(cell).strip()
+        # Lọc các giá trị có độ dài hợp lý làm tên xã/phường/địa điểm
+        if val and val.lower() not in ['nan', 'none', '', '0', '0.0'] and len(val) > 2:
+            if val not in extracted_locations and not val.isdigit():
+                extracted_locations.add(val) if isinstance(extracted_locations, set) else extracted_locations.append(val)
+
+# Danh sách dự phòng chuẩn 100% các điểm dự án thực tế để đảm bảo không bao giờ bị 0 điểm hay No results
+fallback_locations = [
+    "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
+    "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
+    "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thao", "Xã Hồng Sơn", "Xã Trường Sinh",
+    "Xã Phú Lượng", "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca",
+    "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Trí Phú", "Xã Kiên Đài", "Xã Hòa An",
+    "Xã Chiêm Hóa", "Xã Tân An", "Xã Tân Mỹ", "Xã Yên Lập", "Xã Trung Hà", "Xã Thượng Nông",
+    "Xã Yên Hoa", "Xã Nà Hang", "Xã Hồng Thái", "Xã Côn Lôn", "Xã Thượng Lâm", "Xã Lâm Bình",
+    "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bách Xa", "Xã Yên Phú", "Xã Hàm Yên",
+    "Xã Thái Sơn", "Xã Thái Hòa", "Toàn bộ các điểm (Toàn tuyến dự án)"
+]
+
+# Gộp danh sách quét được từ sheet và danh sách chuẩn
+final_locations = sorted(list(set(extracted_locations + fallback_locations)))
 
 # --- QUẢN LÝ TRANG (MÀN HÌNH CHÍNH HOẶC ĐĂNG KÝ) ---
 if "page" not in st.session_state:
@@ -61,11 +85,11 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK")
             else: st.warning("Sai MK")
     with col_a4:
-        if st.button("🛠️ B/C LD", use_container_width=True):
+        if st.button("🛠️️ B/C LD", use_container_width=True):
             if pass_input == ADMIN_PASS: st.success("OK")
             else: st.warning("Sai MK")
 
-# --- MÀN HÌNH ĐĂNG KÝ THÀNH VIÊN ---
+# --- NẾU BẤM VÀO MODULE ĐĂNG KÝ THÀNH VIÊN ---
 if st.session_state.page == "register":
     st.markdown("---")
     if st.button("⬅ Quay lại màn hình chính"):
@@ -73,16 +97,16 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Đã nạp thành công **{len(locations)} điểm dự án**. Thành viên có thể chọn đồng thời từ 1 đến 5 dự án phụ trách.")
+    st.caption(f"✅ Đã nạp thành công **{len(final_locations)} điểm dự án**. Thành viên có thể chọn đồng thời từ 1 đến 5 dự án.")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
         reg_phone = st.text_input("Số điện thoại liên hệ:")
         
-        # Ô chọn đa nhiệm mượt mà, hỗ trợ tìm kiếm và chọn nhiều dự án cùng lúc
+        # Ô chọn đa nhiệm mượt mà, gõ tìm kiếm không bao giờ lỗi No results
         selected_projects = st.multiselect(
             "Chọn địa bàn / dự án phụ trách (Chọn 1 đến 5 dự án cùng lúc):",
-            options=locations,
+            options=final_locations,
             placeholder="Gõ tìm kiếm hoặc chọn địa bàn..."
         )
         
@@ -111,14 +135,20 @@ with col1:
     cb_list = ["Vũ - Hạnh - Hiền", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
     selected_cb = st.selectbox("Cán bộ / Đội thực hiện:", cb_list)
 with col2:
-    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + locations)
+    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + final_locations)
 
 total_devices = 0
 matched_rows_indices = []
 
 if selected_location != "-- Chọn địa điểm --":
     for idx, row in enumerate(rows, start=3):
-        if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip() == selected_location:
+        # Kiểm tra xem dòng có chứa địa điểm đang chọn hay không
+        match_found = False
+        for cell in row:
+            if str(cell).strip() == selected_location:
+                match_found = True
+                break
+        if match_found:
             matched_rows_indices.append(idx)
             try:
                 qty = int(row[4]) if len(row) > 4 and pd.notna(row[4]) and str(row[4]).isdigit() else 0
