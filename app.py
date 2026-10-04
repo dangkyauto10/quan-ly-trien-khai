@@ -15,7 +15,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (PUBLIC CSV) ---
+# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (PUBLIC CSV - TỰ ĐỘNG CẬP NHẬT KHI THÊM/XÓA CỘT D) ---
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
 @st.cache_data(ttl=30)
@@ -28,10 +28,10 @@ def load_danh_sach_diem():
     try:
         csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
         df = pd.read_csv(csv_url, header=None)
-        # Lấy dữ liệu từ cột D (index 3), bỏ qua tiêu đề nếu có
+        # Lấy động toàn bộ dữ liệu từ Cột D (index 3), tự động cập nhật khi Sheet thêm/bớt dòng
         if len(df.columns) > 3:
             diem_list = df.iloc[1:, 3].dropna().astype(str).str.strip().tolist()
-            diem_list = [d for d in diem_list if d and d != 'nan']
+            diem_list = [d for d in diem_list if d and d != 'nan' and d != 'NaN']
             return sorted(list(set(diem_list)))
     except:
         pass
@@ -68,11 +68,11 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK - Admin đã duyệt")
             else: st.warning("Sai MK")
     with col_a4:
-        if st.button("🛠 B/C LD", use_container_width=True):
+        if st.button("🛠️ B/C LD", use_container_width=True):
             if pass_input == ADMIN_PASS: st.success("OK - Quản lý LD")
             else: st.warning("Sai MK")
 
-# --- MÀN HÌNH ĐĂNG KÝ THÀNH VIÊN MỚI ---
+# --- MÀN HÌNH ĐĂNG KÝ THÀNH VIÊN MỚI (CHỌN 1-5 DỰ ÁN ĐỒNG THỜI) ---
 if st.session_state.page == "register":
     st.markdown("---")
     if st.button("⬅ Quay lại màn hình chính"):
@@ -80,16 +80,16 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thông Tin Thành Viên Mới")
-    st.caption("Điền thông tin bên dưới, bấm vào ô Địa bàn để gõ tìm kiếm danh sách điểm.")
+    st.caption("Thành viên có thể chọn gõ tìm kiếm và chọn đồng thời từ 1 đến nhiều địa bàn/dự án phụ trách.")
     
     reg_name = st.text_input("Họ và tên:")
     reg_phone = st.text_input("Số điện thoại:")
     
-    # Sử dụng st.selectbox hoặc st.multiselect để có tính năng gõ tìm kiếm tự động
-    reg_location = st.selectbox(
-        "Địa bàn phụ trách (Gõ để tìm kiếm hoặc chọn từ danh sách):", 
+    # Cho phép chọn đồng thời nhiều địa bàn từ danh sách động của Cột D
+    selected_diaban = st.multiselect(
+        "Địa bàn phụ trách (Chọn 1 đến nhiều dự án cùng lúc):",
         options=dia_ban_options,
-        index=0
+        placeholder="Gõ hoặc chọn các địa bàn phụ trách..."
     )
     
     reg_spec = st.selectbox("Chuyên môn:", [
@@ -101,8 +101,11 @@ if st.session_state.page == "register":
     if st.button("🚀 Gửi Yêu Cầu Đăng Ký", type="primary"):
         if not reg_name or not reg_phone:
             st.warning("⚠️ Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
+        elif not selected_diaban:
+            st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn/dự án phụ trách!")
         else:
-            st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}** (Địa bàn: {reg_location})! Đang chờ Admin phê duyệt.")
+            diaban_str = ", ".join(selected_diaban)
+            st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_diaban)} dự án:** `{diaban_str}`.\n\n⏳ Đang chờ Admin phê duyệt.")
             
     st.stop()
 
@@ -172,6 +175,6 @@ with col_img:
 
 if st.button("🚀 GỬI BÁO CÁO & CẬP NHẬT HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Chọn địa điểm --":
-        st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi!")
+        st.warning("⚠️️ Vui lòng chọn địa điểm trước khi gửi!")
     else:
         st.success(f"✅ Gửi báo cáo thành công trạng thái '{st.session_state.selected_status}' cho điểm {selected_location}!")
