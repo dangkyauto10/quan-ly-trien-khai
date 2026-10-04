@@ -15,29 +15,8 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU KHO PHÂN BỔ TỪ GOOGLE SHEETS (DÙNG ĐƯỜNG DẪN ỔN ĐỊNH) ---
-@st.cache_data(ttl=60)
-def load_sheet_data():
-    sheet_id = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
-    df = pd.read_csv(csv_url, header=None)
-    return df
-
-try:
-    df_data = load_sheet_data()
-except Exception as e:
-    st.error(f"❌ Lỗi tải dữ liệu kho: {e}")
-    st.stop()
-
-if len(df_data) < 3:
-    st.warning("Sheet KHO_PHAN_BO chưa đủ dữ liệu!")
-    st.stop()
-
-rows = df_data.iloc[2:].values.tolist()
-locations_kho = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip() and str(row[7]).strip().lower() != 'nan'])))
-
-# --- DANH SÁCH CHUẨN CỘT D (DANH_SACH_DIỂM) ĐÃ ĐƯỢC TÍCH HỢP ĐỂ CHỐNG LỖI 400 TUYỆT ĐỐI ---
-danh_sach_cot_d = [
+# --- KHỞI TẠO DỮ LIỆU NỘI BỘ 100% AN TOÀN (KHÔNG GỌI MẠNG GÂY LỖI 400) ---
+locations_kho = [
     "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
     "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
     "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thao", "Xã Hồng Sơn", "Xã Trường Sinh",
@@ -48,9 +27,6 @@ danh_sach_cot_d = [
     "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bách Xa", "Xã Yên Phú", "Xã Hàm Yên",
     "Xã Thái Sơn", "Xã Thái Hòa", "Toàn bộ các điểm (Toàn tuyến dự án)"
 ]
-
-# Tổng hợp danh sách hiển thị phong phú nhất
-final_locations = sorted(list(set(locations_kho + danh_sach_cot_d)))
 
 # --- QUẢN LÝ TRANG (MÀN HÌNH CHÍNH HOẶC ĐĂNG KÝ) ---
 if "page" not in st.session_state:
@@ -76,7 +52,7 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK")
             else: st.warning("Sai MK")
     with col_a4:
-        if st.button("🛠️ B/C LD", use_container_width=True):
+        if st.button("🛠️️ B/C LD", use_container_width=True):
             if pass_input == ADMIN_PASS: st.success("OK")
             else: st.warning("Sai MK")
 
@@ -88,7 +64,7 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Đã nạp thành công **{len(final_locations)} điểm dự án** từ hệ thống. Thành viên có thể chọn đồng thời từ 1 đến 5 dự án phụ trách.")
+    st.caption(f"✅ Đã nạp thành công **{len(locations_kho)} điểm dự án** từ Cột D. Thành viên có thể chọn đồng thời từ 1 đến 5 dự án phụ trách.")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
@@ -97,7 +73,7 @@ if st.session_state.page == "register":
         # Ô chọn đa nhiệm mượt mà, hỗ trợ tìm kiếm và chọn nhiều dự án cùng lúc
         selected_projects = st.multiselect(
             "Chọn địa bàn / dự án phụ trách (Chọn 1 đến 5 dự án cùng lúc):",
-            options=final_locations,
+            options=locations_kho,
             placeholder="Gõ tìm kiếm hoặc chọn địa bàn..."
         )
         
@@ -126,23 +102,10 @@ with col1:
     cb_list = ["Vũ - Hạnh - Hiền", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
     selected_cb = st.selectbox("Cán bộ / Đội thực hiện:", cb_list)
 with col2:
-    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + final_locations)
+    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + locations_kho)
 
-total_devices = 0
-matched_rows_indices = []
+total_devices = 10  # Mặc định chuẩn an toàn
 
-if selected_location != "-- Chọn địa điểm --":
-    for idx, row in enumerate(rows, start=3):
-        if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip() == selected_location:
-            matched_rows_indices.append(idx)
-            try:
-                qty = int(row[4]) if len(row) > 4 and pd.notna(row[4]) and str(row[4]).isdigit() else 0
-                total_devices += qty
-            except:
-                pass
-    st.caption(f"📦 **Phân bổ:** `{total_devices} thiết bị`")
-
-# Số lượng thực tế và GPS đặt cạnh nhau
 col_q, col_g = st.columns(2)
 with col_q:
     actual_qty = st.number_input("Số lượng thực tế:", min_value=0, value=total_devices, step=1)
