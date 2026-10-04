@@ -7,7 +7,6 @@ import json
 # --- CẤU HÌNH GIAO DIỆN STREAMLIT (TỐI ƯU CHO MOBILE) ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
 
-# Ẩn sidebar theo đúng yêu cầu
 st.markdown(
     """
     <style>
@@ -17,16 +16,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- CẤU HÌNH KẾT NỐI GOOGLE SHEETS BẰNG FILE TẢI TRỰC TIẾP ---
+# --- KẾT NỐI GOOGLE SHEETS BẢO MẬT TỪ SECRETS ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 @st.cache_resource
 def init_connection():
-    # Nạp trực tiếp từ file credentials.json và xử lý an toàn
-    with open("credentials.json", "r", encoding="utf-8") as f:
-        creds_data = json.load(f)
+    # Đọc chuỗi JSON bảo mật từ Streamlit Secrets và chuyển đổi an toàn tuyệt đối
+    creds_json_str = st.secrets["GOOGLE_CREDS"]
+    creds_dict = json.loads(creds_json_str)
     
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_data, scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
     return client.open_by_url(sheet_url)
@@ -77,7 +76,6 @@ if len(all_data) < 3:
     st.stop()
 
 rows = all_data[2:]
-
 locations = sorted(list(set([row[7].strip() for row in rows if len(row) > 7 and row[7].strip()])))
 
 # --- MÔ-ĐUN 1: XÁC NHẬN THÔNG TIN THỰC HIỆN ---
