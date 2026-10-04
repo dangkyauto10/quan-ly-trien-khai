@@ -16,27 +16,41 @@ st.markdown(
 )
 
 # --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (PUBLIC CSV) ---
+SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
+
 @st.cache_data(ttl=30)
-def load_sheet_data():
-    sheet_id = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&sheet=KHO_PHAN_BO"
-    df = pd.read_csv(csv_url, header=None)
-    return df
+def load_kho_data():
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=KHO_PHAN_BO"
+    return pd.read_csv(csv_url, header=None)
+
+@st.cache_data(ttl=30)
+def load_danh_sach_diem():
+    try:
+        csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
+        df = pd.read_csv(csv_url, header=None)
+        # Lấy dữ liệu từ cột D (index 3), bỏ qua tiêu đề nếu có
+        if len(df.columns) > 3:
+            diem_list = df.iloc[1:, 3].dropna().astype(str).str.strip().tolist()
+            diem_list = [d for d in diem_list if d and d != 'nan']
+            return sorted(list(set(diem_list)))
+    except:
+        pass
+    return ["Toàn bộ các điểm (Toàn tuyến dự án)"]
 
 try:
-    df_data = load_sheet_data()
+    df_data = load_kho_data()
+    dia_ban_options = load_danh_sach_diem()
 except Exception as e:
     st.error(f"❌ Lỗi tải dữ liệu: {e}")
     st.stop()
 
-# --- GIAO DIỆN CHÍNH (GỌN TRONG 1 MÀN HÌNH) ---
+# --- GIAO DIỆN CHÍNH ---
 st.title("📱 ĐIỀU HÀNH HIỆN TRƯỜNG")
 
-# Quản lý trạng thái hiển thị màn hình (Trang chủ hay Trang Đăng Ký)
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
-# Khu vực quản trị & chức năng thu gọn
+# Khu vực quản trị thu gọn
 with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=False):
     pass_input = st.text_input("Nhập Pass Quản Trị:", type="password", placeholder="Mật khẩu...")
     ADMIN_PASS = "S90880"
@@ -54,40 +68,43 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK - Admin đã duyệt")
             else: st.warning("Sai MK")
     with col_a4:
-        if st.button("🛠️️ B/C LD", use_container_width=True):
+        if st.button("🛠 B/C LD", use_container_width=True):
             if pass_input == ADMIN_PASS: st.success("OK - Quản lý LD")
             else: st.warning("Sai MK")
 
-# --- NẾU CHỌN TRANG ĐĂNG KÝ THÀNH VIÊN ---
+# --- MÀN HÌNH ĐĂNG KÝ THÀNH VIÊN MỚI ---
 if st.session_state.page == "register":
     st.markdown("---")
-    if st.button("⬅️️ Quay lại màn hình chính"):
+    if st.button("⬅ Quay lại màn hình chính"):
         st.session_state.page = "home"
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thông Tin Thành Viên Mới")
-    st.caption("Điền đầy đủ thông tin bên dưới để gửi yêu cầu chờ Admin phê duyệt và phân bổ công việc.")
+    st.caption("Điền thông tin bên dưới, bấm vào ô Địa bàn để gõ tìm kiếm danh sách điểm.")
     
-    with st.form("register_form"):
-        reg_name = st.text_input("Họ và tên:")
-        reg_phone = st.text_input("Số điện thoại:")
-        reg_location = st.text_input("Địa bàn phụ trách:", value="Toàn bộ các điểm (Toàn tuyến dự án)")
-        reg_spec = st.selectbox("Chuyên môn:", [
-            "1. Vận chuyển / Giao nhận",
-            "2. KTV Lắp đặt thiết bị"
-        ])
-        reg_vehicle = st.selectbox("Phương tiện:", ["Xe máy", "Xe tải", "Ô tô con", "Khác"])
-        
-        submitted = st.form_submit_button("🚀 Gửi Yêu Cầu Đăng Ký", type="primary")
-        if submitted:
-            if not reg_name or not reg_phone:
-                st.warning("⚠️ Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
-            else:
-                # Lưu ý: Để dữ liệu đổ thẳng vào Sheet 'Dang_ky' hoặc sheet thành viên, 
-                # anh có thể dùng Google Apps Script Web App nhận POST request ở đây.
-                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**! Hệ thống đã ghi nhận và đang chờ Admin duyệt.")
-                
-    st.stop() # Dừng không hiển thị phần bên dưới khi đang ở trang đăng ký
+    reg_name = st.text_input("Họ và tên:")
+    reg_phone = st.text_input("Số điện thoại:")
+    
+    # Sử dụng st.selectbox hoặc st.multiselect để có tính năng gõ tìm kiếm tự động
+    reg_location = st.selectbox(
+        "Địa bàn phụ trách (Gõ để tìm kiếm hoặc chọn từ danh sách):", 
+        options=dia_ban_options,
+        index=0
+    )
+    
+    reg_spec = st.selectbox("Chuyên môn:", [
+        "1. Vận chuyển / Giao nhận",
+        "2. KTV Lắp đặt thiết bị"
+    ])
+    reg_vehicle = st.selectbox("Phương tiện:", ["Xe máy", "Xe tải", "Ô tô con", "Khác"])
+    
+    if st.button("🚀 Gửi Yêu Cầu Đăng Ký", type="primary"):
+        if not reg_name or not reg_phone:
+            st.warning("⚠️ Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
+        else:
+            st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}** (Địa bàn: {reg_location})! Đang chờ Admin phê duyệt.")
+            
+    st.stop()
 
 # --- MÀN HÌNH CHÍNH (ĐIỀU HÀNH HIỆN TRƯỜNG) ---
 if len(df_data) < 3:
