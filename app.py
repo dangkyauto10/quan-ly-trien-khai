@@ -16,13 +16,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- CẤU HÌNH KẾT NỐI GOOGLE SHEETS BẰNG FILE CREDENTIALS.JSON ---
+# --- CẤU HÌNH KẾT NỐI GOOGLE SHEETS AN TOÀN TỪ SECRETS ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 @st.cache_resource
 def init_connection():
-    # Sử dụng trực tiếp file credentials.json chuẩn trên thư mục dự án
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    if "gcp_service_account" in st.secrets:
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    else:
+        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     client = gspread.authorize(creds)
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
     return client.open_by_url(sheet_url)
@@ -37,11 +40,9 @@ except Exception as e:
 st.title("📱 BÁO CÁO TRIỂN KHAI DỰ ÁN")
 st.caption("Hệ thống điều hành phân bổ tự động hiện trường")
 
-# Khung nhập mật khẩu quản trị cho các nút đặc quyền
 pass_input = st.text_input("🔑 Nhập Pass Quản Trị:", type="password", placeholder="Nhập mật khẩu...")
 ADMIN_PASS = "S90880"
 
-# Các nút điều hướng nhanh
 col_btn1, col_btn2 = st.columns(2)
 with col_btn1:
     if st.button("📝 Đăng ký thành viên"):
@@ -74,9 +75,8 @@ if len(all_data) < 3:
     st.warning("Sheet KHO_PHAN_BO chưa có dữ liệu cấu hình!")
     st.stop()
 
-rows = all_data[2:] # Dữ liệu từ dòng 3 trở đi
+rows = all_data[2:]
 
-# Lọc danh sách các địa điểm có sẵn từ dữ liệu (Cột H - index 7)
 locations = sorted(list(set([row[7].strip() for row in rows if len(row) > 7 and row[7].strip()])))
 
 # --- MÔ-ĐUN 1: XÁC NHẬN THÔNG TIN THỰC HIỆN ---
@@ -133,7 +133,6 @@ if st.button("🚀 Gửi Báo Cáo & Cập Nhật Hệ Thống", type="primary")
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             updated_count = 0
             for r_idx in matched_rows_indices:
-                # Cập nhật trạng thái vào cột J (index 10) và thời gian vào cột K (index 11)
                 sheet_kho.update_cell(r_idx, 10, selected_status)
                 sheet_kho.update_cell(r_idx, 11, timestamp)
                 updated_count += 1
