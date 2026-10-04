@@ -91,21 +91,25 @@ with col_g:
     if st.button("📍 Check-in GPS", use_container_width=True):
         st.success("📍 Đã ghi nhận GPS!")
 
-# --- PHẦN 2: TRẠNG THÁI & BÁO CÁO (4 NÚT GỌN GÀNG TRÊN 1 HÀNG) ---
+# --- PHẦN 2: TRẠNG THÁI & BÁO CÁO (4 NÚT CHIA THÀNH 2 CỘT NGANG) ---
 st.markdown("---")
 st.markdown("**2. Trạng Thái Hoàn Thành:**")
 
 if "selected_status" not in st.session_state:
     st.session_state.selected_status = "Đang vận chuyển"
 
-b1, b2, b3, b4 = st.columns(4)
-with b1:
+# Hàng 1: 2 nút
+b_col1, b_col2 = st.columns(2)
+with b_col1:
     if st.button("🚚 Đang V/C", use_container_width=True): st.session_state.selected_status = "Đang vận chuyển"
-with b2:
+with b_col2:
     if st.button("✅ Đã Giao", use_container_width=True): st.session_state.selected_status = "Đã giao hàng xong"
-with b3:
+
+# Hàng 2: 2 nút
+b_col3, b_col4 = st.columns(2)
+with b_col3:
     if st.button("⚙️ Đang Lắp", use_container_width=True): st.session_state.selected_status = "Đang lắp đặt"
-with b4:
+with b_col4:
     if st.button("🎉 Hoàn Thành", use_container_width=True): st.session_state.selected_status = "Đã lắp đặt xong"
 
 st.caption(f"📌 Đang chọn: **{st.session_state.selected_status}**")
