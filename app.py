@@ -15,7 +15,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (PUBLIC CSV ỔN ĐỊNH) ---
+# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (ỔN ĐỊNH TUYỆT ĐỐI) ---
 @st.cache_data(ttl=60)
 def load_sheet_data():
     sheet_id = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
@@ -29,6 +29,18 @@ except Exception as e:
     st.error(f"❌ Lỗi tải dữ liệu: {e}")
     st.stop()
 
+# Xử lý dữ liệu bảng để lấy danh sách toàn bộ các điểm thực tế (chuẩn cột D/H từ sheet)
+if len(df_data) < 3:
+    st.warning("Sheet KHO_PHAN_BO chưa đủ dữ liệu!")
+    st.stop()
+
+rows = df_data.iloc[2:].values.tolist()
+locations = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip()])))
+
+# --- QUẢN LÝ TRANG (MÀN HÌNH CHÍNH HOẶC ĐĂNG KÝ) ---
+if "page" not in st.session_state:
+    st.session_state.page = "home"
+
 # --- GIAO DIỆN CHÍNH (GỌN TRONG 1 MÀN HÌNH) ---
 st.title("📱 ĐIỀU HÀNH HIỆN TRƯỜNG")
 
@@ -39,7 +51,9 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
     
     col_a1, col_a2, col_a3, col_a4 = st.columns(4)
     with col_a1:
-        if st.button("📝 Đăng ký", use_container_width=True): st.info("Đang phát triển.")
+        if st.button("📝 Đăng ký", use_container_width=True): 
+            st.session_state.page = "register"
+            st.rerun()
     with col_a2:
         if st.button("📊 Báo cáo", use_container_width=True): st.info("Đang phát triển.")
     with col_a3:
@@ -47,19 +61,50 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK")
             else: st.warning("Sai MK")
     with col_a4:
-        if st.button("🛠️ B/C LD", use_container_width=True):
+        if st.button("🛠️️ B/C LD", use_container_width=True):
             if pass_input == ADMIN_PASS: st.success("OK")
             else: st.warning("Sai MK")
 
-# Xử lý dữ liệu bảng
-if len(df_data) < 3:
-    st.warning("Sheet KHO_PHAN_BO chưa đủ dữ liệu!")
-    st.stop()
+# --- NẾU BẤM VÀO MODULE ĐĂNG KÝ THÀNH VIÊN ---
+if st.session_state.page == "register":
+    st.markdown("---")
+    if st.button("⬅ Quay lại màn hình chính"):
+        st.session_state.page = "home"
+        st.rerun()
+        
+    st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
+    st.caption("Thành viên điền thông tin và chọn đồng thời từ 1 đến 5 dự án/địa bàn phụ trách.")
+    
+    with st.form("register_form"):
+        reg_name = st.text_input("Họ và tên thành viên:")
+        reg_phone = st.text_input("Số điện thoại liên hệ:")
+        
+        # Cho phép chọn đồng thời nhiều dự án (1 đến nhiều điểm) cực mượt mà
+        selected_projects = st.multiselect(
+            "Chọn địa bàn / dự án phụ trách (Có thể chọn 1 đến 5 dự án cùng lúc):",
+            options=locations,
+            placeholder="Gõ hoặc chọn các địa bàn..."
+        )
+        
+        reg_spec = st.selectbox("Chuyên môn thực hiện:", [
+            "1. Vận chuyển / Giao nhận thiết bị",
+            "2. KTV Lắp đặt hiện trường"
+        ])
+        reg_vehicle = st.selectbox("Phương tiện di chuyển:", ["Xe máy", "Xe tải", "Ô tô con", "Khác"])
+        
+        submitted = st.form_submit_button("🚀 GỬI YÊU CẦU ĐĂNG KÝ (CHỜ ADMIN DUYỆT)", type="primary")
+        if submitted:
+            if not reg_name or not reg_phone:
+                st.warning("⚠️ Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
+            elif not selected_projects:
+                st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn/dự án phụ trách!")
+            else:
+                projects_str = ", ".join(selected_projects)
+                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_projects)} dự án:** `{projects_str}`.\n\n⏳ Hệ thống đã ghi nhận và đang chờ Admin phê duyệt.")
+                
+    st.stop() # Dừng lại không hiển thị màn hình chính khi đang ở trang đăng ký
 
-rows = df_data.iloc[2:].values.tolist()
-locations = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip()])))
-
-# --- PHẦN 1: THÔNG TIN THỰC HIỆN (BỐ TRÍ SONG SONG 2 CỘT) ---
+# --- MÀN HÌNH CHÍNH: PHẦN 1 & PHẦN 2 ---
 st.markdown("---")
 col1, col2 = st.columns(2)
 with col1:
@@ -122,6 +167,6 @@ with col_img:
 
 if st.button("🚀 GỬI BÁO CÁO & CẬP NHẬT HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Chọn địa điểm --":
-        st.warning("⚠️️ Vui lòng chọn địa điểm trước khi gửi!")
+        st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi!")
     else:
         st.success(f"✅ Gửi báo cáo thành công trạng thái '{st.session_state.selected_status}' cho điểm {selected_location}!")
