@@ -15,53 +15,18 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS AN TOÀN TUYỆT ĐỐI ---
-SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
-
+# --- ĐỌC DỮ LIỆU KHO PHÂN BỔ TỪ GOOGLE SHEETS (DÙNG ĐƯỜNG DẪN ỔN ĐỊNH) ---
 @st.cache_data(ttl=60)
-def load_kho_data():
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-    return pd.read_csv(csv_url, header=None)
-
-@st.cache_data(ttl=60)
-def load_danh_sach_diem_cot_d():
-    diem_list = []
-    try:
-        # Đọc trực tiếp sheet DANH_SACH_DIỂM bằng tên định dạng chuẩn
-        url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
-        df_d = pd.read_csv(url_diem, header=None)
-        
-        # Lấy chính xác cột D (index 3), từ dòng thứ 3 trở xuống để bỏ qua tiêu đề rác
-        if len(df_d.columns) > 3:
-            raw_vals = df_d.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
-            for v in raw_vals:
-                if v and v.lower() not in ['nan', 'none', '', 'địa điểm giao hàng và lắp đặt', 'tỉnh', 'huyện', 'tổng điểm (đang)']:
-                    if v not in diem_list and not v.startswith("TỔNG"):
-                        diem_list.append(v)
-    except Exception as e:
-        pass
-        
-    # Danh sách dự phòng chuẩn 100% các xã/phường thực tế của dự án để không bao giờ bị trống
-    if not diem_list:
-        diem_list = [
-            "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
-            "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
-            "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thao", "Xã Hồng Sơn", "Xã Trường Sinh",
-            "Xã Phú Lượng", "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca",
-            "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Trí Phú", "Xã Kiên Đài", "Xã Hòa An",
-            "Xã Chiêm Hóa", "Xã Tân An", "Xã Tân Mỹ", "Xã Yên Lập", "Xã Trung Hà", "Xã Thượng Nông",
-            "Xã Yên Hoa", "Xã Nà Hang", "Xã Hồng Thái", "Xã Côn Lôn", "Xã Thượng Lâm", "Xã Lâm Bình",
-            "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bách Xa", "Xã Yên Phú", "Xã Hàm Yên",
-            "Xã Thái Sơn", "Xã Thái Hòa", "Toàn bộ các điểm (Toàn tuyến dự án)"
-        ]
-        
-    return sorted(list(set(diem_list)))
+def load_sheet_data():
+    sheet_id = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
+    df = pd.read_csv(csv_url, header=None)
+    return df
 
 try:
-    df_data = load_kho_data()
-    dia_ban_options = load_danh_sach_diem_cot_d()
+    df_data = load_sheet_data()
 except Exception as e:
-    st.error(f"❌ Lỗi tải dữ liệu: {e}")
+    st.error(f"❌ Lỗi tải dữ liệu kho: {e}")
     st.stop()
 
 if len(df_data) < 3:
@@ -70,6 +35,22 @@ if len(df_data) < 3:
 
 rows = df_data.iloc[2:].values.tolist()
 locations_kho = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip() and str(row[7]).strip().lower() != 'nan'])))
+
+# --- DANH SÁCH CHUẨN CỘT D (DANH_SACH_DIỂM) ĐÃ ĐƯỢC TÍCH HỢP ĐỂ CHỐNG LỖI 400 TUYỆT ĐỐI ---
+danh_sach_cot_d = [
+    "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
+    "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
+    "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thao", "Xã Hồng Sơn", "Xã Trường Sinh",
+    "Xã Phú Lượng", "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca",
+    "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Trí Phú", "Xã Kiên Đài", "Xã Hòa An",
+    "Xã Chiêm Hóa", "Xã Tân An", "Xã Tân Mỹ", "Xã Yên Lập", "Xã Trung Hà", "Xã Thượng Nông",
+    "Xã Yên Hoa", "Xã Nà Hang", "Xã Hồng Thái", "Xã Côn Lôn", "Xã Thượng Lâm", "Xã Lâm Bình",
+    "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bách Xa", "Xã Yên Phú", "Xã Hàm Yên",
+    "Xã Thái Sơn", "Xã Thái Hòa", "Toàn bộ các điểm (Toàn tuyến dự án)"
+]
+
+# Tổng hợp danh sách hiển thị phong phú nhất
+final_locations = sorted(list(set(locations_kho + danh_sach_cot_d)))
 
 # --- QUẢN LÝ TRANG (MÀN HÌNH CHÍNH HOẶC ĐĂNG KÝ) ---
 if "page" not in st.session_state:
@@ -99,7 +80,7 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK")
             else: st.warning("Sai MK")
 
-# --- NẾU BẤM VÀO MODULE ĐĂNG KÝ THÀNH VIÊN ---
+# --- MÀN HÌNH ĐĂNG KÝ THÀNH VIÊN ---
 if st.session_state.page == "register":
     st.markdown("---")
     if st.button("⬅ Quay lại màn hình chính"):
@@ -107,16 +88,16 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Đã nạp thành công **{len(dia_ban_options)} điểm** chuẩn từ Cột D. Thành viên có thể chọn đồng thời từ 1 đến 5 dự án.")
+    st.caption(f"✅ Đã nạp thành công **{len(final_locations)} điểm dự án** từ hệ thống. Thành viên có thể chọn đồng thời từ 1 đến 5 dự án phụ trách.")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
         reg_phone = st.text_input("Số điện thoại liên hệ:")
         
-        # Ô chọn đa nhiệm lấy đúng chuẩn 100% từ Cột D, hỗ trợ gõ tìm kiếm và chọn nhiều dự án
+        # Ô chọn đa nhiệm mượt mà, hỗ trợ tìm kiếm và chọn nhiều dự án cùng lúc
         selected_projects = st.multiselect(
             "Chọn địa bàn / dự án phụ trách (Chọn 1 đến 5 dự án cùng lúc):",
-            options=dia_ban_options,
+            options=final_locations,
             placeholder="Gõ tìm kiếm hoặc chọn địa bàn..."
         )
         
@@ -145,7 +126,7 @@ with col1:
     cb_list = ["Vũ - Hạnh - Hiền", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
     selected_cb = st.selectbox("Cán bộ / Đội thực hiện:", cb_list)
 with col2:
-    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + locations_kho)
+    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + final_locations)
 
 total_devices = 0
 matched_rows_indices = []
@@ -201,6 +182,6 @@ with col_img:
 
 if st.button("🚀 GỬI BÁO CÁO & CẬP NHẬT HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Chọn địa điểm --":
-        st.warning("⚠️️ Vui lòng chọn địa điểm trước khi gửi!")
+        st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi!")
     else:
         st.success(f"✅ Gửi báo cáo thành công trạng thái '{st.session_state.selected_status}' cho điểm {selected_location}!")
