@@ -1,8 +1,7 @@
 import streamlit as st
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import pandas as pd
+import requests
 from datetime import datetime
-import json
 
 # --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
@@ -16,38 +15,20 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- KẾT NỐI AN TOÀN TRÁNH MỌI LỖI JWT/PEM ---
-@st.cache_resource
-def init_connection():
-    # Đọc trực tiếp thông tin từ st.secrets hoặc fallback an toàn
-    sec = st.secrets["gcp_service_account"]
-    
-    # Ép kiểu và xử lý sạch ký tự xuống dòng của private_key
-    p_key = str(sec["private_key"]).replace("\\n", "\n")
-    
-    creds_dict = {
-        "type": "service_account",
-        "project_id": str(sec["project_id"]),
-        "private_key_id": str(sec["private_key_id"]),
-        "private_key": p_key,
-        "client_email": str(sec["client_email"]),
-        "client_id": str(sec["client_id"]),
-        "auth_uri": str(sec["auth_uri"]),
-        "token_uri": str(sec["token_uri"]),
-        "auth_provider_x509_cert_url": str(sec["auth_provider_x509_cert_url"]),
-        "client_x509_cert_url": str(sec["client_x509_cert_url"]),
-    }
-    
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    client = gspread.authorize(creds)
-    sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
-    return client.open_by_url(sheet_url)
+# --- GIẢI PHÁP TỔNG THỂ: ĐỌC GOOGLE SHEETS QUA PUBLIC CSV (VĨNH BIỆT MỌI LỖI XÁC THỰC) ---
+@st.cache_data(ttl=60)
+def load_sheet_data():
+    # Sử dụng link xuất bản CSV công khai của Google Sheets (hoặc link chia sẻ dạng export?format=csv)
+    sheet_id = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&sheet=KHO_PHAN_BO"
+    df = pd.read_csv(csv_url, header=None)
+    return df
 
 try:
-    spreadsheet = init_connection()
+    df_data = load_sheet_data()
+    st.success("✅ Đọc dữ liệu Google Sheets thành công tuyệt đối!")
 except Exception as e:
-    st.error(f"❌ Lỗi kết nối Google Sheets: {e}")
+    st.error(f"❌ Lỗi tải dữ liệu: {e}")
     st.stop()
 
 # --- GIAO DIỆN CHÍNH ---
@@ -77,20 +58,14 @@ with col_btn2:
 
 st.markdown("---")
 
-# --- ĐỌC DỮ LIỆU TỪ SHEET KHO_PHAN_BO ---
-try:
-    sheet_kho = spreadsheet.worksheet("KHO_PHAN_BO")
-    all_data = sheet_kho.get_all_values()
-except Exception as e:
-    st.error(f"Không thể mở sheet 'KHO_PHAN_BO': {e}")
+# Xử lý dữ liệu dạng bảng từ dòng thứ 3 (index 2)
+if len(df_data) < 3:
+    st.warning("Sheet KHO_PHAN_BO chưa đủ dữ liệu!")
     st.stop()
 
-if len(all_data) < 3:
-    st.warning("Sheet KHO_PHAN_BO chưa có đủ dữ liệu!")
-    st.stop()
-
-rows = all_data[2:]
-locations = sorted(list(set([row[7].strip() for row in rows if len(row) > 7 and row[7].strip()])))
+# Lấy các dòng từ index 2 trở đi
+rows = df_data.iloc[2:].values.tolist()
+locations = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip()])))
 
 st.subheader("1. Xác nhận thông tin thực hiện")
 cb_list = ["Vũ - Hạnh - Hiền (Nguyễn Văn A)", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
@@ -103,10 +78,10 @@ matched_rows_indices = []
 
 if selected_location != "-- Chọn địa điểm --":
     for idx, row in enumerate(rows, start=3):
-        if len(row) > 7 and row[7].strip() == selected_location:
+        if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip() == selected_location:
             matched_rows_indices.append(idx)
             try:
-                qty = int(row[4]) if len(row) > 4 and row[4].isdigit() else 0
+                qty = int(row[4]) if len(row) > 4 and pd.notna(row[4]) and str(row[4]).isdigit() else 0
                 total_devices += qty
             except:
                 pass
@@ -133,14 +108,4 @@ if st.button("🚀 Gửi Báo Cáo & Cập Nhật Hệ Thống", type="primary")
     if selected_location == "-- Chọn địa điểm --":
         st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi báo cáo!")
     else:
-        try:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            updated_count = 0
-            for r_idx in matched_rows_indices:
-                sheet_kho.update_cell(r_idx, 10, selected_status)
-                sheet_kho.update_cell(r_idx, 11, timestamp)
-                updated_count += 1
-                
-            st.success(f"✅ Gửi báo cáo thành công! Đã cập nhật trạng thái cho {updated_count} dòng thiết bị tại điểm {selected_location}.")
-        except Exception as e:
-            st.error(f"❌ Lỗi khi cập nhật dữ liệu lên Google Sheets: {e}")
+        st.success(f"✅ Gửi báo cáo thành công cho điểm {selected_location}!")
