@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import urllib.parse
 from datetime import datetime
 
 # --- CẤU HÌNH GIAO DIỆN GỌN GÀNG ---
@@ -16,49 +15,48 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (ĐÚNG SHEET & ĐÚNG CỘT D) ---
+# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (DÙNG GID CHUẨN XÁC TUYỆT ĐỐI) ---
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
 @st.cache_data(ttl=30)
 def load_kho_data():
-    sheet_encoded = urllib.parse.quote("KHO_PHAN_BO")
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_encoded}"
+    # gid cho KHO_PHAN_BO
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
     return pd.read_csv(csv_url, header=None)
 
 @st.cache_data(ttl=30)
 def load_danh_sach_diem():
     diem_list = []
     try:
-        # Gọi chính xác tên sheet DANH_SACH_DIỂM
-        sheet_encoded = urllib.parse.quote("DANH_SACH_DIỂM")
-        url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_encoded}"
+        # gid của sheet DANH_SACH_DIỂM (hoặc đọc toàn bộ file và lấy đúng cột D của tab đó)
+        # Ta dùng direct export kèm chỉ định tên sheet bằng bảng mã gid chuẩn hoặc đọc trực tiếp qua gspread/pandas
+        url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=DANH_SACH_DIỂM"
         df_d = pd.read_csv(url_diem, header=None)
         
-        # Cột D tương ứng với index 3 trong Python. Lấy từ dòng index 2 (tức là bỏ qua tiêu đề rác)
+        # Cột D tương ứng index 3 trong bảng dữ liệu chuẩn của sheet DANH_SACH_DIỂM
         if len(df_d.columns) > 3:
-            raw_vals = df_d.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
+            raw_vals = df_d.iloc[1:, 3].dropna().astype(str).str.strip().tolist()
             for v in raw_vals:
-                # Lọc bỏ các giá trị trống hoặc rác không phải tên địa điểm
-                if v and v.lower() not in ['nan', 'none', '', '-- chọn địa điểm --', 'địa điểm giao hàng và lắp đặt']:
+                if v and v.lower() not in ['nan', 'none', '', 'địa điểm giao hàng và lắp đặt', 'địa điểm', 'tuyến']:
                     if v not in diem_list:
                         diem_list.append(v)
     except Exception as e:
         pass
         
-    # Dự phòng chuẩn nếu file CSV chưa load kịp
+    # Nếu không quét được qua gviz, ta dùng phương pháp quét an toàn từ file CSV tổng
     if not diem_list:
-        diem_list = [
-            "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
-            "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
-            "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thao", "Xã Hồng Sơn", "Xã Trường Sinh",
-            "Xã Phú Lượng", "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca",
-            "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Trí Phú", "Xã Kiên Đài", "Xã Hòa An",
-            "Xã Chiêm Hóa", "Xã Tân An", "Xã Tân Mỹ", "Xã Yên Lập", "Xã Trung Hà", "Xã Thượng Nông",
-            "Xã Yên Hoa", "Xã Nà Hang", "Xã Hồng Thái", "Xã Côn Lôn", "Xã Thượng Lâm", "Xã Lâm Bình",
-            "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bách Xa", "Xã Yên Phú", "Xã Hàm Yên",
-            "Xã Thái Sơn", "Xã Thái Hòa", "Toàn bộ các điểm (Toàn tuyến dự án)"
-        ]
-        
+        try:
+            url_fallback = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
+            df_f = pd.read_csv(url_fallback, header=None)
+            if len(df_f.columns) > 3:
+                raw_vals = df_f.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
+                for v in raw_vals:
+                    if v and v.lower() not in ['nan', 'none', '', 'địa điểm giao hàng và lắp đặt']:
+                        if v not in diem_list:
+                            diem_list.append(v)
+        except:
+            pass
+            
     return sorted(list(set(diem_list)))
 
 try:
@@ -92,7 +90,7 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK - Admin đã duyệt")
             else: st.warning("Sai MK")
     with col_a4:
-        if st.button("🛠️️ B/C LD", use_container_width=True):
+        if st.button("🛠️ B/C LD", use_container_width=True):
             if pass_input == ADMIN_PASS: st.success("OK - Quản lý LD")
             else: st.warning("Sai MK")
 
@@ -104,12 +102,11 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thông Tin Thành Viên Mới")
-    st.caption(f"✅ Đã nạp chính xác **{len(dia_ban_options)} điểm** từ Cột D. Thành viên có thể chọn 1 đến nhiều dự án cùng lúc.")
+    st.caption(f"✅ Đã quét chuẩn xác **{len(dia_ban_options)} điểm** từ Cột D. Thành viên có thể chọn 1 đến nhiều dự án cùng lúc.")
     
     reg_name = st.text_input("Họ và tên:")
     reg_phone = st.text_input("Số điện thoại:")
     
-    # Ô chọn đa nhiệm chuẩn từ Cột D của sheet DANH_SACH_DIỂM
     selected_diaban = st.multiselect(
         "Địa bàn phụ trách (Chọn nhiều dự án đồng thời từ Cột D):",
         options=dia_ban_options,
