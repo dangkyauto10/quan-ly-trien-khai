@@ -1,9 +1,10 @@
 import streamlit as st
 import gspread
-from google.oauth2.service_account import Credentials
+from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import json
 
+# --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
 
 st.markdown(
@@ -15,24 +16,20 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- XỬ LÝ KHÓA AN TOÀN TUYỆT ĐỐI (KHÔNG BAO GIỜ LỖI PEM/JWT) ---
+# --- KẾT NỐI AN TOÀN TRÁNH MỌI LỖI JWT/PEM ---
 @st.cache_resource
 def init_connection():
-    # Đọc trực tiếp cấu hình từ dictionary an toàn
+    # Đọc trực tiếp thông tin từ st.secrets hoặc fallback an toàn
     sec = st.secrets["gcp_service_account"]
     
-    # Ép kiểu và chuẩn hóa chính xác private_key tránh lỗi padding
-    raw_key = str(sec["private_key"])
-    if not raw_key.startswith("-----BEGIN PRIVATE KEY-----"):
-        raw_key = "-----BEGIN PRIVATE KEY-----\n" + raw_key + "\n-----END PRIVATE KEY-----\n"
-    # Thay thế các ký tự xuống dòng bị lỗi thành \n chuẩn
-    formatted_key = raw_key.replace("\\n", "\n")
-
-    creds_info = {
+    # Ép kiểu và xử lý sạch ký tự xuống dòng của private_key
+    p_key = str(sec["private_key"]).replace("\\n", "\n")
+    
+    creds_dict = {
         "type": "service_account",
         "project_id": str(sec["project_id"]),
         "private_key_id": str(sec["private_key_id"]),
-        "private_key": formatted_key,
+        "private_key": p_key,
         "client_email": str(sec["client_email"]),
         "client_id": str(sec["client_id"]),
         "auth_uri": str(sec["auth_uri"]),
@@ -41,14 +38,14 @@ def init_connection():
         "client_x509_cert_url": str(sec["client_x509_cert_url"]),
     }
     
-    creds = Credentials.from_service_account_info(creds_info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
     return client.open_by_url(sheet_url)
 
 try:
     spreadsheet = init_connection()
-    st.success("✅ Kết nối Google Sheets thành công tuyệt đối!")
 except Exception as e:
     st.error(f"❌ Lỗi kết nối Google Sheets: {e}")
     st.stop()
@@ -80,6 +77,7 @@ with col_btn2:
 
 st.markdown("---")
 
+# --- ĐỌC DỮ LIỆU TỪ SHEET KHO_PHAN_BO ---
 try:
     sheet_kho = spreadsheet.worksheet("KHO_PHAN_BO")
     all_data = sheet_kho.get_all_values()
