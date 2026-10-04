@@ -19,7 +19,6 @@ except Exception as e:
 
 st.title("🚀 Hệ Thống Quản Lý Lắp Đặt Dự Án")
 
-# --- MODULE DUY NHẤT: ĐỒNG BỘ TỪ KHO PHÂN BỔ SANG LẮP ĐẶT (LAP_DAT) ---
 st.header("🛠️ Quản Lý Lắp Đặt")
 if st.button("Đồng bộ dữ liệu từ Kho phân bổ sang Lắp Đặt"):
     try:
@@ -34,31 +33,49 @@ if st.button("Đồng bộ dữ liệu từ Kho phân bổ sang Lắp Đặt"):
             for idx, row in enumerate(kho_data[2:], start=1):
                 if not any(row): continue
                 
-                # Trích xuất dữ liệu chuẩn từ KHO_PHAN_BO (KPB) theo đúng index Python (bắt đầu từ 0)
-                ma_du_an = row[0] if len(row) > 0 else ""       # Cột A KPB -> Mã dự án
-                ten_tb = row[3] if len(row) > 3 else ""         # Cột D KPB -> Tên thiết bị
-                so_luong = row[4] if len(row) > 4 else ""       # Cột E KPB -> Số lượng
-                don_vi_tinh = row[5] if len(row) > 5 else ""    # Cột F KPB -> ĐVT
-                doi_nhan = row[7] if len(row) > 7 else ""       # Cột H KPB (hoặc G tùy bản chuẩn của anh) -> Đội nhận thiết bị
-                dia_diem = row[7] if len(row) > 7 else ""       # Cột H KPB -> Địa điểm lắp
+                # Lấy đúng dữ liệu từ KHO_PHAN_BO (index mảng Python từ 0):
+                # row[0] = Cột A (Mã dự án)
+                # row[3] = Cột D (Tên thiết bị)
+                # row[4] = Cột E (Số lượng)
+                # row[5] = Cột F (ĐVT)
+                # row[6] = Cột G (Đội nhận thiết bị)
+                # row[7] = Cột H (Địa điểm lắp)
                 
-                # Ánh xạ chuẩn xác tuyệt đối từng cột từ A đến J trên sheet LAP_DAT:
+                ma_du_an   = row[0] if len(row) > 0 else ""
+                ten_tb     = row[3] if len(row) > 3 else ""
+                so_luong   = row[4] if len(row) > 4 else ""
+                don_vi     = row[5] if len(row) > 5 else ""
+                doi_nhan   = row[6] if len(row) > 6 else ""
+                dia_diem   = row[7] if len(row) > 7 else ""
+                
+                # Ánh xạ chuẩn 10 cột khớp 100% giao diện sheet LAP_DAT (từ A đến J):
+                # [0] Cột A: Mã công việc (Tự sinh CV_1, CV_2,...)
+                # [1] Cột B: Mã dự án <- Cột A KPB
+                # [2] Cột C: Đội nhận thiết bị <- Cột G KPB
+                # [3] Cột D: Tên thiết bị / Hàng hóa <- Cột D KPB
+                # [4] Cột E: Số lượng thiết bị lắp <- Cột E KPB
+                # [5] Cột F: ĐVT <- Cột F KPB
+                # [6] Cột G: Địa điểm lắp <- Cột H KPB
+                # [7] Cột H: Tình trạng thực hiện ("Đang lắp đặt")
+                # [8] Cột I: Thời gian hoàn thành (để trống)
+                # [9] Cột J: Link Google Maps (để trống)
+                
                 row_data = [
-                    f"CV_{idx}",    # Cột A: Mã công việc
-                    ma_du_an,       # Cột B: Mã dự án
-                    doi_nhan,       # Cột C: Đội nhận thiết bị
-                    ten_tb,         # Cột D: Tên thiết bị / Hàng hóa
-                    so_luong,       # Cột E: Số lượng thiết bị lắp
-                    don_vi_tinh,    # Cột F: ĐVT
-                    dia_diem,       # Cột G: Địa điểm lắp
-                    "Đang lắp đặt", # Cột H: Tình trạng thực hiện
-                    "",             # Cột I: Thời gian hoàn thành
-                    ""              # Cột J: Link Google Maps
+                    f"CV_{idx}",    # A
+                    ma_du_an,       # B
+                    doi_nhan,       # C
+                    ten_tb,         # D
+                    so_luong,       # E
+                    don_vi,         # F
+                    dia_diem,       # G
+                    "Đang lắp đặt", # H
+                    "",             # I
+                    ""              # J
                 ]
                 rows_to_append.append(row_data)
             
             if rows_to_append:
                 sheet_ld.append_rows(rows_to_append)
-                st.success("✅ Đồng bộ dữ liệu từ Kho phân bổ sang Lắp Đặt thành công chuẩn xác từng cột!")
+                st.success("✅ Đồng bộ dữ liệu sang Lắp Đặt thành công tuyệt đối!")
     except Exception as e:
         st.error(f"Lỗi: {e}")
