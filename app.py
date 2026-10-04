@@ -3,6 +3,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 
+# --- CẤU HÌNH GIAO DIỆN STREAMLIT (TỐI ƯU CHO MOBILE) ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
 
 st.markdown(
@@ -14,22 +15,37 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- KẾT NỐI GOOGLE SHEETS KHẮC PHỤC TRIỆT ĐỂ LỆCH GIỜ JWT ---
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
+# --- KẾT NỐI GOOGLE SHEETS TRỰC TIẾP TỪ SECRETS (CHUẨN XÁC TUỆT ĐỐI) ---
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
 @st.cache_resource
 def init_connection():
-    # Sử dụng tệp credentials.json trực tiếp với google-auth và ép buộc múi giờ chuẩn
-    creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
+    sec = st.secrets["gcp_service_account"]
+    
+    # Xử lý an toàn chuỗi private_key
+    private_key_str = str(sec["private_key"]).replace("\\n", "\n")
+    
+    creds_info = {
+        "type": str(sec["type"]),
+        "project_id": str(sec["project_id"]),
+        "private_key_id": str(sec["private_key_id"]),
+        "private_key": private_key_str,
+        "client_email": str(sec["client_email"]),
+        "client_id": str(sec["client_id"]),
+        "auth_uri": str(sec["auth_uri"]),
+        "token_uri": str(sec["token_uri"]),
+        "auth_provider_x509_cert_url": str(sec["auth_provider_x509_cert_url"]),
+        "client_x509_cert_url": str(sec["client_x509_cert_url"]),
+    }
+    
+    creds = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
     client = gspread.authorize(creds)
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
     return client.open_by_url(sheet_url)
 
 try:
     spreadsheet = init_connection()
+    st.success("✅ Kết nối Google Sheets thành công tuyệt đối!")
 except Exception as e:
     st.error(f"❌ Lỗi kết nối Google Sheets: {e}")
     st.stop()
