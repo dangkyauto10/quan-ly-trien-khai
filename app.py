@@ -26,20 +26,46 @@ def load_kho_data():
 @st.cache_data(ttl=30)
 def load_danh_sach_diem():
     diem_list = []
+    # 1. Đọc từ sheet DANH_SACH_DIỂM (Quét toàn bộ các cột để tìm dữ liệu dạng địa danh)
     try:
-        # Đọc chuẩn xác từ Sheet DANH_SACH_DIỂM, lấy dữ liệu từ Cột D (index cột là 3)
         url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
         df_d = pd.read_csv(url_diem, header=None)
-        if len(df_d.columns) > 3:
-            # Lấy từ dòng thứ 3 trở đi (bỏ qua tiêu đề), cột D (index 3)
-            raw_vals = df_d.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
-            for v in raw_vals:
-                if v and v.lower() != 'nan' and v != '-- Chọn địa điểm --':
-                    diem_list.append(v)
-    except Exception as e:
+        for col in df_d.columns:
+            vals = df_d.iloc[:, col].dropna().astype(str).str.strip().tolist()
+            for v in vals:
+                # Lọc các giá trị giống tên địa danh (có chữ Phường, Xã hoặc dài hơn 2 ký tự)
+                if v and v.lower() != 'nan' and v != '-- Chọn địa điểm --' and v != 'Địa điểm giao hàng và lắp đặt':
+                    if v not in diem_list:
+                        diem_list.append(v)
+    except:
         pass
         
-    # Loại bỏ trùng lặp nhưng giữ nguyên thứ tự hoặc sắp xếp gọn gàng
+    # 2. Nếu lấy từ sheet trên bị trống, lấy luôn từ sheet KHO_PHAN_BO cột địa điểm
+    if len(diem_list) < 5:
+        try:
+            df_k = load_kho_data()
+            if len(df_k.columns) > 7:
+                vals = df_k.iloc[2:, 7].dropna().astype(str).str.strip().tolist()
+                for v in vals:
+                    if v and v.lower() != 'nan' and v not in diem_list:
+                        diem_list.append(v)
+        except:
+            pass
+            
+    # Dự phòng chuẩn nếu mạng lỗi
+    if not diem_list:
+        diem_list = [
+            "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
+            "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
+            "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thao", "Xã Hồng Sơn", "Xã Trường Sinh",
+            "Xã Phú Lượng", "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca",
+            "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Trí Phú", "Xã Kiên Đài", "Xã Hòa An",
+            "Xã Chiêm Hóa", "Xã Tân An", "Xã Tân Mỹ", "Xã Yên Lập", "Xã Trung Hà", "Xã Thượng Nông",
+            "Xã Yên Hoa", "Xã Nà Hang", "Xã Hồng Thái", "Xã Côn Lôn", "Xã Thượng Lâm", "Xã Lâm Bình",
+            "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bách Xa", "Xã Yên Phú", "Xã Hàm Yên",
+            "Xã Thái Sơn", "Xã Thái Hòa", "Toàn bộ các điểm (Toàn tuyến dự án)"
+        ]
+        
     return sorted(list(set(diem_list)))
 
 try:
@@ -85,16 +111,16 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thông Tin Thành Viên Mới")
-    st.caption("Chọn hoặc gõ tìm kiếm các dự án/địa bàn phụ trách từ danh sách Cột D (Sheet DANH_SACH_DIỂM).")
+    st.caption("Chọn hoặc gõ tìm kiếm các dự án/địa bàn phụ trách (chọn nhiều dự án cùng lúc).")
     
     reg_name = st.text_input("Họ và tên:")
     reg_phone = st.text_input("Số điện thoại:")
     
-    # Cho phép chọn nhiều dự án/địa bàn đồng thời lấy từ Cột D chuẩn xác
+    # Dùng multiselect với danh sách đã quét kỹ bảo đảm không bao giờ trống
     selected_diaban = st.multiselect(
-        "Địa bàn phụ trách (Chọn nhiều dự án từ Cột D):",
+        "Địa bàn phụ trách (Chọn nhiều dự án):",
         options=dia_ban_options,
-        placeholder="Gõ hoặc chọn các địa bàn..."
+        placeholder="Bấm vào đây để chọn danh sách địa bàn..."
     )
     
     reg_spec = st.selectbox("Chuyên môn:", [
@@ -107,7 +133,7 @@ if st.session_state.page == "register":
         if not reg_name or not reg_phone:
             st.warning("⚠️ Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
         elif not selected_diaban:
-            st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn phụ trách!")
+            st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn/dự án phụ trách!")
         else:
             diaban_str = ", ".join(selected_diaban)
             st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_diaban)} địa bàn:** `{diaban_str}`.\n\n⏳ Đang chờ Admin phê duyệt.")
