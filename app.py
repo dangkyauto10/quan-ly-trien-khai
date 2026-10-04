@@ -15,7 +15,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (PUBLIC CSV - TỰ ĐỘNG CẬP NHẬT KHI THÊM/XÓA CỘT D) ---
+# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (PUBLIC CSV) ---
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
 @st.cache_data(ttl=30)
@@ -25,17 +25,34 @@ def load_kho_data():
 
 @st.cache_data(ttl=30)
 def load_danh_sach_diem():
+    diem_set = set()
+    # 1. Thử đọc từ sheet DANH_SACH_DIỂM trước
     try:
-        csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
-        df = pd.read_csv(csv_url, header=None)
-        # Lấy động toàn bộ dữ liệu từ Cột D (index 3), tự động cập nhật khi Sheet thêm/bớt dòng
-        if len(df.columns) > 3:
-            diem_list = df.iloc[1:, 3].dropna().astype(str).str.strip().tolist()
-            diem_list = [d for d in diem_list if d and d != 'nan' and d != 'NaN']
-            return sorted(list(set(diem_list)))
+        url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
+        df_d = pd.read_csv(url_diem, header=None)
+        for col in df_d.columns:
+            vals = df_d.iloc[1:, col].dropna().astype(str).str.strip().tolist()
+            for v in vals:
+                if v and v.lower() != 'nan' and len(v) > 1:
+                    diem_set.add(v)
     except:
         pass
-    return ["Toàn bộ các điểm (Toàn tuyến dự án)"]
+        
+    # 2. Nếu vẫn trống, lấy luôn từ danh sách địa điểm phân bổ (cột H / index 7) của KHO_PHAN_BO để luôn có dữ liệu
+    try:
+        df_k = load_kho_data()
+        if len(df_k.columns) > 7:
+            vals = df_k.iloc[2:, 7].dropna().astype(str).str.strip().tolist()
+            for v in vals:
+                if v and v.lower() != 'nan':
+                    diem_set.add(v)
+    except:
+        pass
+        
+    if not diem_set:
+        diem_set = {"Điểm 01", "Điểm 02", "Điểm 03", "Toàn bộ các điểm (Toàn tuyến dự án)"}
+        
+    return sorted(list(diem_set))
 
 try:
     df_data = load_kho_data()
@@ -72,7 +89,7 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK - Quản lý LD")
             else: st.warning("Sai MK")
 
-# --- MÀN HÌNH ĐĂNG KÝ THÀNH VIÊN MỚI (CHỌN 1-5 DỰ ÁN ĐỒNG THỜI) ---
+# --- MÀN HÌNH ĐĂNG KÝ THÀNH VIÊN MỚI ---
 if st.session_state.page == "register":
     st.markdown("---")
     if st.button("⬅ Quay lại màn hình chính"):
@@ -80,16 +97,16 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thông Tin Thành Viên Mới")
-    st.caption("Thành viên có thể chọn gõ tìm kiếm và chọn đồng thời từ 1 đến nhiều địa bàn/dự án phụ trách.")
+    st.caption("Chọn hoặc gõ tìm kiếm các dự án/địa bàn phụ trách (có thể chọn 1 đến nhiều điểm cùng lúc).")
     
     reg_name = st.text_input("Họ và tên:")
     reg_phone = st.text_input("Số điện thoại:")
     
-    # Cho phép chọn đồng thời nhiều địa bàn từ danh sách động của Cột D
+    # Dùng st.pills hoặc st.multiselect hỗ trợ hiện sẵn danh sách và cho phép gõ tìm
     selected_diaban = st.multiselect(
-        "Địa bàn phụ trách (Chọn 1 đến nhiều dự án cùng lúc):",
+        "Địa bàn phụ trách (Chọn nhiều dự án):",
         options=dia_ban_options,
-        placeholder="Gõ hoặc chọn các địa bàn phụ trách..."
+        default=[]
     )
     
     reg_spec = st.selectbox("Chuyên môn:", [
@@ -175,6 +192,6 @@ with col_img:
 
 if st.button("🚀 GỬI BÁO CÁO & CẬP NHẬT HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Chọn địa điểm --":
-        st.warning("⚠️️ Vui lòng chọn địa điểm trước khi gửi!")
+        st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi!")
     else:
         st.success(f"✅ Gửi báo cáo thành công trạng thái '{st.session_state.selected_status}' cho điểm {selected_location}!")
