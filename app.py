@@ -15,34 +15,20 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- KẾT NỐI GOOGLE SHEETS TỪ SECRETS ---
+# --- KẾT NỐI GOOGLE SHEETS TRỰC TIẾP BẰNG FILE CREDENTIALS.JSON ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 @st.cache_resource
 def init_connection():
-    sec = st.secrets["gcp_service_account"]
-    pk = str(sec["private_key"]).replace("\\n", "\n")
-    
-    creds_dict = {
-        "type": str(sec["type"]),
-        "project_id": str(sec["project_id"]),
-        "private_key_id": str(sec["private_key_id"]),
-        "private_key": pk,
-        "client_email": str(sec["client_email"]),
-        "client_id": str(sec["client_id"]),
-        "auth_uri": str(sec["auth_uri"]),
-        "token_uri": str(sec["token_uri"]),
-        "auth_provider_x509_cert_url": str(sec["auth_provider_x509_cert_url"]),
-        "client_x509_cert_url": str(sec["client_x509_cert_url"]),
-    }
-    
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    # Đọc trực tiếp file credentials.json từ thư mục gốc của project
+    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     client = gspread.authorize(creds)
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
     return client.open_by_url(sheet_url)
 
 try:
     spreadsheet = init_connection()
+    st.success("✅ Kết nối Google Sheets thành công tuyệt đối!")
 except Exception as e:
     st.error(f"❌ Lỗi kết nối Google Sheets: {e}")
     st.stop()
