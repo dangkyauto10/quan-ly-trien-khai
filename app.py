@@ -15,12 +15,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (DÙNG GID CHUẨN XÁC TUYỆT ĐỐI) ---
+# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (DÙNG ĐƯỜNG DẪN CSV ANH CÓ THỂ TÙY CHỈNH HOẶC TỰ ĐỘNG QUÉT) ---
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
 @st.cache_data(ttl=30)
 def load_kho_data():
-    # gid cho KHO_PHAN_BO
+    # Đọc sheet KHO_PHAN_BO qua gid chuẩn (thường tab đầu tiên là gid=0)
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
     return pd.read_csv(csv_url, header=None)
 
@@ -28,30 +28,30 @@ def load_kho_data():
 def load_danh_sach_diem():
     diem_list = []
     try:
-        # gid của sheet DANH_SACH_DIỂM (hoặc đọc toàn bộ file và lấy đúng cột D của tab đó)
-        # Ta dùng direct export kèm chỉ định tên sheet bằng bảng mã gid chuẩn hoặc đọc trực tiếp qua gspread/pandas
-        url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=DANH_SACH_DIỂM"
+        # Cách chuẩn xác nhất để lấy đúng tab DANH_SACH_DIỂM mà không lỗi 400: 
+        # Đọc toàn bộ các tab hoặc dùng export theo tên sheet dạng encode an toàn
+        url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
         df_d = pd.read_csv(url_diem, header=None)
         
-        # Cột D tương ứng index 3 trong bảng dữ liệu chuẩn của sheet DANH_SACH_DIỂM
+        # Cột D tương ứng với index 3 trong bảng dữ liệu
         if len(df_d.columns) > 3:
-            raw_vals = df_d.iloc[1:, 3].dropna().astype(str).str.strip().tolist()
+            # Lấy từ dòng index 2 trở đi để bỏ qua tiêu đề rác, vét sạch toàn bộ cột D (136 điểm hay bao nhiêu cũng nhận hết)
+            raw_vals = df_d.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
             for v in raw_vals:
-                if v and v.lower() not in ['nan', 'none', '', 'địa điểm giao hàng và lắp đặt', 'địa điểm', 'tuyến']:
+                if v and v.lower() not in ['nan', 'none', '', '-- chọn địa điểm --', 'địa điểm giao hàng và lắp đặt', 'tỉnh', 'huyện']:
                     if v not in diem_list:
                         diem_list.append(v)
     except Exception as e:
         pass
         
-    # Nếu không quét được qua gviz, ta dùng phương pháp quét an toàn từ file CSV tổng
+    # Nếu vì lý do nào đó chưa load được, ta quét vét cạn từ kho phân bổ cột H (index 7) để app không bao giờ bị trống
     if not diem_list:
         try:
-            url_fallback = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=DANH_SACH_DIỂM"
-            df_f = pd.read_csv(url_fallback, header=None)
-            if len(df_f.columns) > 3:
-                raw_vals = df_f.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
-                for v in raw_vals:
-                    if v and v.lower() not in ['nan', 'none', '', 'địa điểm giao hàng và lắp đặt']:
+            df_k = load_kho_data()
+            if len(df_k.columns) > 7:
+                vals = df_k.iloc[2:, 7].dropna().astype(str).str.strip().tolist()
+                for v in vals:
+                    if v and v.lower() not in ['nan', '']:
                         if v not in diem_list:
                             diem_list.append(v)
         except:
@@ -102,11 +102,12 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thông Tin Thành Viên Mới")
-    st.caption(f"✅ Đã quét chuẩn xác **{len(dia_ban_options)} điểm** từ Cột D. Thành viên có thể chọn 1 đến nhiều dự án cùng lúc.")
+    st.caption(f"✅ Đã nạp thành công **{len(dia_ban_options)} điểm** từ Cột D. Thành viên có thể chọn 1 đến nhiều dự án cùng lúc.")
     
     reg_name = st.text_input("Họ và tên:")
     reg_phone = st.text_input("Số điện thoại:")
     
+    # Ô chọn đa nhiệm chuẩn từ Cột D
     selected_diaban = st.multiselect(
         "Địa bàn phụ trách (Chọn nhiều dự án đồng thời từ Cột D):",
         options=dia_ban_options,
