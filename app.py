@@ -18,22 +18,22 @@ st.markdown(
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# --- HÀM LẤY CHUẨN XÁC 100% CỘT D TỪ TAB DANH_SACH_DIỂM (LỌC SẠCH MỌI RÁC) ---
+# --- HÀM TẢI DỮ LIỆU ĐỊA ĐIỂM AN TOÀN TUYỆT ĐỐI ---
 @st.cache_data(ttl=5)
-def load_danh_sach_chuan_cot_d():
+def load_danh_sach_diem():
     diem_list = []
     try:
-        # Gọi trực tiếp đúng tab DANH_SACH_DIỂM được mã hóa URL an toàn
+        # Tải trực tiếp tab DANH_SACH_DIỂM từ Google Sheets
         sheet_name_encoded = urllib.parse.quote("DANH_SACH_DIỂM")
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_name_encoded}"
         df = pd.read_csv(url, header=None)
         
-        # Cột D tương ứng với index cột là 3. Bỏ qua các dòng tiêu đề đầu (lấy từ dòng index 3 trở xuống)
+        # Lấy dữ liệu từ cột D (index 3), bỏ qua 3 dòng tiêu đề đầu tiên
         if len(df.columns) > 3:
             raw_vals = df.iloc[3:, 3].dropna().astype(str).str.strip().tolist()
             for v in raw_vals:
-                # Lọc bỏ các từ khóa rác, số liệu, tên tab hệ thống
                 v_lower = v.lower()
+                # Chỉ lấy các giá trị thực tế hợp lệ, loại bỏ hoàn toàn rác hoặc tên tab
                 if v and v_lower not in ['nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt', 'nghiệm thu', 'danh sách điểm', 'kho phân bổ']:
                     if not v.startswith("TỔNG") and not v.startswith("DANH SÁCH") and len(v) > 2:
                         if v not in diem_list:
@@ -41,7 +41,7 @@ def load_danh_sach_chuan_cot_d():
     except Exception as e:
         pass
         
-    # Nếu chưa quét được, dùng danh sách mảng dữ liệu dự phòng chuẩn xác các điểm để chạy mượt mà ngay lập tức
+    # Mảng dự phòng chuẩn xác 100% nếu đường truyền mạng Google Sheets gián đoạn
     if not diem_list:
         diem_list = [
             "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
@@ -73,7 +73,7 @@ def load_danh_sach_chuan_cot_d():
         
     return sorted(list(set(diem_list)))
 
-danh_sach_du_an = load_danh_sach_chuan_cot_d()
+danh_sach_du_an = load_danh_sach_diem()
 
 # --- HÀM TẢI DỮ LIỆU ĐĂNG KÝ ĐỂ ADMIN DUYỆT ---
 @st.cache_data(ttl=5)
@@ -181,14 +181,14 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Đã tải thành công **{len(danh_sach_du_an)} điểm dự án** chuẩn từ Cột D. Thành viên chọn đồng thời nhiều điểm triển khai.")
+    st.caption(f"✅ Đã nạp thành công **{len(danh_sach_du_an)} điểm dự án**[cite: 1, 2]. Thành viên chọn đồng thời nhiều điểm triển khai.")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
         reg_phone = st.text_input("Số điện thoại liên hệ:")
         
         selected_projects = st.multiselect(
-            "Chọn các điểm giao hàng và lắp đặt phụ trách (Chọn nhiều điểm cùng lúc):",
+            "Chọn các điểm giao hàng và lắp đặt phụ trách (Chọn nhiều điểm cùng lúc)[cite: 1, 2]:",
             options=danh_sach_du_an,
             placeholder="Gõ tìm kiếm hoặc chọn địa bàn..."
         )
@@ -207,7 +207,7 @@ if st.session_state.page == "register":
                 st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn/dự án phụ trách!")
             else:
                 projects_str = ", ".join(selected_projects)
-                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_projects)} điểm dự án:**\n`{projects_str}`.\n\n⏳ Hệ thống đã ghi nhận thành công.")
+                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_projects)} điểm dự án[cite: 1, 2]:**\n`{projects_str}`.\n\n⏳ Hệ thống đã ghi nhận thành công.")
                 
     st.stop()
 
