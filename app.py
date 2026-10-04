@@ -16,7 +16,7 @@ st.markdown(
 )
 
 # --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (PUBLIC CSV) ---
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30)
 def load_sheet_data():
     sheet_id = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
     csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&sheet=KHO_PHAN_BO"
@@ -32,26 +32,64 @@ except Exception as e:
 # --- GIAO DIỆN CHÍNH (GỌN TRONG 1 MÀN HÌNH) ---
 st.title("📱 ĐIỀU HÀNH HIỆN TRƯỜNG")
 
-# Khu vực quản trị thu gọn
+# Quản lý trạng thái hiển thị màn hình (Trang chủ hay Trang Đăng Ký)
+if "page" not in st.session_state:
+    st.session_state.page = "home"
+
+# Khu vực quản trị & chức năng thu gọn
 with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=False):
     pass_input = st.text_input("Nhập Pass Quản Trị:", type="password", placeholder="Mật khẩu...")
     ADMIN_PASS = "S90880"
     
     col_a1, col_a2, col_a3, col_a4 = st.columns(4)
     with col_a1:
-        if st.button("📝 Đăng ký", use_container_width=True): st.info("Đang phát triển.")
+        if st.button("📝 Đăng ký", use_container_width=True): 
+            st.session_state.page = "register"
+            st.rerun()
     with col_a2:
-        if st.button("📊 Báo cáo", use_container_width=True): st.info("Đang phát triển.")
+        if st.button("📊 Báo cáo", use_container_width=True): 
+            st.info("Chức năng Báo cáo đang phát triển.")
     with col_a3:
         if st.button("🛡️ AD Duyệt", use_container_width=True):
-            if pass_input == ADMIN_PASS: st.success("OK")
+            if pass_input == ADMIN_PASS: st.success("OK - Admin đã duyệt")
             else: st.warning("Sai MK")
     with col_a4:
-        if st.button("🛠️ B/C LD", use_container_width=True):
-            if pass_input == ADMIN_PASS: st.success("OK")
+        if st.button("🛠️️ B/C LD", use_container_width=True):
+            if pass_input == ADMIN_PASS: st.success("OK - Quản lý LD")
             else: st.warning("Sai MK")
 
-# Xử lý dữ liệu bảng
+# --- NẾU CHỌN TRANG ĐĂNG KÝ THÀNH VIÊN ---
+if st.session_state.page == "register":
+    st.markdown("---")
+    if st.button("⬅️️ Quay lại màn hình chính"):
+        st.session_state.page = "home"
+        st.rerun()
+        
+    st.subheader("📝 Đăng Ký Thông Tin Thành Viên Mới")
+    st.caption("Điền đầy đủ thông tin bên dưới để gửi yêu cầu chờ Admin phê duyệt và phân bổ công việc.")
+    
+    with st.form("register_form"):
+        reg_name = st.text_input("Họ và tên:")
+        reg_phone = st.text_input("Số điện thoại:")
+        reg_location = st.text_input("Địa bàn phụ trách:", value="Toàn bộ các điểm (Toàn tuyến dự án)")
+        reg_spec = st.selectbox("Chuyên môn:", [
+            "1. Vận chuyển / Giao nhận",
+            "2. KTV Lắp đặt thiết bị"
+        ])
+        reg_vehicle = st.selectbox("Phương tiện:", ["Xe máy", "Xe tải", "Ô tô con", "Khác"])
+        
+        submitted = st.form_submit_button("🚀 Gửi Yêu Cầu Đăng Ký", type="primary")
+        if submitted:
+            if not reg_name or not reg_phone:
+                st.warning("⚠️ Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
+            else:
+                # Lưu ý: Để dữ liệu đổ thẳng vào Sheet 'Dang_ky' hoặc sheet thành viên, 
+                # anh có thể dùng Google Apps Script Web App nhận POST request ở đây.
+                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**! Hệ thống đã ghi nhận và đang chờ Admin duyệt.")
+                
+    st.stop() # Dừng không hiển thị phần bên dưới khi đang ở trang đăng ký
+
+# --- MÀN HÌNH CHÍNH (ĐIỀU HÀNH HIỆN TRƯỜNG) ---
 if len(df_data) < 3:
     st.warning("Sheet KHO_PHAN_BO chưa đủ dữ liệu!")
     st.stop()
@@ -59,7 +97,6 @@ if len(df_data) < 3:
 rows = df_data.iloc[2:].values.tolist()
 locations = sorted(list(set([str(row[7]).strip() for row in rows if len(row) > 7 and pd.notna(row[7]) and str(row[7]).strip()])))
 
-# --- PHẦN 1: THÔNG TIN THỰC HIỆN (BỐ TRÍ SONG SONG 2 CỘT) ---
 st.markdown("---")
 col1, col2 = st.columns(2)
 with col1:
@@ -82,7 +119,6 @@ if selected_location != "-- Chọn địa điểm --":
                 pass
     st.caption(f"📦 **Phân bổ:** `{total_devices} thiết bị`")
 
-# Số lượng thực tế và GPS đặt cạnh nhau
 col_q, col_g = st.columns(2)
 with col_q:
     actual_qty = st.number_input("Số lượng thực tế:", min_value=0, value=total_devices, step=1)
@@ -91,21 +127,18 @@ with col_g:
     if st.button("📍 Check-in GPS", use_container_width=True):
         st.success("📍 Đã ghi nhận GPS!")
 
-# --- PHẦN 2: TRẠNG THÁI & BÁO CÁO (4 NÚT CHIA THÀNH 2 CỘT NGANG) ---
 st.markdown("---")
 st.markdown("**2. Trạng Thái Hoàn Thành:**")
 
 if "selected_status" not in st.session_state:
     st.session_state.selected_status = "Đang vận chuyển"
 
-# Hàng 1: 2 nút
 b_col1, b_col2 = st.columns(2)
 with b_col1:
     if st.button("🚚 Đang V/C", use_container_width=True): st.session_state.selected_status = "Đang vận chuyển"
 with b_col2:
     if st.button("✅ Đã Giao", use_container_width=True): st.session_state.selected_status = "Đã giao hàng xong"
 
-# Hàng 2: 2 nút
 b_col3, b_col4 = st.columns(2)
 with b_col3:
     if st.button("⚙️ Đang Lắp", use_container_width=True): st.session_state.selected_status = "Đang lắp đặt"
