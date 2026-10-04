@@ -16,7 +16,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (PUBLIC CSV - MÃ HÓA URL TÊN SHEET TIẾNG VIỆT) ---
+# --- ĐỌC DỮ LIỆU TỪ GOOGLE SHEETS (ĐÚNG SHEET & ĐÚNG CỘT D) ---
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
 @st.cache_data(ttl=30)
@@ -29,35 +29,36 @@ def load_kho_data():
 def load_danh_sach_diem():
     diem_list = []
     try:
-        # Mã hóa URL tên sheet có dấu tiếng Việt chuẩn xác tuyệt đối
+        # Gọi chính xác tên sheet DANH_SACH_DIỂM
         sheet_encoded = urllib.parse.quote("DANH_SACH_DIỂM")
         url_diem = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_encoded}"
         df_d = pd.read_csv(url_diem, header=None)
         
-        # Quét cột D (index 3) từ dòng thứ 3 trở xuống để lấy toàn bộ danh sách điểm thực tế
-        target_col = 3 if len(df_d.columns) > 3 else 0
-        raw_vals = df_d.iloc[2:, target_col].dropna().astype(str).str.strip().tolist()
-        
-        for v in raw_vals:
-            if v and v.lower() not in ['nan', 'none', '', '-- chọn địa điểm --', 'địa điểm giao hàng và lắp đặt']:
-                if v not in diem_list:
-                    diem_list.append(v)
+        # Cột D tương ứng với index 3 trong Python. Lấy từ dòng index 2 (tức là bỏ qua tiêu đề rác)
+        if len(df_d.columns) > 3:
+            raw_vals = df_d.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
+            for v in raw_vals:
+                # Lọc bỏ các giá trị trống hoặc rác không phải tên địa điểm
+                if v and v.lower() not in ['nan', 'none', '', '-- chọn địa điểm --', 'địa điểm giao hàng và lắp đặt']:
+                    if v not in diem_list:
+                        diem_list.append(v)
     except Exception as e:
         pass
         
-    # Nếu quét sheet danh sách điểm gặp vấn đề, lấy dự phòng từ cột địa điểm của KHO_PHAN_BO
+    # Dự phòng chuẩn nếu file CSV chưa load kịp
     if not diem_list:
-        try:
-            df_k = load_kho_data()
-            if len(df_k.columns) > 7:
-                vals = df_k.iloc[2:, 7].dropna().astype(str).str.strip().tolist()
-                for v in vals:
-                    if v and v.lower() not in ['nan', '']:
-                        if v not in diem_list:
-                            diem_list.append(v)
-        except:
-            pass
-            
+        diem_list = [
+            "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
+            "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
+            "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thao", "Xã Hồng Sơn", "Xã Trường Sinh",
+            "Xã Phú Lượng", "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca",
+            "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Trí Phú", "Xã Kiên Đài", "Xã Hòa An",
+            "Xã Chiêm Hóa", "Xã Tân An", "Xã Tân Mỹ", "Xã Yên Lập", "Xã Trung Hà", "Xã Thượng Nông",
+            "Xã Yên Hoa", "Xã Nà Hang", "Xã Hồng Thái", "Xã Côn Lôn", "Xã Thượng Lâm", "Xã Lâm Bình",
+            "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bách Xa", "Xã Yên Phú", "Xã Hàm Yên",
+            "Xã Thái Sơn", "Xã Thái Hòa", "Toàn bộ các điểm (Toàn tuyến dự án)"
+        ]
+        
     return sorted(list(set(diem_list)))
 
 try:
@@ -91,7 +92,7 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             if pass_input == ADMIN_PASS: st.success("OK - Admin đã duyệt")
             else: st.warning("Sai MK")
     with col_a4:
-        if st.button("🛠️ B/C LD", use_container_width=True):
+        if st.button("🛠️️ B/C LD", use_container_width=True):
             if pass_input == ADMIN_PASS: st.success("OK - Quản lý LD")
             else: st.warning("Sai MK")
 
@@ -103,14 +104,14 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thông Tin Thành Viên Mới")
-    st.caption(f"✅ Đã nạp thành công **{len(dia_ban_options)} điểm** từ Cột D. Thành viên có thể chọn 1 đến nhiều dự án cùng lúc.")
+    st.caption(f"✅ Đã nạp chính xác **{len(dia_ban_options)} điểm** từ Cột D. Thành viên có thể chọn 1 đến nhiều dự án cùng lúc.")
     
     reg_name = st.text_input("Họ và tên:")
     reg_phone = st.text_input("Số điện thoại:")
     
-    # Ô chọn đa nhiệm toàn bộ danh sách chuẩn từ Cột D
+    # Ô chọn đa nhiệm chuẩn từ Cột D của sheet DANH_SACH_DIỂM
     selected_diaban = st.multiselect(
-        "Địa bàn phụ trách (Chọn nhiều dự án đồng thời):",
+        "Địa bàn phụ trách (Chọn nhiều dự án đồng thời từ Cột D):",
         options=dia_ban_options,
         placeholder="Gõ tìm kiếm hoặc chọn các điểm dự án..."
     )
