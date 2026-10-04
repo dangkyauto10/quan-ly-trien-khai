@@ -2,6 +2,7 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+import json
 
 # --- CẤU HÌNH GIAO DIỆN STREAMLIT (TỐI ƯU CHO MOBILE) ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
@@ -16,16 +17,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- CẤU HÌNH KẾT NỐI GOOGLE SHEETS AN TOÀN TỪ SECRETS ---
+# --- CẤU HÌNH KẾT NỐI GOOGLE SHEETS BẰNG FILE TẢI TRỰC TIẾP ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 @st.cache_resource
 def init_connection():
-    if "gcp_service_account" in st.secrets:
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    else:
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    # Nạp trực tiếp từ file credentials.json và xử lý an toàn
+    with open("credentials.json", "r", encoding="utf-8") as f:
+        creds_data = json.load(f)
+    
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_data, scope)
     client = gspread.authorize(creds)
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
     return client.open_by_url(sheet_url)
