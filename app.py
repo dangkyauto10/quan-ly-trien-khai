@@ -16,16 +16,13 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- CẤU HÌNH KẾT NỐI GOOGLE SHEETS ---
+# --- CẤU HÌNH KẾT NỐI GOOGLE SHEETS BẰNG FILE CREDENTIALS.JSON ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 @st.cache_resource
 def init_connection():
-    if "gcp_service_account" in st.secrets:
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    else:
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    # Sử dụng trực tiếp file credentials.json chuẩn trên thư mục dự án
+    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     client = gspread.authorize(creds)
     sheet_url = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit"
     return client.open_by_url(sheet_url)
@@ -77,35 +74,24 @@ if len(all_data) < 3:
     st.warning("Sheet KHO_PHAN_BO chưa có dữ liệu cấu hình!")
     st.stop()
 
-# Dòng 2 (index 1) là tiêu đề cột
-headers = all_data[1]
 rows = all_data[2:] # Dữ liệu từ dòng 3 trở đi
 
-# Giả định cấu trúc sheet KHO_PHAN_BO hiện tại:
-# Cột D (index 3): Tên thiết bị / Hàng hóa
-# Cột E (index 4): Số lượng
-# Cột G (index 6): Đội nhận thiết bị (hoặc tùy biến)
-# Cột H (index 7): Địa điểm vận chuyển / lắp đặt
-
-# Lọc danh sách các địa điểm có sẵn từ dữ liệu
+# Lọc danh sách các địa điểm có sẵn từ dữ liệu (Cột H - index 7)
 locations = sorted(list(set([row[7].strip() for row in rows if len(row) > 7 and row[7].strip()])))
 
 # --- MÔ-ĐUN 1: XÁC NHẬN THÔNG TIN THỰC HIỆN ---
 st.subheader("1. Xác nhận thông tin thực hiện")
 
-# Chọn cán bộ / đội trưởng thực hiện
 cb_list = ["Vũ - Hạnh - Hiền (Nguyễn Văn A)", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
 selected_cb = st.selectbox("Cán bộ / Đội trưởng thực hiện:", cb_list)
 
-# Chọn địa điểm
 selected_location = st.selectbox("Chọn ĐỊA ĐIỂM VẬN CHUYỂN / LẮP ĐẶT:", ["-- Chọn địa điểm --"] + locations)
 
-# Tự động quét và hiển thị thiết bị/số lượng phân bổ theo địa điểm được chọn
 total_devices = 0
 matched_rows_indices = []
 
 if selected_location != "-- Chọn địa điểm --":
-    for idx, row in enumerate(rows, start=3): # Bắt đầu từ dòng 3 thực tế trên sheet
+    for idx, row in enumerate(rows, start=3):
         if len(row) > 7 and row[7].strip() == selected_location:
             matched_rows_indices.append(idx)
             try:
@@ -117,14 +103,11 @@ if selected_location != "-- Chọn địa điểm --":
 else:
     st.info("👆 Vui lòng chọn địa điểm để app tự động tải danh mục thiết bị.")
 
-# Số lượng thực tế thực hiện
 actual_qty = st.number_input("Số lượng thiết bị thực tế lắp đội / giao hàng:", min_value=0, value=total_devices, step=1)
 
-# Nút lấy vị trí hiện tại (GPS Check-in)
 if st.button("📍 Thêm lấy vị trí hiện tại (Check-in GPS)"):
     st.success("📍 Đã ghi nhận tọa độ GPS hiện tại thành công!")
 
-# Phần chụp ảnh báo cáo
 st.file_uploader("📷 Thêm phần chụp ảnh Báo cáo / Nghiệm thu", type=["jpg", "png", "jpeg"])
 
 st.markdown("---")
@@ -142,20 +125,15 @@ selected_status = st.selectbox("Chọn trạng thái hoàn thành:", status_opti
 
 notes = st.text_area("Ghi chú / Vấn đề phát sinh tại hiện trường:", placeholder="Nhập ghi chú nếu có...")
 
-# Nút gửi báo cáo lên Google Sheets
 if st.button("🚀 Gửi Báo Cáo & Cập Nhật Hệ Thống", type="primary"):
     if selected_location == "-- Chọn địa điểm --":
         st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi báo cáo!")
     else:
         try:
-            # Cập nhật trạng thái vào các cột tương ứng trên sheet KHO_PHAN_BO bảo toàn dữ liệu cũ
-            # Giả định cột trạng thái giao nhận nằm ở Cột J (index 9) hoặc tùy chỉnh theo sheet thực tế của anh
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
             updated_count = 0
             for r_idx in matched_rows_indices:
-                # Cập nhật cột Trạng thái (Ví dụ cập nhật vào cột J - index 9) và Thời gian (Cột K - index 10)
-                # Đảm bảo an toàn không ghi đè các cột định mức bên trái (A-G)
+                # Cập nhật trạng thái vào cột J (index 10) và thời gian vào cột K (index 11)
                 sheet_kho.update_cell(r_idx, 10, selected_status)
                 sheet_kho.update_cell(r_idx, 11, timestamp)
                 updated_count += 1
