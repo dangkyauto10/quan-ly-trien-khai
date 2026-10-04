@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import urllib.parse
 
 # --- CẤU HÌNH GIAO DIỆN GỌN GÀNG ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
@@ -17,31 +16,6 @@ st.markdown(
 )
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
-
-# --- HÀM ĐỌC ĐÚNG CỘT D TỪ SHEET DANH_SACH_DIEM (ĐÚNG NGUYÊN BẢN YÊU CẦU) ---
-@st.cache_data(ttl=5)
-def load_danh_sach_cot_d():
-    diem_list = []
-    try:
-        sheet_name_encoded = urllib.parse.quote("DANH_SACH_DIEM")
-        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_name_encoded}"
-        df = pd.read_csv(url, header=None)
-        
-        # Cột D là index 3. Lấy từ dòng thứ 3 trở xuống để bỏ qua các tiêu đề bảng trên cùng
-        if len(df.columns) > 3:
-            raw_vals = df.iloc[3:, 3].dropna().astype(str).str.strip().tolist()
-            for val in raw_vals:
-                val_lower = val.lower()
-                # Chỉ bỏ qua các ô trống hoặc tiêu đề thực sự, giữ lại tất cả tên điểm ở cột D
-                if val and val_lower not in ['nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt', 'địa bàn', 'tên điểm']:
-                    if val not in diem_list:
-                        diem_list.append(val)
-    except Exception as e:
-        pass
-        
-    return diem_list
-
-danh_sach_du_an = load_danh_sach_cot_d()
 
 # --- HÀM TẢI DỮ LIỆU ĐĂNG KÝ ĐỂ ADMIN DUYỆT ---
 @st.cache_data(ttl=5)
@@ -113,7 +87,6 @@ if st.session_state.admin_mode:
                 thoi_gian = str(r[0]) if len(r) > 0 and pd.notna(r[0]) else "---"
                 ho_ten = str(r[1]) if len(r) > 1 and pd.notna(r[1]) else "---"
                 sdt = str(r[2]) if len(r) > 2 and pd.notna(r[2]) else "---"
-                diaban = str(r[3]) if len(r) > 3 and pd.notna(r[3]) else "---"
                 chuyen_mon = str(r[4]) if len(r) > 4 and pd.notna(r[4]) else "---"
                 phuong_tien = str(r[5]) if len(r) > 5 and pd.notna(r[5]) else "---"
                 trang_thai = str(r[6]) if len(r) > 6 and pd.notna(r[6]) else "Chờ duyệt"
@@ -122,7 +95,6 @@ if st.session_state.admin_mode:
                     st.markdown(f"""
                     📌 **Họ tên:** {ho_ten} (`{sdt}`)  
                     🕒 **Thời gian:** {thoi_gian}  
-                    📍 **Địa bàn phụ trách:** {diaban}  
                     ⚙️ **Chuyên môn:** {chuyen_mon} | **Xe:** {phuong_tien}  
                     📌 **Trạng thái hiện tại:** `{trang_thai}`
                     """)
@@ -148,18 +120,11 @@ if st.session_state.page == "register":
         st.session_state.page = "home"
         st.rerun()
         
-    st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Đã tải trực tiếp **{len(danh_sach_du_an)} điểm** từ Cột D của sheet `DANH_SACH_DIEM`.")
+    st.subheader("📝 Đăng Ký Thành Viên")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
         reg_phone = st.text_input("Số điện thoại liên hệ:")
-        
-        selected_projects = st.multiselect(
-            "Chọn các điểm giao hàng và lắp đặt phụ trách (Chọn nhiều điểm cùng lúc)[cite: 1, 2]:",
-            options=danh_sach_du_an,
-            placeholder="Gõ tìm kiếm hoặc chọn địa bàn..."
-        )
         
         reg_spec = st.selectbox("Chuyên môn thực hiện:", [
             "1. Vận chuyển / Giao nhận thiết bị",
@@ -171,11 +136,8 @@ if st.session_state.page == "register":
         if submitted:
             if not reg_name or not reg_phone:
                 st.warning("⚠️ Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
-            elif not selected_projects:
-                st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn/dự án phụ trách!")
             else:
-                projects_str = ", ".join(selected_projects)
-                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_projects)} điểm dự án[cite: 1, 2]:**\n`{projects_str}`.\n\n⏳ Hệ thống đã ghi nhận thành công.")
+                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!")
                 
     st.stop()
 
@@ -186,7 +148,7 @@ with col1:
     cb_list = ["Vũ - Hạnh - Hiền", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
     selected_cb = st.selectbox("Cán bộ / Đội thực hiện:", cb_list)
 with col2:
-    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + danh_sach_du_an)
+    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --", "Điểm số 1", "Điểm số 2"])
 
 total_devices = 10  # Mặc định an toàn
 
