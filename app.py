@@ -18,43 +18,30 @@ st.markdown(
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# --- HÀM LỌC CHUẨN XÁC 100% CỘT D (BỎ QUA HOÀN TOÀN CÁC DÒNG TIÊU ĐỀ TRÊN CÙNG) ---
+# --- HÀM ĐỌC ĐÚNG CỘT D TỪ SHEET DANH_SACH_DIEM (ĐÚNG NGUYÊN BẢN YÊU CẦU) ---
 @st.cache_data(ttl=5)
-def load_danh_sach_tu_cot_d():
+def load_danh_sach_cot_d():
     diem_list = []
     try:
         sheet_name_encoded = urllib.parse.quote("DANH_SACH_DIEM")
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_name_encoded}"
         df = pd.read_csv(url, header=None)
         
-        # Cột D là index 3. Cắt bỏ 5 dòng đầu tiên (chứa tiêu đề ngang, tên tab, rác hệ thống) để lấy dữ liệu thực tế bên dưới
-        if len(df.columns) > 3 and len(df) > 5:
-            raw_vals = df.iloc[5:, 3].dropna().astype(str).str.strip().tolist()
+        # Cột D là index 3. Lấy từ dòng thứ 3 trở xuống để bỏ qua các tiêu đề bảng trên cùng
+        if len(df.columns) > 3:
+            raw_vals = df.iloc[3:, 3].dropna().astype(str).str.strip().tolist()
             for val in raw_vals:
                 val_lower = val.lower()
-                # Lọc sạch mọi từ khóa rác, số liệu, tên tab hệ thống
-                is_invalid = (
-                    not val or 
-                    len(val) < 2 or
-                    val_lower in ['nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt', 'nghiệm thu', 'danh sách điểm', 'kho phân bổ', 'địa bàn', 'tên điểm'] or
-                    val.startswith("TỔNG") or 
-                    val.startswith("DANH SÁCH") or
-                    val.startswith("NGHIỆM") or
-                    val.startswith("KHO") or
-                    val.startswith("STT")
-                )
-                if not is_invalid and val not in diem_list:
-                    diem_list.append(val)
+                # Chỉ bỏ qua các ô trống hoặc tiêu đề thực sự, giữ lại tất cả tên điểm ở cột D
+                if val and val_lower not in ['nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt', 'địa bàn', 'tên điểm']:
+                    if val not in diem_list:
+                        diem_list.append(val)
     except Exception as e:
         pass
         
     return diem_list
 
-danh_sach_du_an = load_danh_sach_tu_cot_d()
-
-# Nếu không load được, thông báo trực quan
-if not danh_sach_du_an:
-    danh_sach_du_an = ["-- Đang đồng bộ danh sách từ Cột D --"]
+danh_sach_du_an = load_danh_sach_cot_d()
 
 # --- HÀM TẢI DỮ LIỆU ĐĂNG KÝ ĐỂ ADMIN DUYỆT ---
 @st.cache_data(ttl=5)
@@ -162,14 +149,14 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Đã tải động thành công **{len(danh_sach_du_an)} điểm** từ Cột D của sheet `DANH_SACH_DIEM`.")
+    st.caption(f"✅ Đã tải trực tiếp **{len(danh_sach_du_an)} điểm** từ Cột D của sheet `DANH_SACH_DIEM`.")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
         reg_phone = st.text_input("Số điện thoại liên hệ:")
         
         selected_projects = st.multiselect(
-            "Chọn các điểm giao hàng và lắp đặt phụ trách (Chọn nhiều điểm cùng lúc):",
+            "Chọn các điểm giao hàng và lắp đặt phụ trách (Chọn nhiều điểm cùng lúc)[cite: 1, 2]:",
             options=danh_sach_du_an,
             placeholder="Gõ tìm kiếm hoặc chọn địa bàn..."
         )
@@ -188,7 +175,7 @@ if st.session_state.page == "register":
                 st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn/dự án phụ trách!")
             else:
                 projects_str = ", ".join(selected_projects)
-                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_projects)} điểm dự án:**\n`{projects_str}`.\n\n⏳ Hệ thống đã ghi nhận thành công.")
+                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_projects)} điểm dự án[cite: 1, 2]:**\n`{projects_str}`.\n\n⏳ Hệ thống đã ghi nhận thành công.")
                 
     st.stop()
 
