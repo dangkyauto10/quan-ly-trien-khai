@@ -32,7 +32,7 @@ except Exception as e:
 # --- GIAO DIỆN CHÍNH (GỌN TRONG 1 MÀN HÌNH) ---
 st.title("📱 ĐIỀU HÀNH HIỆN TRƯỜNG")
 
-# Gom khu vực quản trị vào một menu xổ xuống (Expander) cho gọn gàng không chiếm diện tích
+# Khu vực quản trị thu gọn
 with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=False):
     pass_input = st.text_input("Nhập Pass Quản Trị:", type="password", placeholder="Mật khẩu...")
     ADMIN_PASS = "S90880"
@@ -80,14 +80,14 @@ if selected_location != "-- Chọn địa điểm --":
                 total_devices += qty
             except:
                 pass
-    st.caption(📦 📦 **Phân bổ:** `{total_devices} thiết bị`")
+    st.caption(f"📦 **Phân bổ:** `{total_devices} thiết bị`")
 
 # Số lượng thực tế và GPS đặt cạnh nhau
 col_q, col_g = st.columns(2)
 with col_q:
     actual_qty = st.number_input("Số lượng thực tế:", min_value=0, value=total_devices, step=1)
 with col_g:
-    st.write("") # Tạo khoảng trống căn chỉnh nút
+    st.write("") 
     if st.button("📍 Check-in GPS", use_container_width=True):
         st.success("📍 Đã ghi nhận GPS!")
 
@@ -98,7 +98,6 @@ st.markdown("**2. Trạng Thái Hoàn Thành:**")
 if "selected_status" not in st.session_state:
     st.session_state.selected_status = "Đang vận chuyển"
 
-# Gom 4 nút trạng thái thành 1 hàng ngang duy nhất siêu gọn
 b1, b2, b3, b4 = st.columns(4)
 with b1:
     if st.button("🚚 Đang V/C", use_container_width=True): st.session_state.selected_status = "Đang vận chuyển"
@@ -111,14 +110,12 @@ with b4:
 
 st.caption(f"📌 Đang chọn: **{st.session_state.selected_status}**")
 
-# Ghi chú và Ảnh chụp bố trí 2 cột ngang
 col_note, col_img = st.columns(2)
 with col_note:
     notes = st.text_area("Ghi chú / Phát sinh:", placeholder="Nhập ghi chú...", height=70)
 with col_img:
     st.file_uploader("📷 Ảnh nghiệm thu", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
 
-# Nút gửi báo cáo lớn nổi bật ở dưới cùng
 if st.button("🚀 GỬI BÁO CÁO & CẬP NHẬT HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Chọn địa điểm --":
         st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi!")
