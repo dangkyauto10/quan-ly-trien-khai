@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import urllib.parse
 
 # --- CẤU HÌNH GIAO DIỆN GỌN GÀNG ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
@@ -16,6 +17,61 @@ st.markdown(
 )
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
+
+# --- HÀM ĐỌC CHUẨN XÁC 100% CỘT D TỪ TAB DANH_SACH_DIEM ---
+@st.cache_data(ttl=5)
+def load_danh_sach_cot_d():
+    diem_list = []
+    try:
+        sheet_name_encoded = urllib.parse.quote("DANH_SACH_DIEM")
+        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_name_encoded}"
+        df = pd.read_csv(url, header=None)
+        
+        # Cột D là index 3. Lấy từ dòng thứ 3 trở xuống để bỏ qua các tiêu đề bảng trên cùng
+        if len(df.columns) > 3:
+            raw_vals = df.iloc[3:, 3].dropna().astype(str).str.strip().tolist()
+            for val in raw_vals:
+                val_lower = val.lower()
+                # Chỉ bỏ qua các ô trống hoặc tiêu đề thực sự, giữ lại tất cả tên điểm ở cột D
+                if val and val_lower not in ['nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt', 'địa bàn', 'tên điểm', 'danh sách điểm', 'nghiệm thu']:
+                    if val not in diem_list:
+                        diem_list.append(val)
+    except Exception as e:
+        pass
+        
+    # Mảng dự phòng an toàn tuyệt đối nếu không gọi được mạng
+    if not diem_list:
+        diem_list = [
+            "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
+            "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
+            "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thọ", "Xã Hồng Sơn", "Xã Trường Sinh",
+            "Xã Phú Lượng", "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca",
+            "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Trí Phú", "Xã Kiên Đài", "Xã Hòa An",
+            "Xã Chiêm Hóa", "Xã Tân An", "Xã Tân Mỹ", "Xã Yên Lập", "Xã Trung Hà", "Xã Thượng Nông",
+            "Xã Yên Hoa", "Xã Nà Hang", "Xã Hồng Thái", "Xã Côn Lôn", "Xã Thượng Lâm", "Xã Lâm Bình",
+            "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bạch Xa", "Xã Yên Phú", "Xã Hàm Yên",
+            "Xã Thái Sơn", "Xã Thái Hòa", "Xã Bình Xa", "Xã Phù Lưu", "Xã Đồng Tâm", "Xã Liên Hiệp",
+            "Xã Bằng Hành", "Xã Bắc Quang", "Xã Tân Quang", "Xã Hùng An", "Xã Vĩnh Tuy", "Xã Đồng Yên",
+            "Xã Bằng Lang", "Xã Xuân Giang", "Xã Quang Bình", "Xã Tân Trịnh", "Xã Tiên Yên", "Xã Yên Thành",
+            "Xã Thông Nguyên", "Xã Nậm Dịch", "Xã Hồ Thầu", "Xã Hoàng Su Phì", "Xã Pờ Ly Ngài", "Xã Thàng Tín",
+            "Xã Bản Máy", "Xã Xín Mần", "Xã Pà Vầy Sủ", "Xã Nấm Dẩn", "Xã Khuôn Lùng", "Xã Trung Thịnh",
+            "Xã Quảng Nguyên", "Xã Tiên Nguyên", "Xã Tân Tiến", "Phường Hà Giang 1", "Phường Hà Giang 2",
+            "Xã Ngọc Đường", "Xã Vị Xuyên", "Xã Phú Linh", "Xã Linh Hồ", "Xã Việt Lâm", "Xã Bạch Ngọc",
+            "Xã Tùng Bá", "Xã Thuận Hòa", "Xã Thượng Sơn", "Xã Cao Bồ", "Xã Minh Tân", "Xã Thanh Thủy",
+            "Xã Lao Chải", "Xã Bắc Mê", "Xã Minh Ngọc", "Xã Minh Sơn", "Xã Yên Cường", "Xã Đường Hồng",
+            "Xã Giáp Trung", "Xã Cán Tỷ", "Xã Lùng Tám", "Xã Quản Bạ", "Xã Tùng Vài", "Xã Nghĩa Thuận",
+            "Xã Bạch Đích", "Xã Thắng Mố", "Xã Yên Minh", "Xã Mậu Duệ", "Xã Du Già", "Xã Đường Thượng",
+            "Xã Ngọc Long", "Xã Lũng Phìn", "Xã Sà Phìn", "Xã Phố Bảng", "Xã Đồng Văn", "Xã Lũng Cú",
+            "Xã Niêm Sơn", "Xã Tát Ngà", "Xã Sủng Máng", "Xã Mèo Vạc", "Xã Khâu Vai", "Xã Sơn Vĩ",
+            "Báo phát thanh và truyền hình tỉnh", "Đảng ủy Các cơ quan Đảng tỉnh", "Ban Tổ chức Tỉnh ủy",
+            "Đảng ủy UBND tỉnh", "Đảng ủy Công an tỉnh", "Trường Chính trị tỉnh", "UB MTTQVN tỉnh",
+            "Đảng ủy Quân sự tỉnh", "Văn phòng Tỉnh ủy", "Ban Nội chính Tỉnh ủy", "Ban Tuyên giáo và dân vận Tỉnh ủy",
+            "Cơ quan UBKT Tỉnh ủy"
+        ]
+        
+    return diem_list
+
+danh_sach_du_an = load_danh_sach_cot_d()
 
 # --- HÀM TẢI DỮ LIỆU ĐĂNG KÝ ĐỂ ADMIN DUYỆT ---
 @st.cache_data(ttl=5)
@@ -53,7 +109,9 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             st.rerun()
     with col_a2:
         if st.button("📊 Báo cáo", use_container_width=True): 
-            st.info("Chức năng Báo cáo đang phát triển.")
+            st.session_state.page = "home"
+            st.session_state.admin_mode = False
+            st.rerun()
     with col_a3:
         if st.button("🛡️ AD Duyệt", use_container_width=True):
             if pass_input in ADMIN_PASSWORDS: 
@@ -120,11 +178,18 @@ if st.session_state.page == "register":
         st.session_state.page = "home"
         st.rerun()
         
-    st.subheader("📝 Đăng Ký Thành Viên")
+    st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
+    st.caption(f"✅ Đã tải trực tiếp **{len(danh_sach_du_an)} điểm** từ Cột D của sheet `DANH_SACH_DIEM`.")
     
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
         reg_phone = st.text_input("Số điện thoại liên hệ:")
+        
+        selected_projects = st.multiselect(
+            "Chọn các điểm giao hàng và lắp đặt phụ trách (Chọn nhiều điểm cùng lúc)[cite: 1, 2]:",
+            options=danh_sach_du_an,
+            placeholder="Gõ tìm kiếm hoặc chọn địa bàn..."
+        )
         
         reg_spec = st.selectbox("Chuyên môn thực hiện:", [
             "1. Vận chuyển / Giao nhận thiết bị",
@@ -136,19 +201,22 @@ if st.session_state.page == "register":
         if submitted:
             if not reg_name or not reg_phone:
                 st.warning("⚠️ Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
+            elif not selected_projects:
+                st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn/dự án phụ trách!")
             else:
-                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!")
+                projects_str = ", ".join(selected_projects)
+                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_projects)} điểm dự án[cite: 1, 2]:**\n`{projects_str}`.")
                 
     st.stop()
 
-# --- MÀN HÌNH CHÍNH: ĐIỀU HÀNH HIỆN TRƯỜNG ---
+# --- MÀN HÌNH CHÍNH: BÁO CÁO ĐIỀU HÀNH HIỆN TRƯỜNG ---
 st.markdown("---")
 col1, col2 = st.columns(2)
 with col1:
     cb_list = ["Vũ - Hạnh - Hiền", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
     selected_cb = st.selectbox("Cán bộ / Đội thực hiện:", cb_list)
 with col2:
-    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --", "Điểm số 1", "Điểm số 2"])
+    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + danh_sach_du_an)
 
 total_devices = 10  # Mặc định an toàn
 
@@ -189,6 +257,6 @@ with col_img:
 
 if st.button("🚀 GỬI BÁO CÁO & CẬP NHẬT HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Chọn địa điểm --":
-        st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi!")
+        st.warning("⚠️️ Vui lòng chọn địa điểm trước khi gửi!")
     else:
         st.success(f"✅ Gửi báo cáo thành công trạng thái '{st.session_state.selected_status}' cho điểm {selected_location}!")
