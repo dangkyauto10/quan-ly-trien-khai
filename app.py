@@ -60,6 +60,7 @@ if st.session_state.nav_tab == "Dang_ky":
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG")
     
+    # Đọc chuẩn xác từ Cột B (index 1) của Sheet QUAN_LY_DOI từ dòng 3 trở xuống
     doi_rows = get_sheet_data("QUAN_LY_DOI")
     danh_sach_doi = []
     if len(doi_rows) > 2:
@@ -67,8 +68,13 @@ elif st.session_state.nav_tab == "Bao_cao":
             if len(r) > 1 and r[1].strip() != "":
                 danh_sach_doi.append(r[1].strip())
     if not danh_sach_doi:
-        danh_sach_doi = ["Nguyễn Văn Thiện - Đội 01", "Trần Văn C - Đội 02"]
+        danh_sach_doi = [
+            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
+            "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
+            "Nguyễn Hải Nam", "Trần Văn C"
+        ]
         
+    # Đọc chuẩn xác từ Cột D (index 3) của Sheet DANH_SACH_DIEM từ dòng 3 trở xuống
     diem_rows = get_sheet_data("DANH_SACH_DIEM")
     danh_sach_diem = []
     if len(diem_rows) > 2:
