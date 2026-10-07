@@ -8,22 +8,39 @@ st.set_page_config(page_title="Hệ thống Điều hành Hiện trường", pag
 SECURE_PASS = "880880"
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
 
-@st.cache_resource
-def get_google_sheets_client():
+# Không dùng cache cứng cho dữ liệu đọc trực tiếp để đảm bảo thời gian thực (real-time) khi thêm bớt dòng trên Sheet
+def get_dynamic_sheet_column(sheet_name, col_index):
     try:
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
             scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            return gspread.authorize(creds)
+            client = gspread.authorize(creds)
+            sheet = client.open_by_key(SPREADSHEET_ID).worksheet(sheet_name)
+            
+            # Lấy toàn bộ giá trị của worksheet
+            all_rows = sheet.get_all_values()
+            column_values = []
+            
+            # Quét từ dòng thứ 3 trở xuống (index 2 trong Python) theo đúng cột yêu cầu
+            if len(all_rows) > 2:
+                for row in all_rows[2:]:
+                    if len(row) > col_index:
+                        val = row[col_index].strip()
+                        if val != "" and val not in column_values:
+                            column_values.append(val)
+            return column_values
     except Exception as e:
         pass
-    return None
+    return []
 
-def get_sheet_data(sheet_name):
+def get_sheet_all_rows(sheet_name):
     try:
-        client = get_google_sheets_client()
-        if client:
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            client = gspread.authorize(creds)
             sheet = client.open_by_key(SPREADSHEET_ID).worksheet(sheet_name)
             return sheet.get_all_values()
     except Exception as e:
@@ -65,44 +82,25 @@ if st.session_state.nav_tab == "Dang_ky":
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG")
     
-    # 1. Đọc cột B sheet QUAN_LY_DOI
-    doi_rows = get_sheet_data("QUAN_LY_DOI")
-    danh_sach_doi = []
-    if len(doi_rows) > 2:
-        for r in doi_rows[2:]:
-            if len(r) > 1 and r[1] and r[1].strip() != "":
-                val = r[1].strip()
-                if val not in danh_sach_doi:
-                    danh_sach_doi.append(val)
-                    
-    # Fallback dữ liệu chuẩn từ sheet nếu chưa kết nối được API
+    # 1. ÁNH XẠ ĐỘNG HOÀN TOÀN TỪ CỘT B (Index 1) SHEET QUAN_LY_DOI THEO THỜI GIAN THỰC TẾ
+    danh_sach_doi = get_dynamic_sheet_column("QUAN_LY_DOI", 1)
+    
+    # 2. ÁNH XẠ ĐỘNG HOÀN TOÀN TỪ CỘT D (Index 3) SHEET DANH_SACH_DIEM THEO THỜI GIAN THỰC TẾ
+    danh_sach_diem = get_dynamic_sheet_column("DANH_SACH_DIEM", 3)
+    
+    # Kiểm tra nếu chưa cấu hình secrets để app thông báo rõ ràng thay vì lỗi trống
     if not danh_sach_doi:
-        danh_sach_doi = [
-            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
-            "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
-            "Nguyễn Hải Nam", "Trần Văn C"
-        ]
-        
-    # 2. Đọc cột D sheet DANH_SACH_DIEM
-    diem_rows = get_sheet_data("DANH_SACH_DIEM")
-    danh_sach_diem = []
-    if len(diem_rows) > 2:
-        for r in diem_rows[2:]:
-            if len(r) > 3 and r[3] and r[3].strip() != "":
-                val = r[3].strip()
-                if val not in danh_sach_diem:
-                    danh_sach_diem.append(val)
-                    
+        danh_sach_doi = ["(Đang kết nối Google Sheets hoặc Sheet QUAN_LY_DOI trống cột B)"]
     if not danh_sach_diem:
-        danh_sach_diem = ["Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", "Xã Nà Hang"]
+        danh_sach_diem = ["(Đang kết nối Google Sheets hoặc Sheet DANH_SACH_DIEM trống cột D)"]
         
     doi_thuc_hien = st.selectbox("👥 TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", ["-- Chọn tên đội --"] + danh_sach_doi)
     diem_giao_lap = st.selectbox("📍 ĐIỂM GIAO HÀNG & LẮP ĐẶT *", ["-- Chọn địa điểm --"] + danh_sach_diem)
     
-    # 3. Số lượng thiết bị từ KHO_PHAN_BO
+    # 3. SỐ LƯỢNG THIẾT BỊ TỪ KHO_PHAN_BO CỐ ĐỊNH THEO ĐIỂM CHỌN
     so_luong_hien_tai = 0
-    if diem_giao_lap != "-- Chọn địa điểm --":
-        kho_rows = get_sheet_data("KHO_PHAN_BO")
+    if diem_giao_lap != "-- Chọn địa điểm --" and not diem_giao_lap.startswith("("):
+        kho_rows = get_sheet_all_rows("KHO_PHAN_BO")
         tong_sl_diem = 0
         if len(kho_rows) > 2:
             for r in kho_rows[2:]:
@@ -112,7 +110,7 @@ elif st.session_state.nav_tab == "Bao_cao":
                     except:
                         pass
         if tong_sl_diem == 0:
-            tong_sl_diem = 3
+            tong_sl_diem = 1
             
         st.info(f"📦 Số lượng thiết bị phân bổ tại **{diem_giao_lap}**: **{tong_sl_diem}** (Cố định từ Kho)")
         so_luong_hien_tai = st.number_input("Số lượng thiết bị áp dụng báo cáo", value=float(tong_sl_diem), disabled=True)
@@ -134,20 +132,26 @@ elif st.session_state.nav_tab == "Bao_cao":
     col_b1, col_b2, col_b3 = st.columns(3)
     with col_b1:
         if st.button("✅ ĐÃ GIAO XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
-                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
+            if doi_thuc_hien.startswith("--") or doi_thuc_hien.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Tên đội hợp lệ!")
+            elif diem_giao_lap.startswith("--") or diem_giao_lap.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Địa điểm hợp lệ!")
             else:
                 st.success(f"🎉 Gửi báo cáo thành công: ĐÃ GIAO XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
     with col_b2:
         if st.button("✅ ĐÃ LẮP XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
-                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
+            if doi_thuc_hien.startswith("--") or doi_thuc_hien.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Tên đội hợp lệ!")
+            elif diem_giao_lap.startswith("--") or diem_giao_lap.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Địa điểm hợp lệ!")
             else:
                 st.success(f"🎉 Gửi báo cáo thành công: ĐÃ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
     with col_b3:
         if st.button("🚀 ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
-                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
+            if doi_thuc_hien.startswith("--") or doi_thuc_hien.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Tên đội hợp lệ!")
+            elif diem_giao_lap.startswith("--") or diem_giao_lap.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Địa điểm hợp lệ!")
             else:
                 st.success(f"🎉 Gửi báo cáo thành công TRỌN GÓI: ĐÃ GIAO VÀ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
 
