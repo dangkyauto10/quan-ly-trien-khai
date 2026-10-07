@@ -3,7 +3,7 @@ import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 
-st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án Hiện trường", page_icon="🚀", layout="centered")
+st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 
 SECURE_PASS = "880880"
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
@@ -74,20 +74,29 @@ if st.session_state.nav_tab == "Dang_ky":
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG")
     
-    # CHỌN DỰ ÁN TRIỂN KHAI
-    danh_sach_du_an = ["Dự án 1: DA880 (Tuyên Quang)", "Dự án 2: Mở rộng vùng cao", "Dự án 3: Hạ tầng số huyện", "Dự án 4: Trạm viễn thông tỉnh", "Dự án 5: Chuyển đổi số xã"]
+    # 1. ĐỌC ĐỘNG TÊN DỰ ÁN TỪ SHEET DANH_SACH_DU_AN (Cột B / Index 1 hoặc kết hợp Mã + Tên)
+    du_an_rows = get_column_data_realtime("DANH_SACH_DU_AN", 0) # Mã dự án cột A
+    du_an_names = get_column_data_realtime("DANH_SACH_DU_AN", 1) # Tên dự án cột B
+    
+    danh_sach_du_an = []
+    if du_an_rows and du_an_names:
+        for m, t in zip(du_an_rows, du_an_names):
+            danh_sach_du_an.append(f"{m} - {t}")
+    if not danh_sach_du_an:
+        danh_sach_du_an = ["DA880 - Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số", "DA76 - Cung cấp thiết bị cho các Thôn, Xã"]
+        
     du_an_chon = st.selectbox("📂 CHỌN DỰ ÁN TRIỂN KHAI *", danh_sach_du_an)
     
-    # ÁNH XẠ ĐỘNG CỘT B (Index 1) SHEET QUAN_LY_DOI THEO THỜI GIAN THỰC
+    # 2. ÁNH XẠ ĐỘNG CỘT B (Index 1) SHEET QUAN_LY_DOI (Cập nhật thời gian thực theo từng dòng mới thêm)
     danh_sach_doi = get_column_data_realtime("QUAN_LY_DOI", 1)
     if not danh_sach_doi:
         danh_sach_doi = [
             "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
             "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
-            "Nguyễn Hải Nam", "Trần Văn C", "Nguyễn Văn D", "Hồ Văn H", "Nguyễn Văn Ngu"
+            "Nguyễn Hải Nam", "Trần Văn C", "Nguyễn Văn D", "Hồ Văn H", "Nguyễn Văn Ngu", "Như Con Lợn"
         ]
         
-    # ÁNH XẠ ĐỘNG CỘT D (Index 3) SHEET DANH_SACH_DIEM THEO THỜI GIAN THỰC
+    # 3. ÁNH XẠ ĐỘNG CỘT D (Index 3) SHEET DANH_SACH_DIEM
     danh_sach_diem = get_column_data_realtime("DANH_SACH_DIEM", 3)
     if not danh_sach_diem:
         danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
@@ -95,11 +104,10 @@ elif st.session_state.nav_tab == "Bao_cao":
     doi_thuc_hien = st.selectbox("👥 TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", ["-- Chọn tên đội --"] + danh_sach_doi)
     diem_giao_lap = st.selectbox("📍 ĐIỂM GIAO HÀNG & LẮP ĐẶT *", ["-- Chọn địa điểm --"] + danh_sach_diem)
     
-    # SỐ LƯỢNG THIẾT BỊ CỐ ĐỊNH TỪ KHO THEO ĐIỂM
+    # 4. SỐ LƯỢNG THIẾT BỊ CỐ ĐỊNH TỪ KHO THEO ĐIỂM
     so_luong_hien_tai = 0
     if diem_giao_lap != "-- Chọn địa điểm --":
-        kho_rows = get_column_data_realtime("KHO_PHAN_BO", 4)
-        so_luong_co_dinh = 3  # Mặc định định mức phân bổ kho
+        so_luong_co_dinh = 3  # Định mức phân bổ kho
         st.info(f"📦 Số lượng thiết bị phân bổ tại **{diem_giao_lap}**: **{so_luong_co_dinh} bộ** (Cố định từ Kho)")
         so_luong_hien_tai = st.number_input("Số lượng thiết bị áp dụng báo cáo", value=float(so_luong_co_dinh), disabled=True)
     else:
