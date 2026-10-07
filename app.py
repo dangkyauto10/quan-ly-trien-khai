@@ -53,14 +53,16 @@ if st.session_state.nav_tab == "Dang_ky":
         vai_tro = st.selectbox("Vai trò công việc *", ["Đội Vận Chuyển (VC)", "Đội Lắp Đặt (LD)", "Đội Kiêm Nhiệm (VC & LD)"])
         don_vi = st.text_input("Đơn vị / Bộ phận công tác *")
         if st.form_submit_button("Gửi đăng ký", type="primary"):
-            if not ten_thanh_vien or not sdt: st.warning("⚠️ Vui lòng điền đầy đủ họ tên và số điện thoại!")
-            else: st.success("🎉 Đăng ký thành công! Vui lòng chờ Admin duyệt tài khoản.")
+            if not ten_thanh_vien or not sdt: 
+                st.warning("⚠️ Vui lòng điền đầy đủ họ tên và số điện thoại!")
+            else: 
+                st.success("🎉 Đăng ký thành công! Vui lòng chờ Admin duyệt tài khoản.")
 
 # ================= 2. TAB BÁO CÁO CỦA ĐỘI VC & LĐ =================
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG")
     
-    # Đọc chuẩn xác từ Cột B (index 1) của Sheet QUAN_LY_DOI từ dòng 3 trở xuống
+    # 1. Lấy Tên đội từ Cột B (index 1) của sheet QUAN_LY_DOI (từ dòng 3 trở xuống)
     doi_rows = get_sheet_data("QUAN_LY_DOI")
     danh_sach_doi = []
     if len(doi_rows) > 2:
@@ -74,7 +76,7 @@ elif st.session_state.nav_tab == "Bao_cao":
             "Nguyễn Hải Nam", "Trần Văn C"
         ]
         
-    # Đọc chuẩn xác từ Cột D (index 3) của Sheet DANH_SACH_DIEM từ dòng 3 trở xuống
+    # 2. Lấy Điểm giao hàng & lắp đặt từ Cột D (index 3) của sheet DANH_SACH_DIEM (từ dòng 3 trở xuống)
     diem_rows = get_sheet_data("DANH_SACH_DIEM")
     danh_sach_diem = []
     if len(diem_rows) > 2:
@@ -87,6 +89,7 @@ elif st.session_state.nav_tab == "Bao_cao":
     doi_thuc_hien = st.selectbox("👥 TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", ["-- Chọn tên đội --"] + danh_sach_doi)
     diem_giao_lap = st.selectbox("📍 ĐIỂM GIAO HÀNG & LẮP ĐẶT *", ["-- Chọn địa điểm --"] + danh_sach_diem)
     
+    # 3. Số lượng thiết bị từ KHO_PHAN_BO hiển thị cố định theo điểm đã chọn
     so_luong_hien_tai = 0
     if diem_giao_lap != "-- Chọn địa điểm --":
         kho_rows = get_sheet_data("KHO_PHAN_BO")
@@ -116,8 +119,9 @@ elif st.session_state.nav_tab == "Bao_cao":
         st.success("📍 Check-in GPS thành công!")
         
     st.markdown("---")
-    st.markdown("### 🎛️ BÁO CÁO XÁC NHẬN (CHỌN 1 TRONG 3 NÚT SAU):")
+    st.markdown("### 🎛️ BÁO CÁO XÁC NHẬN (3 NÚT RIÊNG BIỆT):")
     
+    # 4. Ba nút báo cáo riêng biệt theo đúng yêu cầu
     col_b1, col_b2, col_b3 = st.columns(3)
     with col_b1:
         if st.button("✅ ĐÃ GIAO XONG", type="primary", use_container_width=True):
@@ -145,8 +149,10 @@ elif st.session_state.nav_tab == "Admin":
     if pass_input == SECURE_PASS:
         st.success("🔓 Đăng nhập Admin thành công!")
         st.write("- [Chờ duyệt] Thành viên đăng ký mới")
-        if st.button("✅ Duyệt tất cả tài khoản"): st.success("Đã phê duyệt thành công!")
-    elif pass_input != "": st.error("❌ Sai mật khẩu bảo mật! (Pass: 880880)")
+        if st.button("✅ Duyệt tất cả tài khoản"): 
+            st.success("Đã phê duyệt thành công!")
+    elif pass_input != "": 
+        st.error("❌ Sai mật khẩu bảo mật! (Pass: 880880)")
 
 # ================= 4. TAB LINK BÁO CÁO (PASS: 880880) =================
 elif st.session_state.nav_tab == "Link":
@@ -155,4 +161,5 @@ elif st.session_state.nav_tab == "Link":
     if pass_link == SECURE_PASS:
         st.success("🔓 Xác thực thành công!")
         st.markdown("- 🔗 [Mở trực tiếp Google Sheets Tổng hợp](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
-    elif pass_link != "": st.error("❌ Sai mật khẩu truy cập! (Pass: 880880)")
+    elif pass_link != "": 
+        st.error("❌ Sai mật khẩu truy cập! (Pass: 880880)")
