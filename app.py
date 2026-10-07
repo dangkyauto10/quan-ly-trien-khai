@@ -1,33 +1,42 @@
 import streamlit as st
 import datetime
-import urllib.request
-import csv
+import gspread
+from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 
 SECURE_PASS = "880880"
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
 
-def get_live_csv_column(gid, col_idx):
+@st.cache_resource
+def get_google_sheets_client():
     try:
-        import time
-        url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={gid}&t={int(time.time())}"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        response = urllib.request.urlopen(req)
-        lines = [line.decode('utf-8') for line in response.readlines()]
-        reader = csv.reader(lines)
-        rows = list(reader)
-        
-        col_data = []
-        if len(rows) > 2:
-            for r in rows[2:]:
-                if len(r) > col_idx:
-                    val = r[col_idx].strip()
-                    if val != "" and val not in col_data:
-                        col_data.append(val)
-        return col_data
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            return gspread.authorize(creds)
     except Exception as e:
-        return []
+        pass
+    return None
+
+def get_column_data_realtime(sheet_name, col_index):
+    try:
+        client = get_google_sheets_client()
+        if client:
+            sheet = client.open_by_key(SPREADSHEET_ID).worksheet(sheet_name)
+            all_rows = sheet.get_all_values()
+            data_list = []
+            if len(all_rows) > 2:
+                for r in all_rows[2:]:
+                    if len(r) > col_index:
+                        val = r[col_index].strip()
+                        if val != "" and val not in data_list:
+                            data_list.append(val)
+            return data_list
+    except Exception as e:
+        pass
+    return []
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HỆ THỐNG ĐIỀU HÀNH ĐA DỰ ÁN HIỆN TRƯỜNG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -67,9 +76,10 @@ elif st.session_state.nav_tab == "Bao_cao":
     danh_sach_du_an = ["DA880 - Nâng cấp hạ tầng kỹ thuật", "DA76 - Cung cấp thiết bị thôn xã"]
     du_an_chon = st.selectbox("📂 CHỌN DỰ ÁN TRIỂN KHAI *", danh_sach_du_an)
     
-    danh_sach_doi = get_live_csv_column("1563705161", 1)
+    # Đọc trực tiếp động 100% qua gspread từ cột B (index 1) sheet QUAN_LY_DOI
+    danh_sach_doi = get_column_data_realtime("QUAN_LY_DOI", 1)
     
-    danh_sach_diem = get_live_csv_column("0", 3)
+    danh_sach_diem = get_column_data_realtime("DANH_SACH_DIEM", 3)
     if not danh_sach_diem:
         danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
         
@@ -116,14 +126,20 @@ elif st.session_state.nav_tab == "Bao_cao":
             else:
                 st.success(f"🎉 Gửi báo cáo thành công TRỌN GÓI: **ĐÃ GIAO VÀ LẮP XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})!")
 
-# ================= 3. TAB ADMIN DUYỆT (PASS: 880880) =================
+# ================= 3. ADMIN & LINK =================
 elif st.session_state.nav_tab == "Admin":
     st.markdown("### 🔒 KHU VỰC QUẢN TRỊ - ADMIN DUYỆT")
     pass_input = st.text_input("Nhập mật khẩu quản trị (Mã PIN):", type="password")
     if pass_input == SECURE_PASS:
         st.success("🔓 Đăng nhập Admin thành công!")
         st.write("- [Chờ duyệt] Thành viên đăng ký mới")
-        if st.button("✅ Duyệt tất cả tài khoản"): 
-            st.success("Đã phê duyệt thành công!")
-    elif pass_input != "": 
-        st.error("❌ Sai mật khẩu bảo mật! (Pass: 880880)")
+        if st.button("✅ Duyệt tất cả tài khoản"): st.success("Đã phê duyệt thành công!")
+    elif pass_input != "": st.error("❌ Sai mật khẩu bảo mật! (Pass: 880880)")
+
+elif st.session_state.nav_tab == "Link":
+    st.markdown("### 📈 TRANG THEO DÕI TIẾN ĐỘ CHO LÃNH ĐẠO")
+    pass_link = st.text_input("Nhập mật khẩu truy cập báo cáo (Mã PIN):", type="password")
+    if pass_link == SECURE_PASS:
+        st.success("🔓 Xác thực thành công!")
+        st.markdown("- 🔗 [Mở trực tiếp Google Sheets Tổng hợp](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
+    elif pass_link != "": st.error("❌ Sai mật khẩu truy cập! (Pass: 880880)")
