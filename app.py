@@ -9,15 +9,18 @@ SECURE_PASS = "880880"
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
 
 @st.cache_resource
-py_client = None
+def get_google_sheets_client():
+    if "gcp_service_account" in st.secrets:
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        return gspread.authorize(creds)
+    return None
 
 def get_sheet_data(sheet_name):
     try:
-        if "gcp_service_account" in st.secrets:
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            client = gspread.authorize(creds)
+        client = get_google_sheets_client()
+        if client:
             sheet = client.open_by_key(SPREADSHEET_ID).worksheet(sheet_name)
             return sheet.get_all_values()
     except Exception as e:
@@ -57,7 +60,6 @@ if st.session_state.nav_tab == "Dang_ky":
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG")
     
-    # 1. Lấy Tên đội từ Cột B Sheet QUAN_LY_DOI
     doi_rows = get_sheet_data("QUAN_LY_DOI")
     danh_sach_doi = []
     if len(doi_rows) > 2:
@@ -67,7 +69,6 @@ elif st.session_state.nav_tab == "Bao_cao":
     if not danh_sach_doi:
         danh_sach_doi = ["Nguyễn Văn Thiện - Đội 01", "Trần Văn C - Đội 02"]
         
-    # 2. Lấy Điểm giao hàng & lắp đặt từ Cột D Sheet DANH_SACH_DIEM
     diem_rows = get_sheet_data("DANH_SACH_DIEM")
     danh_sach_diem = []
     if len(diem_rows) > 2:
@@ -80,7 +81,6 @@ elif st.session_state.nav_tab == "Bao_cao":
     doi_thuc_hien = st.selectbox("👥 TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", ["-- Chọn tên đội --"] + danh_sach_doi)
     diem_giao_lap = st.selectbox("📍 ĐIỂM GIAO HÀNG & LẮP ĐẶT *", ["-- Chọn địa điểm --"] + danh_sach_diem)
     
-    # 3. Số lượng thiết bị từ KHO_PHAN_BO
     so_luong_hien_tai = 0
     if diem_giao_lap != "-- Chọn địa điểm --":
         kho_rows = get_sheet_data("KHO_PHAN_BO")
@@ -118,6 +118,35 @@ elif st.session_state.nav_tab == "Bao_cao":
             if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
                 st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
             else:
-                st.success(f"🎉 Gửi báo cáo thành công: **ĐÃ GIAO XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
+                st.success(f"🎉 Gửi báo cáo thành công: ĐÃ GIAO XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
     with col_b2:
-        if st.button("✅ ĐÃ LẮP
+        if st.button("✅ ĐÃ LẮP XONG", type="primary", use_container_width=True):
+            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
+                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
+            else:
+                st.success(f"🎉 Gửi báo cáo thành công: ĐÃ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
+    with col_b3:
+        if st.button("🚀 ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
+            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
+                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
+            else:
+                st.success(f"🎉 Gửi báo cáo thành công TRỌN GÓI: ĐÃ GIAO VÀ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
+
+# ================= 3. TAB ADMIN DUYỆT (PASS: 880880) =================
+elif st.session_state.nav_tab == "Admin":
+    st.markdown("### 🔒 KHU VỰC QUẢN TRỊ - ADMIN DUYỆT")
+    pass_input = st.text_input("Nhập mật khẩu quản trị (Mã PIN):", type="password")
+    if pass_input == SECURE_PASS:
+        st.success("🔓 Đăng nhập Admin thành công!")
+        st.write("- [Chờ duyệt] Thành viên đăng ký mới")
+        if st.button("✅ Duyệt tất cả tài khoản"): st.success("Đã phê duyệt thành công!")
+    elif pass_input != "": st.error("❌ Sai mật khẩu bảo mật! (Pass: 880880)")
+
+# ================= 4. TAB LINK BÁO CÁO (PASS: 880880) =================
+elif st.session_state.nav_tab == "Link":
+    st.markdown("### 📈 TRANG THEO DÕI TIẾN ĐỘ CHO LÃNH ĐẠO")
+    pass_link = st.text_input("Nhập mật khẩu truy cập báo cáo (Mã PIN):", type="password")
+    if pass_link == SECURE_PASS:
+        st.success("🔓 Xác thực thành công!")
+        st.markdown("- 🔗 [Mở trực tiếp Google Sheets Tổng hợp](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
+    elif pass_link != "": st.error("❌ Sai mật khẩu truy cập! (Pass: 880880)")
