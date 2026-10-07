@@ -20,21 +20,20 @@ st.markdown(
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# --- HÀM KẾT NỐI GOOGLE SHEETS GSPREAD ---
+# --- HÀM KẾT NỐI GOOGLE SHEETS DÙNG FILE CREDENTIALS.JSON ---
 def get_gspread_client():
     try:
-        if "gcp_service_account" in st.secrets:
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            client = gspread.authorize(creds)
-            return client
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        # Đọc trực tiếp file credentials.json nằm ngay trong thư mục gốc
+        creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
+        client = gspread.authorize(creds)
+        return client
     except Exception as e:
-        st.error(f"Lỗi xác thực Google Sheets API: {e}")
-    return None
+        st.error(f"Lỗi kết nối Google Sheets qua credentials.json: {e}")
+        return None
 
 # --- 1. LẤY DANH SÁCH ĐỊA ĐIỂM ĐỘNG TỪ CỘT D (DANH_SACH_DIEM) ---
 @st.cache_data(ttl=5)
@@ -75,7 +74,7 @@ def get_du_lieu_vc_ld_theo_diem(dia_diem_chon):
     if df_kho.empty or len(df_kho) <= 2:
         return items
     
-    # Cấu trúc KHO_PAN_BO thực tế: A:Mã DA, B:SKU, C:Tên DA, D:Tên TB, E:Số lượng, F:ĐVT, G:Đội nhận, H:Địa điểm đến
+    # Cấu trúc KHO_PAN_BO: A:Mã DA, B:SKU, C:Tên DA, D:Tên TB, E:Số lượng, F:ĐVT, G:Đội nhận, H:Địa điểm đến
     for _, row in df_kho.iloc[2:].iterrows():
         try:
             dia_diem_row = str(row.iloc[7]).strip() if len(row) > 7 and pd.notna(row.iloc[7]) else ""
@@ -305,7 +304,7 @@ if st.button("🚀 GỬI BÁO CÁO VÀ CẬP NHẬT HỆ THỐNG", type="primary
         client = get_gspread_client()
         
         if not client:
-            st.error("❌ Không thể kết nối với Google Sheets API. Vui lòng kiểm tra lại cấu hình Secrets!")
+            st.error("❌ Không thể kết nối với Google Sheets API qua file credentials.json!")
         else:
             try:
                 sh = client.open_by_key(SHEET_ID)
@@ -313,8 +312,7 @@ if st.button("🚀 GỬI BÁO CÁO VÀ CẬP NHẬT HỆ THỐNG", type="primary
                 
                 if st.session_state.selected_mode == "Vận Chuyển (VC)":
                     worksheet = sh.worksheet("VAN_CHUYEN")
-                    # Cấu trúc sheet VAN_CHUYEN theo ảnh:
-                    # B: Mã dự án, C: Đội nhận TB, D: Tên thiết bị / Hàng hóa, E: Số lượng vận chuyển, F: Đơn vị vận chuyển / Xe, G: Cán bộ phụ trách giao, H: Điểm giao, I: Trạng thái vận chuyển, J: Thời gian cập nhật
+                    # Ghi theo đúng cấu trúc sheet VAN_CHUYEN
                     for item in danh_sach_phan_bo_hien_tai:
                         row_data = [
                             "", # Cột A trống
@@ -332,8 +330,7 @@ if st.button("🚀 GỬI BÁO CÁO VÀ CẬP NHẬT HỆ THỐNG", type="primary
                         success_count += 1
                 else:
                     worksheet = sh.worksheet("LAP_DAT")
-                    # Cấu trúc sheet LAP_DAT theo ảnh:
-                    # B: Mã dự án, C: Đội nhận thiết bị, D: Tên thiết bị / Hàng hóa, E: Số lượng thiết bị lắp, F: ĐVT, G: Địa điểm lắp, H: Tình trạng thực hiện, I: Thời gian hoàn thành, J: Link Google Maps
+                    # Ghi theo đúng cấu trúc sheet LAP_DAT
                     for idx, item in enumerate(danh_sach_phan_bo_hien_tai, start=1):
                         ma_cong_viec = f"LD-{datetime.now().strftime('%m%d%H%M')}-{idx}"
                         row_data = [
@@ -345,7 +342,7 @@ if st.button("🚀 GỬI BÁO CÁO VÀ CẬP NHẬT HỆ THỐNG", type="primary
                             item["donvi"],
                             selected_location,
                             current_action_status,
-                            thoi_gian_gui,
+5                            thoi_gian_gui,
                             "Google Maps Check-in OK"
                         ]
                         worksheet.append_row(row_data)
