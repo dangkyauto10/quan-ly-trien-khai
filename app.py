@@ -21,7 +21,7 @@ st.markdown(
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# --- HÀM KẾT NỐI GOOGLE SHEETS ---
+# --- HÀM KẾT NỐI GOOGLE SHEETS QUA CREDENTIALS.JSON ---
 def get_gspread_client():
     try:
         scopes = [
@@ -29,8 +29,10 @@ def get_gspread_client():
             "https://www.googleapis.com/auth/drive"
         ]
         creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
-        return gspread.authorize(creds)
+        client = gspread.authorize(creds)
+        return client
     except Exception as e:
+        st.error(f"Lỗi khởi tạo Google Client: {e}")
         return None
 
 # --- 1. LẤY DANH SÁCH ĐỊA ĐIỂM ĐỘNG TỪ CỘT D (DANH_SACH_DIEM) ---
@@ -165,7 +167,7 @@ if is_lap_dat:
 
 st.markdown("---")
 
-# --- NÚT GỬI BÁO CÁO VỀ HỆ THỐNG (GHI TRỰC TIẾP GOOGLE SHEETS) ---
+# --- NÚT GỬI BÁO CÁO VỀ HỆ THỐNG (GHI THẲNG VÀO GOOGLE SHEETS) ---
 if st.button("✅ GỬI BÁO CÁO VỀ HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Gõ hoặc chọn địa điểm --":
         st.error("⚠️ Vui lòng chọn Xã/Phường trước khi gửi báo cáo!")
@@ -186,44 +188,44 @@ if st.button("✅ GỬI BÁO CÁO VỀ HỆ THỐNG", type="primary", use_contai
                 sh = client.open_by_key(SHEET_ID)
                 count = 0
                 if not is_lap_dat:
-                    # Ghi vào sheet VAN_CHUYEN
+                    # Ghi vào sheet VAN_CHUYEN theo đúng cấu trúc cột
                     ws = sh.worksheet("VAN_CHUYEN")
                     for item in danh_sach_hien_tai:
                         row = [
-                            "",
-                            item["ma_da"],
-                            item["doi"],
-                            item["ten"],
-                            item["soluong"],
-                            item["donvi"],
-                            nguoi_gui,
-                            selected_location,
-                            st.session_state.trang_thai_chon,
-                            thoi_gian_hien_tai
+                            "", # Cột A trống
+                            item["ma_da"], # Cột B
+                            item["doi"],   # Cột C
+                            item["ten"],   # Cột D
+                            item["soluong"], # Cột E
+                            item["donvi"], # Cột F
+                            nguoi_gui,     # Cột G
+                            selected_location, # Cột H
+                            st.session_state.trang_thai_chon, # Cột I
+                            thoi_gian_hien_tai # Cột J
                         ]
                         ws.append_row(row)
                         count += 1
                 else:
-                    # Ghi vào sheet LAP_DAT
+                    # Ghi vào sheet LAP_DAT theo đúng cấu trúc cột
                     ws = sh.worksheet("LAP_DAT")
                     for idx, item in enumerate(danh_sach_hien_tai, start=1):
                         ma_cv = f"LD-{datetime.now().strftime('%m%d%H%M')}-{idx}"
                         row = [
-                            ma_cv,
-                            item["ma_da"],
-                            item["doi"],
-                            item["ten"],
-                            item["soluong"],
-                            item["donvi"],
-                            selected_location,
-                            st.session_state.trang_thai_chon,
-                            thoi_gian_hien_tai,
-                            "Google Maps GPS Verified"
+                            ma_cv, # Cột A
+                            item["ma_da"], # Cột B
+                            item["doi"],   # Cột C
+                            item["ten"],   # Cột D
+                            item["soluong"], # Cột E
+                            item["donvi"], # Cột F
+                            selected_location, # Cột G
+                            st.session_state.trang_thai_chon, # Cột H
+                            thoi_gian_hien_tai, # Cột I
+                            "Google Maps GPS Verified" # Cột J
                         ]
                         ws.append_row(row)
                         count += 1
                 
-                st.success(f"🎉 Gửi thành công {count} dòng dữ liệu về hệ thống Google Sheets lúc {thoi_gian_hien_tai}!")
+                st.success(f"🎉 Gửi thành công {count} dòng dữ liệu vào Google Sheets lúc {thoi_gian_hien_tai}!")
                 st.balloons()
             except Exception as e:
-                st.error(f"❌ Lỗi ghi dữ liệu: {e}")
+                st.error(f"❌ Lỗi ghi dữ liệu vào Google Sheets: {e}")
