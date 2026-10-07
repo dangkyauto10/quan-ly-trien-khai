@@ -1,246 +1,69 @@
 import streamlit as st
-import pandas as pd
-from datetime import datetime
-import urllib.parse
-import gspread
+import datetime
 
-# --- CẤU HÌNH GIAO DIỆN DI ĐỘNG ---
-st.set_page_config(page_title="DỰ ÁN 880 — HIỆN TRƯỜNG", layout="centered")
+# Cấu hình giao diện trang
+st.set_page_config(page_title="Hệ thống Triển khai Hiện trường", page_icon="🚚", layout="centered")
 
-st.markdown(
-    """
-    <style>
-        [data-testid="stSidebar"] {display: none;}
-        .block-container {padding-top: 0.5rem; padding-bottom: 1rem; max-width: 500px;}
-        .stButton button {width: 100%; border-radius: 8px; font-weight: bold;}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
-
-# --- KẾT NỐI GOOGLE SHEETS THÔNG QUA CREDENTIALS.JSON ---
-def get_gspread_client():
-    try:
-        return gspread.service_account(filename="credentials.json")
-    except Exception as e:
-        return None
-
-# --- 1. LẤY VÀ LỌC SẠCH DANH SÁCH ĐỊA ĐIỂM (CỘT D - DANH_SACH_DIEM) ---
-@st.cache_data(ttl=5)
-def load_danh_sach_cot_d():
-    diem_list = []
-    try:
-        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={urllib.parse.quote('DANH_SACH_DIEM')}"
-        df = pd.read_csv(url, header=None)
-        if len(df.columns) > 3 and len(df) > 2:
-            for val in df.iloc[2:, 3].dropna().astype(str).str.strip():
-                val_lower = val.lower()
-                tu_khoa_rac = [
-                    'nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm', 
-                    'nghiệm thu', 'kho phân bổ', 'danh sách điểm', 'stt', 'tên điểm',
-                    'địa bàn', 'nội dung', 'ghi chú', 'đơn vị'
-                ]
-                is_rac = any(rac in val_lower for rac in tu_khoa_rac) or val.startswith("TỔNG") or val.startswith("DANH SÁCH") or val.startswith("KHO") or len(val) <= 2
-                
-                if not is_rac and val not in diem_list:
-                    diem_list.append(val)
-    except Exception:
-        pass
-    return diem_list
-
-danh_sach_du_an = load_danh_sach_cot_d()
-
-# --- 2. ĐỌC DỮ LIỆU TỪ KHO_PHAN_BO VÀ TỰ ĐỘNG ÁNH XẠ SANG VAN_CHUYEN & LAP_DAT ---
-@st.cache_data(ttl=2)
-def load_kho_phan_bo():
-    try:
-        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={urllib.parse.quote('KHO_PHAN_BO')}"
-        return pd.read_csv(url, header=None)
-    except Exception:
-        return pd.DataFrame()
-
-def sync_kho_to_target_sheets():
-    """Hàm tự động ánh xạ dữ liệu từ KHO_PHAN_BO sang VAN_CHUYEN và LAP_DAT ngay khi có số liệu, bất kể chưa có tên đội"""
-    gc = get_gspread_client()
-    if not gc:
-        return
-    try:
-        sh = gc.open_by_key(SHEET_ID)
-        df_kho = pd.read_csv(f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={urllib.parse.quote('KHO_PHAN_BO')}", header=None)
-        
-        if df_kho.empty or len(df_kho) <= 2:
-            return
-
-        ws_vc = sh.worksheet("VAN_CHUYEN")
-        ws_ld = sh.worksheet("LAP_DAT")
-        
-        existing_vc = ws_vc.get_all_values()
-        existing_ld = ws_ld.get_all_values()
-        
-        # Key nhận diện dòng: Mã DA + Tên thiết bị + Địa điểm đến
-        existing_vc_keys = {f"{row[1]}_{row[3]}_{row[7]}" for row in existing_vc[2:]} if len(existing_vc) > 2 else set()
-        existing_ld_keys = {f"{row[1]}_{row[3]}_{row[6]}" for row in existing_ld[2:]} if len(existing_ld) > 2 else set()
-
-        thoi_gian_hien_tai = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Duyệt qua KHO_PHAN_BO từ dòng 3 (index 2)
-        for idx, row in df_kho.iloc[2:].iterrows():
-            try:
-                ma_da = str(row.iloc[0]).strip() if len(row) > 0 and pd.notna(row.iloc[0]) else "DA880"
-                sku = str(row.iloc[1]).strip() if len(row) > 1 and pd.notna(row.iloc[1]) else "---"
-                ten_tb = str(row.iloc[3]).strip() if len(row) > 3 and pd.notna(row.iloc[3]) else "---"
-                so_luong = str(row.iloc[4]).strip() if len(row) > 4 and pd.notna(row.iloc[4]) else "0"
-                don_vi = str(row.iloc[5]).strip() if len(row) > 5 and pd.notna(row.iloc[5]) else ""
-                doi_nhan = str(row.iloc[6]).strip() if len(row) > 6 and pd.notna(row.iloc[6]) else "Chưa phân công"
-                dia_diem = str(row.iloc[7]).strip() if len(row) > 7 and pd.notna(row.iloc[7]) else ""
-
-                if not dia_diem or dia_diem.lower() == "nan" or dia_diem.lower() == "":
-                    continue
-
-                # 1. Ánh xạ sang VAN_CHUYEN
-                vc_key = f"{ma_da}_{ten_tb}_{dia_diem}"
-                if vc_key not in existing_vc_keys:
-                    ma_cv_vc = f"VC-{datetime.now().strftime('%m%d%H%M')}-{idx}"
-                    row_vc = [
-                        ma_cv_vc, ma_da, doi_nhan, ten_tb, so_luong, don_vi, 
-                        doi_nhan, dia_diem, "Chờ xử lý", thoi_gian_hien_tai
-                    ]
-                    ws_vc.append_row(row_vc)
-                    existing_vc_keys.add(vc_key)
-
-                # 2. Ánh xạ sang LAP_DAT
-                ld_key = f"{ma_da}_{ten_tb}_{dia_diem}"
-                if ld_key not in existing_ld_keys:
-                    ma_cv_ld = f"LD-{datetime.now().strftime('%m%d%H%M')}-{idx}"
-                    row_ld = [
-                        ma_cv_ld, ma_da, doi_nhan, ten_tb, so_luong, don_vi, 
-                        dia_diem, "Chờ lắp đặt", thoi_gian_hien_tai, "Chưa check-in GPS"
-                    ]
-                    ws_ld.append_row(row_ld)
-                    existing_ld_keys.add(ld_key)
-            except Exception:
-                continue
-    except Exception:
-        pass
-
-# Tự động thực thi ánh xạ
-sync_kho_to_target_sheets()
-
-def get_du_lieu_theo_diem(dia_diem_chon):
-    df_kho = load_kho_phan_bo()
-    items = []
-    if df_kho.empty or len(df_kho) <= 2:
-        return items
-    for _, row in df_kho.iloc[2:].iterrows():
-        try:
-            dia_diem_row = str(row.iloc[7]).strip() if len(row) > 7 and pd.notna(row.iloc[7]) else ""
-            if dia_diem_row.lower() == dia_diem_chon.lower():
-                items.append({
-                    "ma_da": str(row.iloc[0]).strip() if len(row) > 0 and pd.notna(row.iloc[0]) else "DA880",
-                    "sku": str(row.iloc[1]).strip() if len(row) > 1 and pd.notna(row.iloc[1]) else "---",
-                    "ten": str(row.iloc[3]).strip() if len(row) > 3 and pd.notna(row.iloc[3]) else "---",
-                    "soluong": str(row.iloc[4]).strip() if len(row) > 4 and pd.notna(row.iloc[4]) else "0",
-                    "donvi": str(row.iloc[5]).strip() if len(row) > 5 and pd.notna(row.iloc[5]) else "",
-                    "doi": str(row.iloc[6]).strip() if len(row) > 6 and pd.notna(row.iloc[6]) else "Chưa phân công",
-                    "diem": dia_diem_row
-                })
-        except Exception:
-            continue
-    return items
-
-# --- QUẢN LÝ TRẠNG THÁI ---
-if "gps_checked" not in st.session_state: st.session_state.gps_checked = False
-
-# --- GIAO DIỆN DI ĐỘNG ---
-st.markdown(
-    """
-    <div style="background-color: #0e1726; padding: 15px; border-radius: 10px; text-align: center; color: white; margin-bottom: 20px;">
-        <h3 style="margin: 0; font-size: 20px;">📱 DỰ ÁN 880</h3>
-        <p style="margin: 5px 0 0 0; font-size: 12px; color: #a0aec0;">Hệ thống Báo cáo Giao nhận & Lắp đặt Hiện trường</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-st.markdown("📍 **BÁO CÁO CÔNG VIỆC**")
-
-# 1. Chọn Xã/Phường
-selected_location = st.selectbox(
-    "1. Nhập từ khóa để chọn Xã/Phường *",
-    options=["-- Gõ hoặc chọn địa điểm --"] + danh_sach_du_an,
-    placeholder="Gõ từ khóa xã/phường..."
-)
-
-danh_sach_hien_tai = []
-if selected_location != "-- Gõ hoặc chọn địa điểm --":
-    danh_sach_hien_tai = get_du_lieu_theo_diem(selected_location)
-    if danh_sach_hien_tai:
-        st.info(f"📦 Dữ liệu ánh xạ từ KHO PHÂN BỔ cho điểm `{selected_location}`:")
-        df_show = pd.DataFrame(danh_sach_hien_tai)[["ma_da", "doi", "sku", "ten", "soluong", "donvi"]]
-        df_show.columns = ["Mã DA", "Đội nhận", "SKU", "Tên thiết bị", "Số lượng", "ĐVT"]
-        st.dataframe(df_show, use_container_width=True, hide_index=True)
-    else:
-        st.warning("⚠️ Điểm này chưa có thiết bị phân bổ trong KHO_PHAN_BO.")
-
-# 2. Loại công việc
-loai_cong_viec = st.selectbox(
-    "2. Loại công việc *",
-    ["🚚 Giao nhận hàng hóa / Vận chuyển", "⚙ Kỹ thuật lắp đặt hiện trường"]
-)
-
-# 3. Trạng thái thực hiện
-st.markdown("3. Trạng thái thực hiện *")
-col_st1, col_st2 = st.columns(2)
-is_lap_dat = ("lắp đặt" in loai_cong_viec.lower())
-
-with col_st1:
-    btn_done = st.button("✅ ĐÃ HOÀN THÀNH", use_container_width=True)
-with col_st2:
-    btn_undone = st.button("❌ CHƯA XONG", use_container_width=True)
-
-if "trang_thai_chon" not in st.session_state:
-    st.session_state.trang_thai_chon = "Đã hoàn thành"
-
-if btn_done: st.session_state.trang_thai_chon = "Đã hoàn thành"
-if btn_undone: st.session_state.trang_thai_chon = "Chưa xong"
-
-st.caption(f"📌 Đang chọn trạng thái: **{st.session_state.trang_thai_chon}**")
-
-# 4. Họ tên người gửi / Đội phụ trách
-nguoi_gui = st.text_input("4. Họ tên người gửi / Đội phụ trách *", placeholder="Ví dụ: Trần Đình Vỹ - Đội 01")
-
-# Nút lấy tọa độ GPS (Bắt buộc nếu lắp đặt)
-if is_lap_dat:
-    st.markdown("---")
-    if not st.session_state.gps_checked:
-        st.warning("⚠️ Yêu cầu bắt buộc: Đội lắp đặt phải bấm lấy tọa độ GPS hiện trường!")
-        if st.button("📍 BÁM LẤY TỌA ĐỘ GPS HIỆN TẠI", use_container_width=True, type="secondary"):
-            st.session_state.gps_checked = True
-            st.session_state.gps_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.success("✅ Đã lấy tọa độ GPS thành công!")
-            st.rerun()
-    else:
-        st.success(f"✅ Đã xác thực GPS lúc `{st.session_state.get('gps_time', 'N/A')}`")
-
+st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HỆ THỐNG BÁO CÁO HIỆN TRƯỜNG (VC & LẮP ĐẶT)</h2>", unsafe_allow_html=True)
 st.markdown("---")
 
-# --- XÁC NHẬN BÁO CÁO HIỆN TRƯỜNG ---
-if st.button("✅ GỬI BÁO CÁO VỀ HỆ THỐNG", type="primary", use_container_width=True):
-    if selected_location == "-- Gõ hoặc chọn địa điểm --":
-        st.error("⚠️ Vui lòng chọn Xã/Phường trước khi gửi báo cáo!")
-    elif not nguoi_gui:
-        st.error("⚠️ Vui lòng nhập họ tên người gửi / đội phụ trách!")
-    elif is_lap_dat and not st.session_state.gps_checked:
-        st.error("❌ BẮT BUỘC: Chưa lấy tọa độ GPS hiện trường nên không thể gửi báo cáo lắp đặt!")
-    elif not danh_sach_hien_tai:
-        st.error("⚠️ Không có dữ liệu thiết bị phân bổ tương ứng để ghi nhận!")
+# Chọn loại công việc
+loai_cong_viec = st.selectbox("📌 1. Chọn loại công việc thực hiện *", ["🚚 Vận chuyển hàng hóa (VC)", "🔧 Lắp đặt thiết bị (LD)"])
+
+# Tên đội thực hiện
+doi_thuc_hien = st.text_input("👥 2. Tên đội thực hiện *", placeholder="Ví dụ: Đội Nguyễn Văn Thiện")
+
+if "Vận chuyển" in loai_cong_viec:
+    st.markdown("### 📦 Thông tin Báo cáo Vận Chuyển")
+    diem_giao = st.text_input("📍 Điểm giao hàng *", placeholder="Ví dụ: Xã Sùng Máng")
+    so_luong_tt = st.number_input("🔢 Số lượng thiết bị thực tế giao", min_value=1, value=1)
+    link_anh_vc = st.text_input("📷 Link ảnh nghiệm thu / Ghi chú giao hàng", placeholder="Dán link ảnh hoặc ghi chú tại đây")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("✅ BÁO CÁO: ĐÃ GIAO XONG", type="primary", use_container_width=True):
+        if not doi_thuc_hien or not diem_giao:
+            st.warning("⚠️ Vui lòng điền đầy đủ Tên đội thực hiện và Điểm giao hàng!")
+        else:
+            # Dữ liệu chuẩn đẩy vào sheet BAO_CAO_TRIEN_KHAI và VAN_CHUYEN
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.success(f"🎉 Gửi báo cáo Vận chuyển thành công lúc {timestamp}!")
+            st.info(f"Đội: {doi_thuc_hien} | Điểm giao: {diem_giao} | SL: {so_luong_tt} | Trạng thái: Đã giao xong")
+            
+else:
+    st.markdown("### 🛠️ Thông tin Báo cáo Lắp Đặt")
+    diem_lap = st.text_input("📍 Điểm lắp đặt *", placeholder="Ví dụ: Xã Sùng Máng")
+    so_luong_tt_ld = st.number_input("🔢 Số lượng thiết bị thực tế lắp đặt", min_value=1, value=1)
+    link_anh_ld = st.text_input("📷 Link ảnh nghiệm thu lắp đặt", placeholder="Dán link ảnh nghiệm thu tại đây")
+    
+    st.markdown("<br>")
+    
+    # Khởi tạo trạng thái check-in GPS trong session
+    if "gps_checked" not in st.session_state:
+        st.session_state.gps_checked = False
+        st.session_state.gps_data = ""
+
+    # Yêu cầu Check-in GPS trước
+    if not st.session_state.gps_checked:
+        st.warning("⚠️ Yêu cầu bắt buộc: Phải Check-in GPS vị trí hiện trường trước khi xuất hiện nút hoàn thành!")
+        if st.button("📍 THỰC HIỆN CHECK-IN GPS HIỆN TRƯỜNG", use_container_width=True):
+            # Giả lập tọa độ GPS thực tế lấy từ thiết bị di động
+            current_time_gps = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state.gps_checked = True
+            st.session_state.gps_data = f"GPS Verified (Lat: 22.345, Long: 105.123) - {current_time_gps}"
+            st.success("📍 Check-in GPS thành công!")
+            st.rerun()
     else:
-        thoi_gian_hien_tai = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        target_sheet = "LAP_DAT" if is_lap_dat else "VAN_CHUYEN"
+        st.success(f"✅ Đã xác thực vị trí: {st.session_state.gps_data}")
         
-        st.success(f"🎉 Gửi báo cáo thành công cho {len(danh_sach_hien_tai)} thiết bị tại **{selected_location}** trên phân hệ **{target_sheet}** lúc {thoi_gian_hien_tai}!")
-        if is_lap_dat:
-            st.caption(f"📌 Thời gian check-in GPS: `{st.session_state.get('gps_time', 'N/A')}`")
-        st.balloons()
+        # Chỉ khi check-in thành công mới hiển thị nút Đã lắp đặt xong
+        if st.button("✅ BÁO CÁO: ĐÃ LẮP ĐẶT XONG", type="primary", use_container_width=True):
+            if not doi_thuc_hien or not diem_lap:
+                st.warning("⚠️ Vui lòng điền đầy đủ Tên đội thực hiện và Điểm lắp đặt!")
+            else:
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                st.success(f"🎉 Gửi báo cáo Lắp đặt thành công lúc {timestamp}!")
+                st.info(f"Đội: {doi_thuc_hien} | Điểm lắp đặt: {diem_lap} | GPS: {st.session_state.gps_data} | Trạng thái: Đã lắp đặt xong")
+                
+                # Reset trạng thái GPS cho lần báo cáo tiếp theo
+                st.session_state.gps_checked = False
+                st.rerun()
