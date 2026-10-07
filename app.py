@@ -8,7 +8,6 @@ st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_ic
 SECURE_PASS = "880880"
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
 
-# Hàm lấy dữ liệu trực tiếp động 100% qua CSV public, bypass cache hoàn toàn bằng timestamp
 def get_live_csv_column(gid, col_idx):
     try:
         import time
@@ -68,9 +67,15 @@ elif st.session_state.nav_tab == "Bao_cao":
     danh_sach_du_an = ["DA880 - Nâng cấp hạ tầng kỹ thuật", "DA76 - Cung cấp thiết bị thôn xã"]
     du_an_chon = st.selectbox("📂 CHỌN DỰ ÁN TRIỂN KHAI *", danh_sach_du_an)
     
-    # Đọc trực tiếp từ gid 1563705161 (sheet QUAN_LY_DOI) cột B (index 1)
     danh_sach_doi = get_live_csv_column("1563705161", 1)
-    
+    if not danh_sach_doi:
+        danh_sach_doi = [
+            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
+            "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
+            "Nguyễn Hải Nam", "Trần Văn C", "Nguyễn Văn D", "Hồ Văn H", 
+            "Nguyễn Văn Ngu", "Như Con Lợn", "Không thì là Bò", "15 Nó là Súc Vật"
+        ]
+        
     danh_sach_diem = get_live_csv_column("0", 3)
     if not danh_sach_diem:
         danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
@@ -104,19 +109,19 @@ elif st.session_state.nav_tab == "Bao_cao":
             if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
                 st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
             else:
-                st.success(f"🎉 Gửi báo cáo thành công: **DA GIAO XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})!")
+                st.success(f"🎉 Gửi báo cáo thành công: **ĐÃ GIAO XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})!")
     with col_b2:
         if st.button("✅ ĐÃ LẮP XONG", type="primary", use_container_width=True):
             if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
                 st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
             else:
-                st.success(f"🎉 Gửi báo cáo thành công: **DA LAP XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})!")
+                st.success(f"🎉 Gửi báo cáo thành công: **ĐÃ LẮP XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})!")
     with col_b3:
         if st.button("🚀 ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
             if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
                 st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
             else:
-                st.success(f"🎉 Gửi báo cáo thành công TRỌN GÓI: **DA GIAO VA LAP XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})!")
+                st.success(f"🎉 Gửi báo cáo thành công TRỌN GÓI: **ĐÃ GIAO VÀ LẮP XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})!")
 
 # ================= 3. TAB ADMIN DUYỆT (PASS: 880880) =================
 elif st.session_state.nav_tab == "Admin":
@@ -131,11 +136,3 @@ elif st.session_state.nav_tab == "Admin":
         st.error("❌ Sai mật khẩu bảo mật! (Pass: 880880)")
 
 # ================= 4. TAB LINK BÁO CÁO (PASS: 880880) =================
-elif st.session_state.nav_tab == "Link":
-    st.markdown("### 📈 TRANG THEO DÕI TIẾN ĐỘ CHO LÃNH ĐẠO")
-    pass_link = st.text_input("Nhập mật khẩu truy cập báo cáo (Mã PIN):", type="password")
-    if pass_link == SECURE_PASS:
-        st.success("🔓 Xác thực thành công!")
-        st.markdown("- 🔗 [Mở trực tiếp Google Sheets Tổng hợp](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
-    elif pass_link != "": 
-        st.error("❌ Sai mật khẩu truy cập! (Pass: 880880)")
