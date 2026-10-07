@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import urllib.parse
+import gspread
+from google.oauth2.service_account import Credentials
 
 # --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
@@ -18,7 +20,23 @@ st.markdown(
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# --- 1. LẤY DANH SÁCH ĐỊA ĐIỂM ĐỘNG 100% TỪ CỘT D (DANH_SACH_DIEM) ---
+# --- HÀM KẾT NỐI GOOGLE SHEETS GSPREAD ---
+def get_gspread_client():
+    try:
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            scopes = [
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            client = gspread.authorize(creds)
+            return client
+    except Exception as e:
+        st.error(f"Lỗi xác thực Google Sheets API: {e}")
+    return None
+
+# --- 1. LẤY DANH SÁCH ĐỊA ĐIỂM ĐỘNG TỪ CỘT D (DANH_SACH_DIEM) ---
 @st.cache_data(ttl=5)
 def load_danh_sach_cot_d():
     diem_list = []
@@ -42,7 +60,7 @@ def load_danh_sach_cot_d():
 
 danh_sach_du_an = load_danh_sach_cot_d()
 
-# --- 2. HÀM ĐỌC KHO PHÂN BỔ VÀ ÁNH XẠ SANG VC / LĐ ---
+# --- 2. ĐỌC KHO PHÂN BỔ VÀ ÁNH XẠ ---
 @st.cache_data(ttl=5)
 def load_kho_phan_bo():
     try:
@@ -57,9 +75,8 @@ def get_du_lieu_vc_ld_theo_diem(dia_diem_chon):
     if df_kho.empty or len(df_kho) <= 2:
         return items
     
-    # Cấu trúc KHO_PAN_BO thực tế:
-    # A(0): Mã DA, B(1): Mã SKU, C(2): Tên DA, D(3): Tên TB, E(4): Số lượng, F(5): ĐVT, G(6): Đội nhận, H(7): Địa điểm đến
-    for idx, row in df_kho.iloc[2:].iterrows():
+    # Cấu trúc KHO_PAN_BO thực tế: A:Mã DA, B:SKU, C:Tên DA, D:Tên TB, E:Số lượng, F:ĐVT, G:Đội nhận, H:Địa điểm đến
+    for _, row in df_kho.iloc[2:].iterrows():
         try:
             dia_diem_row = str(row.iloc[7]).strip() if len(row) > 7 and pd.notna(row.iloc[7]) else ""
             if dia_diem_row.lower() == dia_diem_chon.lower():
@@ -76,7 +93,7 @@ def get_du_lieu_vc_ld_theo_diem(dia_diem_chon):
             continue
     return items
 
-# --- 3. HÀM TẢI DỮ LIỆU ĐĂNG KÝ (ĐĂNG_KÝ_THÀNH_VIÊN) ---
+# --- 3. TẢI DỮ LIỆU ĐĂNG KÝ ---
 @st.cache_data(ttl=5)
 def load_dang_ky_data():
     try:
@@ -193,7 +210,7 @@ if st.session_state.page == "register":
                 st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!")
     st.stop()
 
-# --- MÀN HÌNH CHÍNH: CHỌN PHÂN HỆ VÀ ĐỊA ĐIỂM ÁNH XẠ TỪ KHO PHÂN BỔ ---
+# --- MÀN HÌNH CHÍNH: CHỌN PHÂN HỆ VÀ ĐỊA ĐIỂM ---
 st.markdown("---")
 col_mode_1, col_mode_2 = st.columns(2)
 with col_mode_1:
@@ -214,22 +231,20 @@ with col1:
 with col2:
     selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + danh_sach_du_an)
 
-# --- TỰ ĐỘNG ÁNH XẠ VÀ HIỂN THỊ DỮ LIỆU ĐÚNG NHƯ KHO PHÂN BỔ ---
+# --- HIỂN THỊ DỮ LIỆU ÁNH XẠ TỪ KHO PHÂN BỔ ---
 danh_sach_phan_bo_hien_tai = []
 if selected_location != "-- Chọn địa điểm --":
     st.markdown("---")
-    st.subheader(f"📦 Dữ liệu ánh xạ từ KHO PHÂN BỔ cho điểm: `{selected_location}`")
+    st.subheader(f"📦 Dữ liệu từ KHO PHÂN BỔ cho điểm: `{selected_location}`")
     danh_sach_phan_bo_hien_tai = get_du_lieu_vc_ld_theo_diem(selected_location)
     
     if danh_sach_phan_bo_hien_tai:
         df_display = pd.DataFrame(danh_sach_phan_bo_hien_tai)
         if st.session_state.selected_mode == "Vận Chuyển (VC)":
-            # Ánh xạ cột chuẩn sheet VAN_CHUYEN
             df_vc = df_display[["ma_da", "doi", "sku", "ten", "soluong", "donvi", "diem"]]
             df_vc.columns = ["Mã Dự Án", "Đội Nhận TB", "Mã SKU", "Tên Thiết Bị / Hàng Hóa", "Số Lượng V/C", "ĐVT / Xe", "Điểm Giao"]
             st.dataframe(df_vc, use_container_width=True, hide_index=True)
         else:
-            # Ánh xạ cột chuẩn sheet LAP_DAT
             df_ld = df_display[["ma_da", "doi", "sku", "ten", "soluong", "donvi", "diem"]]
             df_ld.columns = ["Mã Dự Án", "Đội Nhận Thiết Bị", "Mã SKU", "Tên Thiết Bị / Hàng Hóa", "Số Lượng Lắp", "ĐVT", "Địa Điểm Lắp"]
             st.dataframe(df_ld, use_container_width=True, hide_index=True)
@@ -262,7 +277,7 @@ is_lap_dat = (st.session_state.selected_mode == "Lắp Đặt (LĐ)")
 if is_lap_dat:
     st.markdown("📍 **Yêu cầu bắt buộc Check-in GPS:**")
     if not st.session_state.checked_in:
-        st.warning("⚠️ Đội lắp đặt bắt buộc phải bấm **Check-in GPS** thì mới được phép gửi báo cáo!")
+        st.warning("⚠️ Đội lắp đặt bắt buộc phải bấm **Check-in GPS** xác thực vị trí trước khi gửi báo cáo!")
         if st.button("📍 CHECK-IN TỌA ĐỘ HIỆN TRƯỜNG NGAY", use_container_width=True, type="secondary"):
             st.session_state.checked_in = True
             st.session_state.checkin_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -277,7 +292,7 @@ with col_note:
 with col_img:
     st.file_uploader("📷 Ảnh nghiệm thu", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
 
-# --- NÚT GỬI BÁO CÁO CHÍNH THỨC ---
+# --- NÚT GỬI BÁO CÁO VÀ GHI TRỰC TIẾP VÀO GOOGLE SHEETS ---
 if st.button("🚀 GỬI BÁO CÁO VÀ CẬP NHẬT HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Chọn địa điểm --":
         st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi báo cáo!")
@@ -287,8 +302,57 @@ if st.button("🚀 GỬI BÁO CÁO VÀ CẬP NHẬT HỆ THỐNG", type="primary
         st.warning("⚠️ Không có dữ liệu phân bổ từ Kho phân bổ để ghi nhận báo cáo!")
     else:
         thoi_gian_gui = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.success(f"✅ Gửi báo cáo thành công cho điểm **{selected_location}** với trạng thái '{current_action_status}'!")
-        if is_lap_dat:
-            st.caption(f"📌 Lưu vết Check-in: `{st.session_state.checkin_time}` | Thời gian hoàn thành: `{thoi_gian_gui}`")
+        client = get_gspread_client()
+        
+        if not client:
+            st.error("❌ Không thể kết nối với Google Sheets API. Vui lòng kiểm tra lại cấu hình Secrets!")
         else:
-            st.caption(f"📌 Thời gian cập nhật vận chuyển: `{thoi_gian_gui}`")
+            try:
+                sh = client.open_by_key(SHEET_ID)
+                success_count = 0
+                
+                if st.session_state.selected_mode == "Vận Chuyển (VC)":
+                    worksheet = sh.worksheet("VAN_CHUYEN")
+                    # Cấu trúc sheet VAN_CHUYEN theo ảnh:
+                    # B: Mã dự án, C: Đội nhận TB, D: Tên thiết bị / Hàng hóa, E: Số lượng vận chuyển, F: Đơn vị vận chuyển / Xe, G: Cán bộ phụ trách giao, H: Điểm giao, I: Trạng thái vận chuyển, J: Thời gian cập nhật
+                    for item in danh_sach_phan_bo_hien_tai:
+                        row_data = [
+                            "", # Cột A trống
+                            item["ma_da"],
+                            item["doi"],
+                            item["ten"],
+                            item["soluong"],
+                            item["donvi"],
+                            selected_cb,
+                            selected_location,
+                            current_action_status,
+                            thoi_gian_gui
+                        ]
+                        worksheet.append_row(row_data)
+                        success_count += 1
+                else:
+                    worksheet = sh.worksheet("LAP_DAT")
+                    # Cấu trúc sheet LAP_DAT theo ảnh:
+                    # B: Mã dự án, C: Đội nhận thiết bị, D: Tên thiết bị / Hàng hóa, E: Số lượng thiết bị lắp, F: ĐVT, G: Địa điểm lắp, H: Tình trạng thực hiện, I: Thời gian hoàn thành, J: Link Google Maps
+                    for idx, item in enumerate(danh_sach_phan_bo_hien_tai, start=1):
+                        ma_cong_viec = f"LD-{datetime.now().strftime('%m%d%H%M')}-{idx}"
+                        row_data = [
+                            ma_cong_viec, # Cột A: Mã công việc
+                            item["ma_da"],
+                            item["doi"],
+                            item["ten"],
+                            item["soluong"],
+                            item["donvi"],
+                            selected_location,
+                            current_action_status,
+                            thoi_gian_gui,
+                            "Google Maps Check-in OK"
+                        ]
+                        worksheet.append_row(row_data)
+                        success_count += 1
+                
+                st.success(f"✅ Đã ghi thành công **{success_count} dòng dữ liệu** vào sheet `{st.session_state.selected_mode}` trên Google Sheets lúc `{thoi_gian_gui}`!")
+                if is_lap_dat:
+                    st.caption(f"📌 Lưu vết Check-in lắp đặt: `{st.session_state.checkin_time}`")
+            except Exception as e:
+                st.error(f"❌ Lỗi khi ghi dữ liệu vào Google Sheets: {e}")
