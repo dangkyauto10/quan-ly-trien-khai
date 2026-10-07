@@ -7,26 +7,29 @@ import io
 st.set_page_config(page_title="Hệ thống Điều hành Hiện trường", page_icon="🚀", layout="centered")
 
 SECURE_PASS = "880880"
+# ID Google Sheet của anh
+SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
 
-# Sử dụng dữ liệu trực tiếp đồng bộ từ danh sách chuẩn thực tế của dự án để đảm bảo chạy mượt 100% không lệ thuộc API key rườm rà
-danh_sach_doi_chuan = [
-    "Nguyễn Văn Thiện", 
-    "Nguyễn Văn Hải", 
-    "Nguyễn Văn Được", 
-    "Trần Văn Chắc", 
-    "Nguyễn Đức Hải", 
-    "Trần Văn Chung", 
-    "Nguyễn Hải Nam", 
-    "Trần Văn C",
-    "Nguyễn Văn D"
-]
-
-danh_sach_diem_chuan = [
-    "Xã Sùng Máng (DA880)", 
-    "Phường Nông Tiến (DA880)", 
-    "Xã Đường Thượng (DA880)", 
-    "Xã Nà Hang (DA880)"
-]
+# Hàm lấy dữ liệu trực tiếp động từ cột của sheet qua link CSV public theo thời gian thực
+def get_live_sheet_column(gid, col_idx):
+    try:
+        url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={gid}"
+        response = urllib.request.urlopen(url)
+        lines = [line.decode('utf-8') for line in response.readlines()]
+        reader = csv.reader(lines)
+        rows = list(reader)
+        
+        col_data = []
+        # Quét từ dòng thứ 3 trở xuống (index 2 trong Python)
+        if len(rows) > 2:
+            for r in rows[2:]:
+                if len(r) > col_idx:
+                    val = r[col_idx].strip()
+                    if val != "" and val not in col_data:
+                        col_data.append(val)
+        return col_data
+    except Exception as e:
+        return []
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HỆ THỐNG ĐIỀU HÀNH & BÁO CÁO HIỆN TRƯỜNG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -63,17 +66,32 @@ if st.session_state.nav_tab == "Dang_ky":
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG")
     
-    # Hiển thịselectbox chọn Tên đội (Ánh xạ đầy đủ toàn bộ từ cột B)
-    doi_thuc_hien = st.selectbox("👥 TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", ["-- Chọn tên đội --"] + danh_sach_doi_chuan)
+    # GID của sheet QUAN_LY_DOI (lấy cột B -> index 1)
+    danh_sach_doi = get_live_sheet_column("1563705161", 1)
+    if not danh_sach_doi:
+        # Danh sách dự phòng nếu chưa public sheet
+        danh_sach_doi = [
+            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
+            "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
+            "Nguyễn Hải Nam", "Trần Văn C", "Nguyễn Văn D", "Hồ Văn H"
+        ]
+        
+    # GID của sheet DANH_SACH_DIEM (lấy cột D -> index 3) - thay gid tương ứng nếu có
+    danh_sach_diem = get_live_sheet_column("0", 3)
+    if not danh_sach_diem:
+        danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
+        
+    # Ô chọn Tên đội (Gõ tìm kiếm / Sổ xuống động hoàn toàn theo sheet)
+    doi_thuc_hien = st.selectbox("👥 TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", ["-- Chọn tên đội --"] + danh_sach_doi)
     
-    # Hiển thị selectbox chọn Địa điểm (Ánh xạ đầy đủ từ cột D)
-    diem_giao_lap = st.selectbox("📍 ĐIỂM GIAO HÀNG & LẮP ĐẶT *", ["-- Chọn địa điểm --"] + danh_sach_diem_chuan)
+    # Ô chọn Địa điểm (Gõ tìm kiếm / Sổ xuống động hoàn toàn theo sheet)
+    diem_giao_lap = st.selectbox("📍 ĐIỂM GIAO HÀNG & LẮP ĐẶT *", ["-- Chọn địa điểm --"] + danh_sach_diem)
     
     # SỐ LƯỢNG THIẾT BỊ CỐ ĐỊNH TỪ KHO THEO ĐIỂM
     so_luong_hien_tai = 0
     if diem_giao_lap != "-- Chọn địa điểm --":
-        so_luong_co_dinh = 3  # Lấy theo định mức phân bổ kho
-        st.info(f"📦 Số lượng thiết bị phân bổ tại **{diem_giao_lap}**: **{so_luong_co_dinh} bộ** (Cố định từ Kho, không thay đổi)")
+        so_luong_co_dinh = 3  # Định mức phân bổ kho
+        st.info(f"📦 Số lượng thiết bị phân bổ tại **{diem_giao_lap}**: **{so_luong_co_dinh} bộ** (Cố định từ Kho)")
         so_luong_hien_tai = st.number_input("Số lượng thiết bị áp dụng báo cáo", value=float(so_luong_co_dinh), disabled=True)
     else:
         st.info("📦 Vui lòng chọn địa điểm để hiển thị số lượng thiết bị phân bổ.")
