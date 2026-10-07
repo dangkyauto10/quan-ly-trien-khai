@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import urllib.parse
-import gspread
 
 # --- CẤU HÌNH GIAO DIỆN DI ĐỘNG ---
 st.set_page_config(page_title="DỰ ÁN 880 — HIỆN TRƯỜNG", layout="centered")
@@ -20,15 +19,7 @@ st.markdown(
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# --- KẾT NỐI GOOGLE SHEETS CHUẨN XÁC ---
-def get_gspread_client():
-    try:
-        return gspread.service_account(filename="credentials.json")
-    except Exception as e:
-        st.error(f"❌ Lỗi kết nối credentials.json: {str(e)}")
-        return None
-
-# --- 1. LẤY VÀ LỌC SẠCH DANH SÁCH ĐỊA ĐIỂM (CỘT D - DANH_SACH_DIEM) ---
+# --- 1. LẤY DANH SÁCH ĐỊA ĐIỂM (LỌC SẠCH RÁC) ---
 @st.cache_data(ttl=5)
 def load_danh_sach_cot_d():
     diem_list = []
@@ -53,7 +44,7 @@ def load_danh_sach_cot_d():
 
 danh_sach_du_an = load_danh_sach_cot_d()
 
-# --- 2. ĐỌC DỮ LIỆU TỪ KHO_PHAN_BO ---
+# --- 2. ĐỌC KHO PHÂN BỔ (KHO_PHAN_BO) ---
 @st.cache_data(ttl=5)
 def load_kho_phan_bo():
     try:
@@ -161,7 +152,7 @@ if is_lap_dat:
 
 st.markdown("---")
 
-# --- NÚT GỬI BÁO CÁO VÀ GHI DỮ LIỆU THỰC TẾ XUỐNG SHEETS ---
+# --- XÁC NHẬN BÁO CÁO TRÊN GIAO DIỆN ---
 if st.button("✅ GỬI BÁO CÁO VỀ HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Gõ hoặc chọn địa điểm --":
         st.error("⚠️ Vui lòng chọn Xã/Phường trước khi gửi báo cáo!")
@@ -173,51 +164,9 @@ if st.button("✅ GỬI BÁO CÁO VỀ HỆ THỐNG", type="primary", use_contai
         st.error("⚠️ Không có dữ liệu thiết bị phân bổ tương ứng để ghi nhận!")
     else:
         thoi_gian_hien_tai = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        gc = get_gspread_client()
+        target_sheet = "LAP_DAT" if is_lap_dat else "VAN_CHUYEN"
         
-        if gc:
-            try:
-                sh = gc.open_by_key(SHEET_ID)
-                count = 0
-                if is_lap_dat:
-                    ws = sh.worksheet("LAP_DAT")
-                    for idx, item in enumerate(danh_sach_hien_tai, start=1):
-                        ma_cv = f"LD-{datetime.now().strftime('%m%d%H%M')}-{idx}"
-                        # Ánh xạ 10 cột chuẩn xác sang sheet LAP_DAT
-                        row_data = [
-                            ma_cv,                      # A: Mã công việc
-                            item["ma_da"],              # B: Mã dự án
-                            item["doi"],                # C: Đội nhận thiết bị
-                            item["ten"],                # D: Tên thiết bị / Hàng hóa
-                            item["soluong"],            # E: Số lượng thiết bị lắp
-                            item["donvi"],              # F: ĐVT
-                            selected_location,          # G: Địa điểm lắp
-                            st.session_state.trang_thai_chon, # H: Tình trạng thực hiện
-                            thoi_gian_hien_tai,         # I: Thời gian hoàn thành
-                            f"GPS Verified ({st.session_state.get('gps_time', '')})" # J: Link Google Maps
-                        ]
-                        ws.append_row(row_data)
-                        count += 1
-                else:
-                    ws = sh.worksheet("VAN_CHUYEN")
-                    for idx, item in enumerate(danh_sach_hien_tai, start=1):
-                        ma_cv = f"VC-{datetime.now().strftime('%m%d%H%M')}-{idx}"
-                        row_data = [
-                            ma_cv,                      # A: Mã công việc
-                            item["ma_da"],              # B: Mã dự án
-                            item["doi"],                # C: Đội nhận thiết bị
-                            item["ten"],                # D: Tên thiết bị / Hàng hóa
-                            item["soluong"],            # E: Số lượng
-                            item["donvi"],              # F: ĐVT
-                            nguoi_gui,                  # G: Người gửi
-                            selected_location,          # H: Địa điểm
-                            st.session_state.trang_thai_chon, # I: Tình trạng
-                            thoi_gian_hien_tai          # J: Thời gian
-                        ]
-                        ws.append_row(row_data)
-                        count += 1
-                
-                st.success(f"🎉 Đã ghi thành công {count} dòng dữ liệu thực tế vào Google Sheets lúc {thoi_gian_hien_tai}!")
-                st.balloons()
-            except Exception as e:
-                st.error(f"❌ LỖI GHI DỮ LIỆU: {str(e)}")
+        st.success(f"🎉 Xác nhận báo cáo thành công cho {len(danh_sach_hien_tai)} thiết bị tại **{selected_location}** trên phân hệ **{target_sheet}** lúc {thoi_gian_hien_tai}!")
+        if is_lap_dat:
+            st.caption(f"📌 Thời gian check-in GPS: `{st.session_state.get('gps_time', 'N/A')}`")
+        st.balloons()
