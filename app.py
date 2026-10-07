@@ -67,7 +67,6 @@ elif st.session_state.nav_tab == "Bao_cao":
     danh_sach_du_an = ["DA880 - Nâng cấp hạ tầng kỹ thuật", "DA76 - Cung cấp thiết bị thôn xã"]
     du_an_chon = st.selectbox("📂 CHỌN DỰ ÁN TRIỂN KHAI *", danh_sach_du_an)
     
-    # Đọc trực tiếp động hoàn toàn từ cột B (index 1) của sheet QUAN_LY_DOI
     danh_sach_doi = get_live_csv_column("1563705161", 1)
     
     danh_sach_diem = get_live_csv_column("0", 3)
@@ -117,4 +116,14 @@ elif st.session_state.nav_tab == "Bao_cao":
             else:
                 st.success(f"🎉 Gửi báo cáo thành công TRỌN GÓI: **ĐÃ GIAO VÀ LẮP XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})!")
 
-# ================= 3. TAB
+# ================= 3. TAB ADMIN DUYỆT (PASS: 880880) =================
+elif st.session_state.nav_tab == "Admin":
+    st.markdown("### 🔒 KHU VỰC QUẢN TRỊ - ADMIN DUYỆT")
+    pass_input = st.text_input("Nhập mật khẩu quản trị (Mã PIN):", type="password")
+    if pass_input == SECURE_PASS:
+        st.success("🔓 Đăng nhập Admin thành công!")
+        st.write("- [Chờ duyệt] Thành viên đăng ký mới")
+        if st.button("✅ Duyệt tất cả tài khoản"): 
+            st.success("Đã phê duyệt thành công!")
+    elif pass_input != "": 
+        st.error("❌ Sai mật khẩu bảo mật! (Pass: 880880)")
