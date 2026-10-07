@@ -20,7 +20,7 @@ st.markdown(
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 # DÁN URL GOOGLE APPS SCRIPT WEB APP CỦA ANH VÀO ĐÂY:
-WEB_APP_URL = "ĐIỀN_URL_WEB_APP_VÀO_ĐÂY"
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxj_X9mQol-kkcJ4q9B9O5PwvODKp5H_HSoGFeWGMAiJ19xF77b-X-_EHo0jPpvMRs5ZA/exec"
 
 # --- 1. LẤY DANH SÁCH ĐỊA ĐIỂM ĐỘNG TỪ CỘT D (DANH_SACH_DIEM) ---
 @st.cache_data(ttl=5)
