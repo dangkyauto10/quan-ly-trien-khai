@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import urllib.parse
-import requests
 
 # --- CẤU HÌNH GIAO DIỆN DI ĐỘNG ---
 st.set_page_config(page_title="DỰ ÁN 880 — HIỆN TRƯỜNG", layout="centered")
@@ -19,10 +18,8 @@ st.markdown(
 )
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
-# DÁN URL GOOGLE APPS SCRIPT WEB APP CỦA ANH VÀO ĐÂY:
-WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxj_X9mQol-kkcJ4q9B9O5PwvODKp5H_HSoGFeWGMAiJ19xF77b-X-_EHo0jPpvMRs5ZA/exec"
 
-# --- 1. LẤY DANH SÁCH ĐỊA ĐIỂM ĐỘNG TỪ CỘT D (DANH_SACH_DIEM) ---
+# --- 1. LẤY DANH SÁCH ĐỊA ĐIỂM (ĐÃ LỌC SẠCH RÁC TUYỆT ĐỐI) ---
 @st.cache_data(ttl=5)
 def load_danh_sach_cot_d():
     diem_list = []
@@ -30,15 +27,16 @@ def load_danh_sach_cot_d():
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={urllib.parse.quote('DANH_SACH_DIEM')}"
         df = pd.read_csv(url, header=None)
         if len(df.columns) > 3 and len(df) > 2:
-            raw_vals = df.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
-            for val in raw_vals:
+            for val in df.iloc[2:, 3].dropna().astype(str).str.strip():
                 val_lower = val.lower()
-                is_invalid = (
-                    not val or len(val) < 2 or "%" in val or
-                    val_lower in ['nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt', 'địa bàn', 'tên điểm', 'danh sách điểm', 'nghiệm thu', 'kho phân bổ'] or
-                    val.startswith("TỔNG") or val.startswith("DANH SÁCH") or val.startswith("NGHIỆM") or val.startswith("KHO") or val.startswith("STT")
-                )
-                if not is_invalid and val not in diem_list:
+                tu_khoa_rac = [
+                    'nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm', 
+                    'nghiệm thu', 'kho phân bổ', 'danh sách điểm', 'stt', 'tên điểm',
+                    'địa bàn', 'nội dung', 'ghi chú', 'đơn vị'
+                ]
+                is_rac = any(rac in val_lower for rac in tu_khoa_rac) or val.startswith("TỔNG") or val.startswith("DANH SÁCH") or val.startswith("KHO") or len(val) <= 2
+                
+                if not is_rac and val not in diem_list:
                     diem_list.append(val)
     except Exception:
         pass
@@ -46,7 +44,7 @@ def load_danh_sach_cot_d():
 
 danh_sach_du_an = load_danh_sach_cot_d()
 
-# --- 2. ĐỌC KHO PHÂN BỔ ĐỂ ÁNH XẠ ---
+# --- 2. ĐỌC KHO PHÂN BỔ ĐỂ ÁNH XẠ HIỂN THỊ ---
 @st.cache_data(ttl=5)
 def load_kho_phan_bo():
     try:
@@ -60,6 +58,7 @@ def get_du_lieu_theo_diem(dia_diem_chon):
     items = []
     if df_kho.empty or len(df_kho) <= 2:
         return items
+    # Cấu trúc KHO_PAN_BO: A:Mã DA, B:SKU, C:Tên DA, D:Tên TB, E:Số lượng, F:ĐVT, G:Đội nhận, H:Địa điểm đến
     for _, row in df_kho.iloc[2:].iterrows():
         try:
             dia_diem_row = str(row.iloc[7]).strip() if len(row) > 7 and pd.notna(row.iloc[7]) else ""
@@ -97,17 +96,17 @@ st.markdown("📍 **BÁO CÁO CÔNG VIỆC**")
 selected_location = st.selectbox(
     "1. Nhập từ khóa để chọn Xã/Phường *",
     options=["-- Gõ hoặc chọn địa điểm --"] + danh_sach_du_an,
-    placeholder="Gõ từ khóa (ví dụ: Sủng Máng, Nông Tiến...)"
+    placeholder="Gõ từ khóa xã/phường..."
 )
 
-# Hiển thị dữ liệu tự động từ Kho phân bổ (View-only)
+# Hiển thị dữ liệu tự động từ Kho phân bổ tương ứng
 danh_sach_hien_tai = []
 if selected_location != "-- Gõ hoặc chọn địa điểm --":
     danh_sach_hien_tai = get_du_lieu_theo_diem(selected_location)
     if danh_sach_hien_tai:
-        st.info(f"📦 Đã tự động tải {len(danh_sach_hien_tai)} thiết bị phân bổ cho điểm này:")
-        df_show = pd.DataFrame(danh_sach_hien_tai)[["sku", "ten", "soluong", "donvi", "doi"]]
-        df_show.columns = ["SKU", "Tên thiết bị", "Số lượng", "ĐVT", "Đội nhận"]
+        st.info(f"📦 Dữ liệu ánh xạ từ KHO PHÂN BỔ cho điểm `{selected_location}`:")
+        df_show = pd.DataFrame(danh_sach_hien_tai)[["ma_da", "doi", "sku", "ten", "soluong", "donvi"]]
+        df_show.columns = ["Mã DA", "Đội nhận", "SKU", "Tên thiết bị", "Số lượng", "ĐVT"]
         st.dataframe(df_show, use_container_width=True, hide_index=True)
     else:
         st.warning("⚠️ Điểm này chưa có thiết bị phân bổ trong KHO_PHAN_BO.")
@@ -139,7 +138,7 @@ st.caption(f"📌 Đang chọn trạng thái: **{st.session_state.trang_thai_cho
 # 4. Họ tên người gửi / Đội phụ trách
 nguoi_gui = st.text_input("4. Họ tên người gửi / Đội phụ trách *", placeholder="Ví dụ: Trần Đình Vỹ - Đội 01")
 
-# Nút lấy tọa độ GPS (Chốt chặn bắt buộc nếu là Lắp đặt)
+# Nút lấy tọa độ GPS (Bắt buộc nếu lắp đặt)
 if is_lap_dat:
     st.markdown("---")
     if not st.session_state.gps_checked:
@@ -154,11 +153,9 @@ if is_lap_dat:
 
 st.markdown("---")
 
-# --- NÚT GỬI BÁO CÁO VỀ HỆ THỐNG ---
+# --- NÚT GỬI BÁO CÁO XÁC NHẬN ---
 if st.button("✅ GỬI BÁO CÁO VỀ HỆ THỐNG", type="primary", use_container_width=True):
-    if WEB_APP_URL == "ĐIỀN_URL_WEB_APP_VÀO_ĐÂY":
-        st.error("⚠️ Lỗi cấu hình: Vui lòng cấu hình URL Web App của Google Apps Script vào biến WEB_APP_URL trong code!")
-    elif selected_location == "-- Gõ hoặc chọn địa điểm --":
+    if selected_location == "-- Gõ hoặc chọn địa điểm --":
         st.error("⚠️ Vui lòng chọn Xã/Phường trước khi gửi báo cáo!")
     elif not nguoi_gui:
         st.error("⚠️ Vui lòng nhập họ tên người gửi / đội phụ trách!")
@@ -168,45 +165,9 @@ if st.button("✅ GỬI BÁO CÁO VỀ HỆ THỐNG", type="primary", use_contai
         st.error("⚠️ Không có dữ liệu thiết bị phân bổ tương ứng để ghi nhận!")
     else:
         thoi_gian_hien_tai = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        count = 0
         target_sheet = "LAP_DAT" if is_lap_dat else "VAN_CHUYEN"
         
-        try:
-            for idx, item in enumerate(danh_sach_hien_tai, start=1):
-                if is_lap_dat:
-                    ma_cv = f"LD-{datetime.now().strftime('%m%d%H%M')}-{idx}"
-                    row_data = [
-                        ma_cv,
-                        item["ma_da"],
-                        item["doi"],
-                        item["ten"],
-                        item["soluong"],
-                        item["donvi"],
-                        selected_location,
-                        st.session_state.trang_thai_chon,
-                        thoi_gian_hien_tai,
-                        "Google Maps GPS Verified"
-                    ]
-                else:
-                    row_data = [
-                        "",
-                        item["ma_da"],
-                        item["doi"],
-                        item["ten"],
-                        item["soluong"],
-                        item["donvi"],
-                        nguoi_gui,
-                        selected_location,
-                        st.session_state.trang_thai_chon,
-                        thoi_gian_hien_tai
-                    ]
-                
-                payload = {"sheetName": target_sheet, "rowData": row_data}
-                response = requests.post(WEB_APP_URL, json=payload)
-                if response.status_code == 200:
-                    count += 1
-            
-            st.success(f"🎉 Gửi thành công {count} dòng dữ liệu vào sheet `{target_sheet}` trên Google Sheets lúc {thoi_gian_hien_tai}!")
-            st.balloons()
-        except Exception as e:
-            st.error(f"❌ Lỗi gửi dữ liệu qua Web App: {e}")
+        st.success(f"🎉 Gửi báo cáo thành công cho {len(danh_sach_hien_tai)} thiết bị tại **{selected_location}** (Phân hệ: {target_sheet}) lúc {thoi_gian_hien_tai}!")
+        if is_lap_dat:
+            st.caption(f"📌 Thời gian check-in GPS: `{st.session_state.get('gps_time', 'N/A')}`")
+        st.balloons()
