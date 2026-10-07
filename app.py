@@ -8,6 +8,7 @@ st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_ic
 SECURE_PASS = "880880"
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
 
+@st.cache_resource
 def get_gspread_client():
     try:
         if "gcp_service_account" in st.secrets:
@@ -19,7 +20,7 @@ def get_gspread_client():
         pass
     return None
 
-def get_sheet_column_values(sheet_name, col_idx):
+def get_sheet_column_values_direct(sheet_name, col_idx):
     try:
         client = get_gspread_client()
         if client:
@@ -83,19 +84,19 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.cache_resource.clear()
             st.rerun()
 
-    # Đọc trực tiếp từ sheet QUAN_LY_DOI cột B (index 1)
-    danh_sach_doi = get_sheet_column_values("QUAN_LY_DOI", 1)
+    # Đọc trực tiếp từ Google Sheets qua API gspread (cột B / index 1)
+    danh_sach_doi = get_sheet_column_values_direct("QUAN_LY_DOI", 1)
     if not danh_sach_doi:
         danh_sach_doi = [
             "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
             "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
             "Nguyễn Hải Nam", "Trần Văn C", "Nguyễn Văn D", "Hồ Văn H", 
             "Nguyễn Văn Ngu", "Như Con Lợn", "Không thì là Bò", 
-            "15 Nó là Súc Vật", "17 Đc Không"
+            "15 Nó là Súc Vật", "17 Đc Không", "18 đc nào"
         ]
         
-    # Đọc trực tiếp từ sheet DANH_SACH_DIEM cột D (index 3)
-    danh_sach_diem = get_sheet_column_values("DANH_SACH_DIEM", 3)
+    # Đọc trực tiếp từ Google Sheets qua API gspread (cột D / index 3)
+    danh_sach_diem = get_sheet_column_values_direct("DANH_SACH_DIEM", 3)
     if not danh_sach_diem:
         danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
         
