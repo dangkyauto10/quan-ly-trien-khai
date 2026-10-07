@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import urllib.parse
+import gspread
 
 # --- CẤU HÌNH GIAO DIỆN DI ĐỘNG ---
 st.set_page_config(page_title="DỰ ÁN 880 — HIỆN TRƯỜNG", layout="centered")
@@ -19,7 +20,14 @@ st.markdown(
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# --- 1. LẤY DANH SÁCH ĐỊA ĐIỂM (LỌC SẠCH RÁC) ---
+# --- KẾT NỐI GOOGLE SHEETS THÔNG QUA CREDENTIALS.JSON ---
+def get_gspread_client():
+    try:
+        return gspread.service_account(filename="credentials.json")
+    except Exception as e:
+        return None
+
+# --- 1. LẤY VÀ LỌC SẠCH DANH SÁCH ĐỊA ĐIỂM (CỘT D - DANH_SACH_DIEM) ---
 @st.cache_data(ttl=5)
 def load_danh_sach_cot_d():
     diem_list = []
@@ -44,8 +52,8 @@ def load_danh_sach_cot_d():
 
 danh_sach_du_an = load_danh_sach_cot_d()
 
-# --- 2. ĐỌC KHO PHÂN BỔ (KHO_PHAN_BO) ---
-@st.cache_data(ttl=5)
+# --- 2. ĐỌC DỮ LIỆU TỪ KHO_PHAN_BO VÀ TỰ ĐỘNG ÁNH XẠ SANG VAN_CHUYEN & LAP_DAT ---
+@st.cache_data(ttl=2)
 def load_kho_phan_bo():
     try:
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={urllib.parse.quote('KHO_PHAN_BO')}"
@@ -53,12 +61,78 @@ def load_kho_phan_bo():
     except Exception:
         return pd.DataFrame()
 
+def sync_kho_to_target_sheets():
+    """Hàm tự động ánh xạ dữ liệu từ KHO_PHAN_BO sang VAN_CHUYEN và LAP_DAT ngay khi có số liệu, bất kể chưa có tên đội"""
+    gc = get_gspread_client()
+    if not gc:
+        return
+    try:
+        sh = gc.open_by_key(SHEET_ID)
+        df_kho = pd.read_csv(f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={urllib.parse.quote('KHO_PHAN_BO')}", header=None)
+        
+        if df_kho.empty or len(df_kho) <= 2:
+            return
+
+        ws_vc = sh.worksheet("VAN_CHUYEN")
+        ws_ld = sh.worksheet("LAP_DAT")
+        
+        existing_vc = ws_vc.get_all_values()
+        existing_ld = ws_ld.get_all_values()
+        
+        # Key nhận diện dòng: Mã DA + Tên thiết bị + Địa điểm đến
+        existing_vc_keys = {f"{row[1]}_{row[3]}_{row[7]}" for row in existing_vc[2:]} if len(existing_vc) > 2 else set()
+        existing_ld_keys = {f"{row[1]}_{row[3]}_{row[6]}" for row in existing_ld[2:]} if len(existing_ld) > 2 else set()
+
+        thoi_gian_hien_tai = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Duyệt qua KHO_PHAN_BO từ dòng 3 (index 2)
+        for idx, row in df_kho.iloc[2:].iterrows():
+            try:
+                ma_da = str(row.iloc[0]).strip() if len(row) > 0 and pd.notna(row.iloc[0]) else "DA880"
+                sku = str(row.iloc[1]).strip() if len(row) > 1 and pd.notna(row.iloc[1]) else "---"
+                ten_tb = str(row.iloc[3]).strip() if len(row) > 3 and pd.notna(row.iloc[3]) else "---"
+                so_luong = str(row.iloc[4]).strip() if len(row) > 4 and pd.notna(row.iloc[4]) else "0"
+                don_vi = str(row.iloc[5]).strip() if len(row) > 5 and pd.notna(row.iloc[5]) else ""
+                doi_nhan = str(row.iloc[6]).strip() if len(row) > 6 and pd.notna(row.iloc[6]) else "Chưa phân công"
+                dia_diem = str(row.iloc[7]).strip() if len(row) > 7 and pd.notna(row.iloc[7]) else ""
+
+                if not dia_diem or dia_diem.lower() == "nan" or dia_diem.lower() == "":
+                    continue
+
+                # 1. Ánh xạ sang VAN_CHUYEN
+                vc_key = f"{ma_da}_{ten_tb}_{dia_diem}"
+                if vc_key not in existing_vc_keys:
+                    ma_cv_vc = f"VC-{datetime.now().strftime('%m%d%H%M')}-{idx}"
+                    row_vc = [
+                        ma_cv_vc, ma_da, doi_nhan, ten_tb, so_luong, don_vi, 
+                        doi_nhan, dia_diem, "Chờ xử lý", thoi_gian_hien_tai
+                    ]
+                    ws_vc.append_row(row_vc)
+                    existing_vc_keys.add(vc_key)
+
+                # 2. Ánh xạ sang LAP_DAT
+                ld_key = f"{ma_da}_{ten_tb}_{dia_diem}"
+                if ld_key not in existing_ld_keys:
+                    ma_cv_ld = f"LD-{datetime.now().strftime('%m%d%H%M')}-{idx}"
+                    row_ld = [
+                        ma_cv_ld, ma_da, doi_nhan, ten_tb, so_luong, don_vi, 
+                        dia_diem, "Chờ lắp đặt", thoi_gian_hien_tai, "Chưa check-in GPS"
+                    ]
+                    ws_ld.append_row(row_ld)
+                    existing_ld_keys.add(ld_key)
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+# Tự động thực thi ánh xạ
+sync_kho_to_target_sheets()
+
 def get_du_lieu_theo_diem(dia_diem_chon):
     df_kho = load_kho_phan_bo()
     items = []
     if df_kho.empty or len(df_kho) <= 2:
         return items
-    # Cấu trúc KHO_PHAN_BO: A:Mã DA, B:SKU, C:Tên DA, D:Tên TB, E:Số lượng, F:ĐVT, G:Đội nhận, H:Địa điểm đến
     for _, row in df_kho.iloc[2:].iterrows():
         try:
             dia_diem_row = str(row.iloc[7]).strip() if len(row) > 7 and pd.notna(row.iloc[7]) else ""
@@ -152,7 +226,7 @@ if is_lap_dat:
 
 st.markdown("---")
 
-# --- XÁC NHẬN BÁO CÁO TRÊN GIAO DIỆN ---
+# --- XÁC NHẬN BÁO CÁO HIỆN TRƯỜNG ---
 if st.button("✅ GỬI BÁO CÁO VỀ HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Gõ hoặc chọn địa điểm --":
         st.error("⚠️ Vui lòng chọn Xã/Phường trước khi gửi báo cáo!")
@@ -166,7 +240,7 @@ if st.button("✅ GỬI BÁO CÁO VỀ HỆ THỐNG", type="primary", use_contai
         thoi_gian_hien_tai = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         target_sheet = "LAP_DAT" if is_lap_dat else "VAN_CHUYEN"
         
-        st.success(f"🎉 Xác nhận báo cáo thành công cho {len(danh_sach_hien_tai)} thiết bị tại **{selected_location}** trên phân hệ **{target_sheet}** lúc {thoi_gian_hien_tai}!")
+        st.success(f"🎉 Gửi báo cáo thành công cho {len(danh_sach_hien_tai)} thiết bị tại **{selected_location}** trên phân hệ **{target_sheet}** lúc {thoi_gian_hien_tai}!")
         if is_lap_dat:
             st.caption(f"📌 Thời gian check-in GPS: `{st.session_state.get('gps_time', 'N/A')}`")
         st.balloons()
