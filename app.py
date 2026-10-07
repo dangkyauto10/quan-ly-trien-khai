@@ -62,36 +62,38 @@ if st.session_state.nav_tab == "Dang_ky":
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG")
     
-    # 1. Lấy Tên đội từ Cột B (index 1) của sheet QUAN_LY_DOI (từ dòng 3 trở xuống)
+    # ĐỌC ĐỘNG 100% TỪ CỘT B SHEET QUAN_LY_DOI (TỪ DÒNG 3 TRỞ XUỐNG)
     doi_rows = get_sheet_data("QUAN_LY_DOI")
     danh_sach_doi = []
     if len(doi_rows) > 2:
         for r in doi_rows[2:]:
-            if len(r) > 1 and r[1].strip() != "":
-                danh_sach_doi.append(r[1].strip())
-    if not danh_sach_doi:
-        danh_sach_doi = [
-            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
-            "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
-            "Nguyễn Hải Nam", "Trần Văn C"
-        ]
-        
-    # 2. Lấy Điểm giao hàng & lắp đặt từ Cột D (index 3) của sheet DANH_SACH_DIEM (từ dòng 3 trở xuống)
+            if len(r) > 1 and r[1] and r[1].strip() != "":
+                val = r[1].strip()
+                if val not in danh_sach_doi:
+                    danh_sach_doi.append(val)
+                    
+    # ĐỌC ĐỘNG 100% TỪ CỘT D SHEET DANH_SACH_DIEM (TỪ DÒNG 3 TRỞ XUỐNG)
     diem_rows = get_sheet_data("DANH_SACH_DIEM")
     danh_sach_diem = []
     if len(diem_rows) > 2:
         for r in diem_rows[2:]:
-            if len(r) > 3 and r[3].strip() != "":
-                danh_sach_diem.append(r[3].strip())
+            if len(r) > 3 and r[3] and r[3].strip() != "":
+                val = r[3].strip()
+                if val not in danh_sach_diem:
+                    danh_sach_diem.append(val)
+                    
+    # Nếu chưa kết nối được sheet (đề phòng mạng/lỗi API), hiển thị thông báo hướng dẫn rõ ràng
+    if not danh_sach_doi:
+        danh_sach_doi = ["(Chưa tải được dữ liệu từ sheet QUAN_LY_DOI cột B)"]
     if not danh_sach_diem:
-        danh_sach_diem = ["Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", "Xã Nà Hang"]
+        danh_sach_diem = ["(Chưa tải được dữ liệu từ sheet DANH_SACH_DIEM cột D)"]
         
     doi_thuc_hien = st.selectbox("👥 TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", ["-- Chọn tên đội --"] + danh_sach_doi)
     diem_giao_lap = st.selectbox("📍 ĐIỂM GIAO HÀNG & LẮP ĐẶT *", ["-- Chọn địa điểm --"] + danh_sach_diem)
     
-    # 3. Số lượng thiết bị từ KHO_PHAN_BO hiển thị cố định theo điểm đã chọn
+    # SỐ LƯỢNG THIẾT BỊ CỐ ĐỊNH TỪ KHO THEO ĐIỂM
     so_luong_hien_tai = 0
-    if diem_giao_lap != "-- Chọn địa điểm --":
+    if diem_giao_lap != "-- Chọn địa điểm --" and not diem_giao_lap.startswith("("):
         kho_rows = get_sheet_data("KHO_PHAN_BO")
         tong_sl_diem = 0
         if len(kho_rows) > 2:
@@ -102,7 +104,7 @@ elif st.session_state.nav_tab == "Bao_cao":
                     except:
                         pass
         if tong_sl_diem == 0:
-            tong_sl_diem = 3
+            tong_sl_diem = 1
             
         st.info(f"📦 Số lượng thiết bị phân bổ tại **{diem_giao_lap}**: **{tong_sl_diem}** (Cố định từ Kho)")
         so_luong_hien_tai = st.number_input("Số lượng thiết bị áp dụng báo cáo", value=float(tong_sl_diem), disabled=True)
@@ -121,24 +123,29 @@ elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("---")
     st.markdown("### 🎛️ BÁO CÁO XÁC NHẬN (3 NÚT RIÊNG BIỆT):")
     
-    # 4. Ba nút báo cáo riêng biệt theo đúng yêu cầu
     col_b1, col_b2, col_b3 = st.columns(3)
     with col_b1:
         if st.button("✅ ĐÃ GIAO XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
-                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
+            if doi_thuc_hien.startswith("--") or doi_thuc_hien.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Tên đội hợp lệ!")
+            elif diem_giao_lap.startswith("--") or diem_giao_lap.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Địa điểm hợp lệ!")
             else:
                 st.success(f"🎉 Gửi báo cáo thành công: ĐÃ GIAO XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
     with col_b2:
         if st.button("✅ ĐÃ LẮP XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
-                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
+            if doi_thuc_hien.startswith("--") or doi_thuc_hien.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Tên đội hợp lệ!")
+            elif diem_giao_lap.startswith("--") or diem_giao_lap.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Địa điểm hợp lệ!")
             else:
                 st.success(f"🎉 Gửi báo cáo thành công: ĐÃ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
     with col_b3:
         if st.button("🚀 ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
-                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
+            if doi_thuc_hien.startswith("--") or doi_thuc_hien.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Tên đội hợp lệ!")
+            elif diem_giao_lap.startswith("--") or diem_giao_lap.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Địa điểm hợp lệ!")
             else:
                 st.success(f"🎉 Gửi báo cáo thành công TRỌN GÓI: ĐÃ GIAO VÀ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
 
