@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 import urllib.parse
 
-# --- CẤU HÌNH GIAO DIỆN GỌN GÀNG ---
+# --- CẤU HÌNH GIAO DIỆN AN TOÀN ---
 st.set_page_config(page_title="Hệ Thống Điều Hành Dự Án", layout="centered")
 
 st.markdown(
@@ -18,35 +18,34 @@ st.markdown(
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# --- HÀM ĐỌC CHUẨN XÁC 100% CỘT D TỪ TAB DANH_SACH_DIEM ---
+# --- 1. HÀM TẢI ĐỊA ĐIỂM CHUẨN TỪ CỘT D (DANH_SACH_DIEM) ---
 @st.cache_data(ttl=5)
 def load_danh_sach_cot_d():
     diem_list = []
     try:
-        sheet_name_encoded = urllib.parse.quote("DANH_SACH_DIEM")
-        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={sheet_name_encoded}"
+        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={urllib.parse.quote('DANH_SACH_DIEM')}"
         df = pd.read_csv(url, header=None)
-        
-        # Cột D là index 3. Lấy từ dòng thứ 3 trở xuống để bỏ qua các tiêu đề bảng trên cùng
-        if len(df.columns) > 3:
-            raw_vals = df.iloc[3:, 3].dropna().astype(str).str.strip().tolist()
+        if len(df.columns) > 3 and len(df) > 2:
+            raw_vals = df.iloc[2:, 3].dropna().astype(str).str.strip().tolist()
             for val in raw_vals:
                 val_lower = val.lower()
-                # Chỉ bỏ qua các ô trống hoặc tiêu đề thực sự, giữ lại tất cả tên điểm ở cột D
-                if val and val_lower not in ['nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt', 'địa bàn', 'tên điểm', 'danh sách điểm', 'nghiệm thu']:
-                    if val not in diem_list:
-                        diem_list.append(val)
-    except Exception as e:
+                is_invalid = (
+                    not val or len(val) < 2 or "%" in val or
+                    val_lower in ['nan', 'none', '', '0', '0.0', 'tỉnh', 'huyện', 'địa điểm giao hàng và lắp đặt', 'địa bàn', 'tên điểm', 'danh sách điểm', 'nghiệm thu', 'kho phân bổ'] or
+                    val.startswith("TỔNG") or val.startswith("DANH SÁCH") or val.startswith("NGHIỆM") or val.startswith("KHO") or val.startswith("STT")
+                )
+                if not is_invalid and val not in diem_list:
+                    diem_list.append(val)
+    except Exception:
         pass
         
-    # Mảng dự phòng an toàn tuyệt đối nếu không gọi được mạng
     if not diem_list:
         diem_list = [
             "Phường Minh Xuân", "Phường Nông Tiến", "Phường Bình Thuận", "Phường An Tường", "Phường Mỹ Lâm",
             "Xã Nhữ Khê", "Xã Yên Sơn", "Xã Tân Long", "Xã Lực Hành", "Xã Xuân Vân", "Xã Thái Bình",
             "Xã Hùng Lợi", "Xã Trung Sơn", "Xã Kiến Thiết", "Xã Đông Thọ", "Xã Hồng Sơn", "Xã Trường Sinh",
             "Xã Phú Lượng", "Xã Sơn Thủy", "Xã Minh Thanh", "Xã Tân Trào", "Xã Tân Thanh", "Xã Bình Ca",
-            "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Trí Phú", "Xã Kiên Đài", "Xã Hòa An",
+            "Xã Sơn Dương", "Xã Yên Nguyên", "Xã Kim Bình", "Xã Tri Phú", "Xã Kiên Đài", "Xã Hòa An",
             "Xã Chiêm Hóa", "Xã Tân An", "Xã Tân Mỹ", "Xã Yên Lập", "Xã Trung Hà", "Xã Thượng Nông",
             "Xã Yên Hoa", "Xã Nà Hang", "Xã Hồng Thái", "Xã Côn Lôn", "Xã Thượng Lâm", "Xã Lâm Bình",
             "Xã Minh Quang", "Xã Bình An", "Xã Hùng Đức", "Xã Bạch Xa", "Xã Yên Phú", "Xã Hàm Yên",
@@ -68,35 +67,60 @@ def load_danh_sach_cot_d():
             "Đảng ủy Quân sự tỉnh", "Văn phòng Tỉnh ủy", "Ban Nội chính Tỉnh ủy", "Ban Tuyên giáo và dân vận Tỉnh ủy",
             "Cơ quan UBKT Tỉnh ủy"
         ]
-        
     return diem_list
 
 danh_sach_du_an = load_danh_sach_cot_d()
 
-# --- HÀM TẢI DỮ LIỆU ĐĂNG KÝ ĐỂ ADMIN DUYỆT ---
+# --- 2. HÀM ĐỌC KHO PHÂN BỔ (KHO_PAN_BO) CHÍNH XÁC ---
+@st.cache_data(ttl=5)
+def load_kho_phan_bo():
+    try:
+        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={urllib.parse.quote('KHO_PAN_BO')}"
+        return pd.read_csv(url, header=None)
+    except Exception:
+        return pd.DataFrame()
+
+def get_thiet_bi_theo_dia_diem(dia_diem_chon):
+    df_kho = load_kho_phan_bo()
+    items = []
+    if df_kho.empty or len(df_kho) <= 2:
+        return items
+    
+    # Cấu trúc KHO_PAN_BO thực tế: A:Mã DA, B:SKU, C:Tên DA, D:Tên TB, E:Số lượng, F:ĐVT, G:Đội nhận, H:Địa điểm đến
+    for _, row in df_kho.iloc[2:].iterrows():
+        try:
+            dia_diem_row = str(row.iloc[7]).strip() if len(row) > 7 and pd.notna(row.iloc[7]) else ""
+            if dia_diem_row.lower() == dia_diem_chon.lower():
+                items.append({
+                    "ma_da": str(row.iloc[0]).strip() if len(row) > 0 and pd.notna(row.iloc[0]) else "DA880",
+                    "sku": str(row.iloc[1]).strip() if len(row) > 1 and pd.notna(row.iloc[1]) else "---",
+                    "ten": str(row.iloc[3]).strip() if len(row) > 3 and pd.notna(row.iloc[3]) else "---",
+                    "soluong": str(row.iloc[4]).strip() if len(row) > 4 and pd.notna(row.iloc[4]) else "0",
+                    "donvi": str(row.iloc[5]).strip() if len(row) > 5 and pd.notna(row.iloc[5]) else "",
+                    "doi": str(row.iloc[6]).strip() if len(row) > 6 and pd.notna(row.iloc[6]) else "Chưa phân công"
+                })
+        except Exception:
+            continue
+    return items
+
+# --- 3. HÀM TẢI DỮ LIỆU ĐĂNG KÝ (ĐĂNG_KÝ_THÀNH_VIÊN) ---
 @st.cache_data(ttl=5)
 def load_dang_ky_data():
     try:
-        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=ĐĂNG_KÝ_THÀNH_VIÊN"
+        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={urllib.parse.quote('ĐĂNG_KÝ_THÀNH_VIÊN')}"
         return pd.read_csv(url, header=None)
     except:
-        try:
-            url_alt = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-            return pd.read_csv(url_alt, header=None)
-        except:
-            return pd.DataFrame()
+        return pd.DataFrame()
 
 # --- QUẢN LÝ TRANG & TRẠNG THÁI ---
-if "page" not in st.session_state:
-    st.session_state.page = "home"
-
-if "admin_mode" not in st.session_state:
-    st.session_state.admin_mode = False
+if "page" not in st.session_state: st.session_state.page = "home"
+if "admin_mode" not in st.session_state: st.session_state.admin_mode = False
+if "checked_in" not in st.session_state: st.session_state.checked_in = False
+if "selected_status" not in st.session_state: st.session_state.selected_status = "Đang vận chuyển"
 
 # --- GIAO DIỆN CHÍNH ---
 st.title("📱 ĐIỀU HÀNH HIỆN TRƯỜNG")
 
-# Khu vực quản trị thu gọn
 with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=False):
     pass_input = st.text_input("Nhập Pass Quản Trị:", type="password", placeholder="Mật khẩu...")
     ADMIN_PASSWORDS = ["S90880", "880880"]
@@ -127,19 +151,16 @@ with st.expander("🔑 Khu vực Quản Trị & Chức Năng Khác", expanded=Fa
             else: 
                 st.warning("Sai MK")
 
-# --- NẾU ADMIN BẤM DUYỆT (HIỂN THỊ DANH SÁCH CHỜ DUYỆT TRÊN ĐIỆN THOẠI) ---
+# --- CHẾ ĐỘ ADMIN DUYỆT ---
 if st.session_state.admin_mode:
     st.markdown("---")
-    st.subheader("🛡️ Phê Duyệt Đăng Ký Trực Tiếp Trên Điện Thoại")
-    st.caption("Danh sách thành viên đăng ký tham gia từ hiện trường được tải trực tiếp từ Google Sheets.")
-    
+    st.subheader("🛡 Phê Duyệt Đăng Ký Trực Tiếp Trên Điện Thoại")
     df_dk = load_dang_ky_data()
     
     if df_dk.empty or len(df_dk) < 3:
         st.info("📭 Hiện tại chưa có dữ liệu đăng ký mới trong Google Sheets.")
     else:
         rows_dk = df_dk.iloc[2:].values.tolist()
-        
         for idx, r in enumerate(rows_dk):
             if len(r) > 2 and pd.notna(r[1]):
                 thoi_gian = str(r[0]) if len(r) > 0 and pd.notna(r[0]) else "---"
@@ -153,10 +174,9 @@ if st.session_state.admin_mode:
                     st.markdown(f"""
                     📌 **Họ tên:** {ho_ten} (`{sdt}`)  
                     🕒 **Thời gian:** {thoi_gian}  
-                    ⚙️ **Chuyên môn:** {chuyen_mon} | **Xe:** {phuong_tien}  
-                    📌 **Trạng thái hiện tại:** `{trang_thai}`
+                    ⚙ **Chuyên môn:** {chuyen_mon} | **Xe:** {phuong_tien}  
+                    📌 **Trạng thái:** `{trang_thai}`
                     """)
-                    
                     c_duyet, c_tuchoi = st.columns(2)
                     with c_duyet:
                         if st.button(f"✅ Duyệt ngay", key=f"app_{idx}"):
@@ -179,22 +199,15 @@ if st.session_state.page == "register":
         st.rerun()
         
     st.subheader("📝 Đăng Ký Thành Viên & Phân Bổ Dự Án")
-    st.caption(f"✅ Đã tải trực tiếp **{len(danh_sach_du_an)} điểm** từ Cột D của sheet `DANH_SACH_DIEM`.")
-    
     with st.form("register_form"):
         reg_name = st.text_input("Họ và tên thành viên:")
         reg_phone = st.text_input("Số điện thoại liên hệ:")
-        
         selected_projects = st.multiselect(
-            "Chọn các điểm giao hàng và lắp đặt phụ trách (Chọn nhiều điểm cùng lúc)[cite: 1, 2]:",
+            "Chọn các điểm giao hàng và lắp đặt phụ trách:",
             options=danh_sach_du_an,
             placeholder="Gõ tìm kiếm hoặc chọn địa bàn..."
         )
-        
-        reg_spec = st.selectbox("Chuyên môn thực hiện:", [
-            "1. Vận chuyển / Giao nhận thiết bị",
-            "2. KTV Lắp đặt hiện trường"
-        ])
+        reg_spec = st.selectbox("Chuyên môn thực hiện:", ["1. Vận chuyển / Giao nhận thiết bị", "2. KTV Lắp đặt hiện trường"])
         reg_vehicle = st.selectbox("Phương tiện di chuyển:", ["Xe máy", "Xe tải", "Ô tô con", "Khác"])
         
         submitted = st.form_submit_button("🚀 GỬI YÊU CẦU ĐĂNG KÝ", type="primary")
@@ -204,59 +217,90 @@ if st.session_state.page == "register":
             elif not selected_projects:
                 st.warning("⚠️ Vui lòng chọn ít nhất 1 địa bàn/dự án phụ trách!")
             else:
-                projects_str = ", ".join(selected_projects)
-                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!\n\n📌 **Phụ trách {len(selected_projects)} điểm dự án[cite: 1, 2]:**\n`{projects_str}`.")
-                
+                st.success(f"✅ Gửi đăng ký thành công cho **{reg_name}**!")
     st.stop()
 
-# --- MÀN HÌNH CHÍNH: BÁO CÁO ĐIỀU HÀNH HIỆN TRƯỜNG ---
+# --- MÀN HÌNH CHÍNH: ĐIỀU HÀNH & KHO PHÂN BỔ ---
 st.markdown("---")
 col1, col2 = st.columns(2)
 with col1:
     cb_list = ["Vũ - Hạnh - Hiền", "Đội Vận Chuyển 01", "Đội Lắp Đặt 02", "Kỹ thuật hiện trường"]
     selected_cb = st.selectbox("Cán bộ / Đội thực hiện:", cb_list)
 with col2:
-    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM:", ["-- Chọn địa điểm --"] + danh_sach_du_an)
+    selected_location = st.selectbox("Chọn ĐỊA ĐIỂM (Đến):", ["-- Chọn địa điểm --"] + danh_sach_du_an)
 
-total_devices = 10  # Mặc định an toàn
+# --- HIỂN THỊ THIẾT BỊ TỪ KHO PHÂN BỔ (CHỈ ĐỌC - VIEW ONLY) ---
+thiet_bi_hien_tai = []
+if selected_location != "-- Chọn địa điểm --":
+    st.markdown("---")
+    st.subheader(f"📦 Thiết bị phân bổ đến: `{selected_location}`")
+    thiet_bi_hien_tai = get_thiet_bi_theo_dia_diem(selected_location)
+    
+    if thiet_bi_hien_tai:
+        df_display = pd.DataFrame(thiet_bi_hien_tai)[["ma_da", "sku", "ten", "soluong", "donvi", "doi"]]
+        df_display.columns = ["Mã Dự Án", "Mã SKU", "Tên Hàng Hóa / Thiết Bị", "Số Lượng", "ĐVT", "Đội Nhận"]
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+    else:
+        st.info(f"ℹ Chưa có thiết bị phân bổ cho điểm `{selected_location}` trong kho.")
 
-col_q, col_g = st.columns(2)
-with col_q:
-    actual_qty = st.number_input("Số lượng thực tế:", min_value=0, value=total_devices, step=1)
-with col_g:
-    st.write("") 
-    if st.button("📍 Check-in GPS", use_container_width=True):
-        st.success("📍 Đã ghi nhận GPS!")
-
-# --- TRẠNG THÁI & BÁO CÁO ---
+# --- TRẠNG THÁI & NGHIỆP VỤ ---
 st.markdown("---")
-st.markdown("**2. Trạng Thái Hoàn Thành:**")
-
-if "selected_status" not in st.session_state:
-    st.session_state.selected_status = "Đang vận chuyển"
+st.markdown("**2. Trạng Thái Hoàn Thành Công Việc:**")
 
 b_col1, b_col2 = st.columns(2)
 with b_col1:
-    if st.button("🚚 Đang V/C", use_container_width=True): st.session_state.selected_status = "Đang vận chuyển"
+    if st.button("🚚 Đang V/C", use_container_width=True): 
+        st.session_state.selected_status = "Đang vận chuyển"
+        st.session_state.checked_in = False
 with b_col2:
-    if st.button("✅ Đã Giao", key="btn_giao", use_container_width=True): st.session_state.selected_status = "Đã giao hàng xong"
+    if st.button("✅ Đã Giao", use_container_width=True): 
+        st.session_state.selected_status = "Đã giao hàng xong"
+        st.session_state.checked_in = False
 
 b_col3, b_col4 = st.columns(2)
 with b_col3:
-    if st.button("⚙️ Đang Lắp", key="btn_lap", use_container_width=True): st.session_state.selected_status = "Đang lắp đặt"
+    if st.button("⚙ Đang Lắp", use_container_width=True): 
+        st.session_state.selected_status = "Đang lắp đặt"
 with b_col4:
-    if st.button("🎉 Hoàn Thành", key="btn_ht", use_container_width=True): st.session_state.selected_status = "Đã lắp đặt xong"
+    if st.button("🎉 Hoàn Thành", use_container_width=True): 
+        st.session_state.selected_status = "Đã lắp đặt xong"
 
-st.caption(f"📌 Đang chọn: **{st.session_state.selected_status}**")
+st.caption(f"📌 Đang chọn trạng thái: **{st.session_state.selected_status}**")
+
+# --- CHỐT CHẶN CHECK-IN CHO LẮP ĐẶT ---
+is_lap_dat_mode = ("Lắp đặt" in st.session_state.selected_status)
+
+if is_lap_dat_mode:
+    st.markdown("---")
+    st.markdown("📍 **Yêu cầu hiện trường (Bắt buộc Check-in):**")
+    if not st.session_state.checked_in:
+        st.warning("⚠️ Đội lắp đặt bắt buộc phải bấm **Check-in GPS** xác thực vị trí trước khi gửi báo cáo!")
+        if st.button("📍 CHECK-IN TỌA ĐỘ HIỆN TRƯỜNG NGAY", use_container_width=True, type="secondary"):
+            st.session_state.checked_in = True
+            st.session_state.checkin_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.success(f"✅ Check-in thành công lúc {st.session_state.checkin_time}!")
+            st.rerun()
+    else:
+        st.success(f"✅ Đã Check-in thành công lúc `{st.session_state.checkin_time}`.")
 
 col_note, col_img = st.columns(2)
 with col_note:
-    notes = st.text_area("Ghi chú / Phát sinh:", placeholder="Nhập ghi chú...", height=70)
+    notes = st.text_area("Ghi chú / Phát sinh:", placeholder="Nhập ghi chú thực tế...", height=70)
 with col_img:
     st.file_uploader("📷 Ảnh nghiệm thu", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
 
+# --- NÚT GỬI BÁO CÁO & LƯU VẾT ---
 if st.button("🚀 GỬI BÁO CÁO & CẬP NHẬT HỆ THỐNG", type="primary", use_container_width=True):
     if selected_location == "-- Chọn địa điểm --":
-        st.warning("⚠️️ Vui lòng chọn địa điểm trước khi gửi!")
+        st.warning("⚠️ Vui lòng chọn địa điểm trước khi gửi báo cáo!")
+    elif is_lap_dat_mode and not st.session_state.checked_in:
+        st.error("❌ BẮT BUỘC CHECK-IN: Đội lắp đặt chưa Check-in GPS nên không thể gửi báo cáo!")
+    elif not thiet_bi_hien_tai:
+        st.warning("⚠️ Điểm này chưa có thiết bị trong kho phân bổ để ghi nhận báo cáo!")
     else:
-        st.success(f"✅ Gửi báo cáo thành công trạng thái '{st.session_state.selected_status}' cho điểm {selected_location}!")
+        thoi_gian_hien_tai = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.success(f"✅ Gửi báo cáo thành công trạng thái '{st.session_state.selected_status}' cho điểm **{selected_location}**!")
+        if is_lap_dat_mode:
+            st.caption(f"📌 Đã lưu vết Check-in lắp đặt lúc: `{st.session_state.checkin_time}` | Hoàn thành lúc: `{thoi_gian_hien_tai}`")
+        else:
+            st.caption(f"📌 Đã ghi nhận vận chuyển lúc: `{thoi_gian_hien_tai}`")
