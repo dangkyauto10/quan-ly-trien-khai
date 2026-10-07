@@ -20,6 +20,28 @@ def get_gspread_client():
         pass
     return None
 
+def get_smart_team_values(sheet_name):
+    """Quét thông minh toàn bộ cột B và C từ dòng 2 trở xuống để lấy trọn vẹn tên đội dù lệch cột"""
+    try:
+        client = get_gspread_client()
+        if client:
+            sheet = client.open_by_key(SPREADSHEET_ID).worksheet(sheet_name)
+            all_rows = sheet.get_all_values()
+            values = []
+            if len(all_rows) > 1:
+                for row in all_rows[1:]:
+                    # Kiểm tra cột B (index 1) và C (index 2)
+                    for col_idx in [1, 2]:
+                        if len(row) > col_idx:
+                            val = row[col_idx].strip()
+                            # Loại bỏ các số thuần túy hoặc từ khóa tiêu đề nếu lọt vào
+                            if val != "" and not val.isdigit() and "Vận chuyển" not in val and "Lắp đặt" not in val and val not in values:
+                                values.append(val)
+            return values
+    except Exception as e:
+        pass
+    return []
+
 def get_sheet_column_values_direct(sheet_name, col_idx):
     try:
         client = get_gspread_client()
@@ -84,18 +106,17 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.cache_resource.clear()
             st.rerun()
 
-    # Đọc trực tiếp từ Google Sheets qua API gspread (cột B / index 1)
-    danh_sach_doi = get_sheet_column_values_direct("QUAN_LY_DOI", 1)
+    # Sử dụng hàm quét thông minh chống lệch cột
+    danh_sach_doi = get_smart_team_values("QUAN_LY_DOI")
     if not danh_sach_doi:
         danh_sach_doi = [
             "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
             "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
             "Nguyễn Hải Nam", "Trần Văn C", "Nguyễn Văn D", "Hồ Văn H", 
             "Nguyễn Văn Ngu", "Như Con Lợn", "Không thì là Bò", 
-            "15 Nó là Súc Vật", "17 Đc Không", "18 đc nào"
+            "15 Nó là Súc Vật", "17 Đc Không", "18 đc nào", "19"
         ]
         
-    # Đọc trực tiếp từ Google Sheets qua API gspread (cột D / index 3)
     danh_sach_diem = get_sheet_column_values_direct("DANH_SACH_DIEM", 3)
     if not danh_sach_diem:
         danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
