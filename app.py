@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import urllib.parse
-import gspread
-from google.oauth2.service_account import Credentials
+import requests
 
 # --- CẤU HÌNH GIAO DIỆN DI ĐỘNG ---
 st.set_page_config(page_title="DỰ ÁN 880 — HIỆN TRƯỜNG", layout="centered")
@@ -20,44 +19,8 @@ st.markdown(
 )
 
 SHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
-
-# --- HÀM KẾT NỐI GOOGLE SHEETS AN TOÀN TUYỆT ĐỐI ---
-def get_gspread_client():
-    try:
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
-        # Nhúng trực tiếp cấu hình từ credentials.json để tránh lỗi đọc file trên Cloud
-        service_account_info = {
-            "type": "service_account",
-            "project_id": "quanlyduanpython",
-            "private_key_id": "d97569af576aaa99349231ddc12d55d24c4717ba",
-            "private_key": st.secrets["PRIVATE_KEY"] if "PRIVATE_KEY" in st.secrets else "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDZn+nMiIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDbN+1jV1gIbaDanBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDZn+nMiIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDbN+1jV1gIbaDanBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDZn+nMiIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDbN+1jV1gIbaDanBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDZn+nMiIEv...dummy_key_to_replace_or_use_file...\n-----END PRIVATE KEY-----\n",
-            "client_email": "tdv2026@quanlyduanpython.iam.gserviceaccount.com",
-            "client_id": "104406443886537574070",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/tdv2026%40quanlyduanpython.iam.gserviceaccount.com",
-            "universe_domain": "googleapis.com"
-        }
-        
-        # Thử đọc từ file trước, nếu lỗi thì dùng dict trực tiếp
-        try:
-            creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
-        except Exception:
-            # Lấy private_key chuẩn từ file credentials.json của anh trên GitHub
-            import json
-            with open("credentials.json", "r") as f:
-                data = json.load(f)
-            creds = Credentials.from_service_account_info(data, scopes=scopes)
-            
-        client = gspread.authorize(creds)
-        return client
-    except Exception as e:
-        st.error(f"❌ Chi tiết lỗi kết nối Google Sheets: {e}")
-        return None
+# DÁN URL GOOGLE APPS SCRIPT WEB APP CỦA ANH VÀO ĐÂY:
+WEB_APP_URL = "ĐIỀN_URL_WEB_APP_VÀO_ĐÂY"
 
 # --- 1. LẤY DANH SÁCH ĐỊA ĐIỂM ĐỘNG TỪ CỘT D (DANH_SACH_DIEM) ---
 @st.cache_data(ttl=5)
@@ -191,9 +154,11 @@ if is_lap_dat:
 
 st.markdown("---")
 
-# --- NÚT GỬI BÁO CÁO VỀ HỆ THỐNG (GHI THẲNG VÀO GOOGLE SHEETS) ---
+# --- NÚT GỬI BÁO CÁO VỀ HỆ THỐNG ---
 if st.button("✅ GỬI BÁO CÁO VỀ HỆ THỐNG", type="primary", use_container_width=True):
-    if selected_location == "-- Gõ hoặc chọn địa điểm --":
+    if WEB_APP_URL == "ĐIỀN_URL_WEB_APP_VÀO_ĐÂY":
+        st.error("⚠️ Lỗi cấu hình: Vui lòng cấu hình URL Web App của Google Apps Script vào biến WEB_APP_URL trong code!")
+    elif selected_location == "-- Gõ hoặc chọn địa điểm --":
         st.error("⚠️ Vui lòng chọn Xã/Phường trước khi gửi báo cáo!")
     elif not nguoi_gui:
         st.error("⚠️ Vui lòng nhập họ tên người gửi / đội phụ trách!")
@@ -203,53 +168,45 @@ if st.button("✅ GỬI BÁO CÁO VỀ HỆ THỐNG", type="primary", use_contai
         st.error("⚠️ Không có dữ liệu thiết bị phân bổ tương ứng để ghi nhận!")
     else:
         thoi_gian_hien_tai = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        client = get_gspread_client()
+        count = 0
+        target_sheet = "LAP_DAT" if is_lap_dat else "VAN_CHUYEN"
         
-        if not client:
-            st.error("❌ Lỗi kết nối Google Sheets API. Vui lòng kiểm tra lại cấu hình thông tin bảo mật!")
-        else:
-            try:
-                sh = client.open_by_key(SHEET_ID)
-                count = 0
-                if not is_lap_dat:
-                    # Ghi vào sheet VAN_CHUYEN theo đúng cấu trúc cột
-                    ws = sh.worksheet("VAN_CHUYEN")
-                    for item in danh_sach_hien_tai:
-                        row = [
-                            "", # Cột A trống
-                            item["ma_da"], # Cột B
-                            item["doi"],   # Cột C
-                            item["ten"],   # Cột D
-                            item["soluong"], # Cột E
-                            item["donvi"], # Cột F
-                            nguoi_gui,     # Cột G
-                            selected_location, # Cột H
-                            st.session_state.trang_thai_chon, # Cột I
-                            thoi_gian_hien_tai # Cột J
-                        ]
-                        ws.append_row(row)
-                        count += 1
+        try:
+            for idx, item in enumerate(danh_sach_hien_tai, start=1):
+                if is_lap_dat:
+                    ma_cv = f"LD-{datetime.now().strftime('%m%d%H%M')}-{idx}"
+                    row_data = [
+                        ma_cv,
+                        item["ma_da"],
+                        item["doi"],
+                        item["ten"],
+                        item["soluong"],
+                        item["donvi"],
+                        selected_location,
+                        st.session_state.trang_thai_chon,
+                        thoi_gian_hien_tai,
+                        "Google Maps GPS Verified"
+                    ]
                 else:
-                    # Ghi vào sheet LAP_DAT theo đúng cấu trúc cột
-                    ws = sh.worksheet("LAP_DAT")
-                    for idx, item in enumerate(danh_sach_hien_tai, start=1):
-                        ma_cv = f"LD-{datetime.now().strftime('%m%d%H%M')}-{idx}"
-                        row = [
-                            ma_cv, # Cột A
-                            item["ma_da"], # Cột B
-                            item["doi"],   # Cột C
-                            item["ten"],   # Cột D
-                            item["soluong"], # Cột E
-                            item["donvi"], # Cột F
-                            selected_location, # Cột G
-                            st.session_state.trang_thai_chon, # Cột H
-                            thoi_gian_hien_tai, # Cột I
-                            "Google Maps GPS Verified" # Cột J
-                        ]
-                        ws.append_row(row)
-                        count += 1
+                    row_data = [
+                        "",
+                        item["ma_da"],
+                        item["doi"],
+                        item["ten"],
+                        item["soluong"],
+                        item["donvi"],
+                        nguoi_gui,
+                        selected_location,
+                        st.session_state.trang_thai_chon,
+                        thoi_gian_hien_tai
+                    ]
                 
-                st.success(f"🎉 Gửi thành công {count} dòng dữ liệu vào Google Sheets lúc {thoi_gian_hien_tai}!")
-                st.balloons()
-            except Exception as e:
-                st.error(f"❌ Lỗi ghi dữ liệu vào Google Sheets: {e}")
+                payload = {"sheetName": target_sheet, "rowData": row_data}
+                response = requests.post(WEB_APP_URL, json=payload)
+                if response.status_code == 200:
+                    count += 1
+            
+            st.success(f"🎉 Gửi thành công {count} dòng dữ liệu vào sheet `{target_sheet}` trên Google Sheets lúc {thoi_gian_hien_tai}!")
+            st.balloons()
+        except Exception as e:
+            st.error(f"❌ Lỗi gửi dữ liệu qua Web App: {e}")
