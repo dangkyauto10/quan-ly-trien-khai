@@ -2,25 +2,35 @@ import streamlit as st
 import datetime
 import urllib.request
 import csv
-import io
 
-st.set_page_config(page_title="Hệ thống Điều hành Hiện trường", page_icon="🚀", layout="centered")
+st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án Hiện trường", page_icon="🚀", layout="centered")
 
 SECURE_PASS = "880880"
-# ID Google Sheet của anh
-SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
 
-# Hàm lấy dữ liệu trực tiếp động từ cột của sheet qua link CSV public theo thời gian thực
-def get_live_sheet_column(gid, col_idx):
+# Cấu hình danh sách các dự án (Anh có thể thêm bớt từ 1 đến 5+ dự án tại đây)
+DANH_SACH_DU_AN = {
+    "Dự án 1: Hệ thống Điều hành Chính (DA880)": {
+        "spreadsheet_id": "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4",
+        "gid_quan_ly_doi": "1563705161",
+        "gid_danh_sach_diem": "0"
+    },
+    # "Dự án 2: Tên dự án khác...": {
+    #     "spreadsheet_id": "ID_SHEET_DU_AN_2",
+    #     "gid_quan_ly_doi": "GID_QUAN_LY_DOI_2",
+    #     "gid_danh_sach_diem": "GID_DANH_SACH_DIEM_2"
+    # }
+}
+
+def get_live_sheet_column(spreadsheet_id, gid, col_idx):
     try:
-        url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={gid}"
+        url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
         response = urllib.request.urlopen(url)
         lines = [line.decode('utf-8') for line in response.readlines()]
         reader = csv.reader(lines)
         rows = list(reader)
         
         col_data = []
-        # Quét từ dòng thứ 3 trở xuống (index 2 trong Python)
+        # Quét từ dòng thứ 3 trở xuống (index 2 trong Python) theo thời gian thực
         if len(rows) > 2:
             for r in rows[2:]:
                 if len(r) > col_idx:
@@ -31,7 +41,7 @@ def get_live_sheet_column(gid, col_idx):
     except Exception as e:
         return []
 
-st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HỆ THỐNG ĐIỀU HÀNH & BÁO CÁO HIỆN TRƯỜNG</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HỆ THỐNG ĐIỀU HÀNH ĐA DỰ ÁN HIỆN TRƯỜNG</h2>", unsafe_allow_html=True)
 st.markdown("---")
 
 col1, col2, col3, col4 = st.columns(4)
@@ -66,30 +76,26 @@ if st.session_state.nav_tab == "Dang_ky":
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG")
     
-    # GID của sheet QUAN_LY_DOI (lấy cột B -> index 1)
-    danh_sach_doi = get_live_sheet_column("1563705161", 1)
-    if not danh_sach_doi:
-        # Danh sách dự phòng nếu chưa public sheet
-        danh_sach_doi = [
-            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
-            "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
-            "Nguyễn Hải Nam", "Trần Văn C", "Nguyễn Văn D", "Hồ Văn H"
-        ]
-        
-    # GID của sheet DANH_SACH_DIEM (lấy cột D -> index 3) - thay gid tương ứng nếu có
-    danh_sach_diem = get_live_sheet_column("0", 3)
-    if not danh_sach_diem:
-        danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
-        
-    # Ô chọn Tên đội (Gõ tìm kiếm / Sổ xuống động hoàn toàn theo sheet)
-    doi_thuc_hien = st.selectbox("👥 TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", ["-- Chọn tên đội --"] + danh_sach_doi)
+    # 1. CHỌN DỰ ÁN THỰC THI (Hỗ trợ 1 đến nhiều dự án)
+    ten_du_an_chon = st.selectbox("📂 CHỌN DỰ ÁN TRIỂN KHAI *", list(DANH_SACH_DU_AN.keys()))
+    current_config = DANH_SACH_DU_AN[ten_du_an_chon]
     
-    # Ô chọn Địa điểm (Gõ tìm kiếm / Sổ xuống động hoàn toàn theo sheet)
+    # 2. ÁNH XẠ ĐỘNG TOÀN BỘ CỘT B (Index 1) SHEET QUAN_LY_DOI THEO THỜI GIAN THỰC
+    danh_sach_doi = get_live_sheet_column(current_config["spreadsheet_id"], current_config["gid_quan_ly_doi"], 1)
+    if not danh_sach_doi:
+        danh_sach_doi = ["(Sheet QUAN_LY_DOI trống cột B hoặc chưa cấu hình)"]
+        
+    # 3. ÁNH XẠ ĐỘNG TOÀN BỘ CỘT D (Index 3) SHEET DANH_SACH_DIEM THEO THỜI GIAN THỰC
+    danh_sach_diem = get_live_sheet_column(current_config["spreadsheet_id"], current_config["gid_danh_sach_diem"], 3)
+    if not danh_sach_diem:
+        danh_sach_diem = ["(Sheet DANH_SACH_DIEM trống cột D hoặc chưa cấu hình)"]
+        
+    doi_thuc_hien = st.selectbox("👥 TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", ["-- Chọn tên đội --"] + danh_sach_doi)
     diem_giao_lap = st.selectbox("📍 ĐIỂM GIAO HÀNG & LẮP ĐẶT *", ["-- Chọn địa điểm --"] + danh_sach_diem)
     
-    # SỐ LƯỢNG THIẾT BỊ CỐ ĐỊNH TỪ KHO THEO ĐIỂM
+    # 4. SỐ LƯỢNG THIẾT BỊ CỐ ĐỊNH TỪ KHO THEO ĐIỂM
     so_luong_hien_tai = 0
-    if diem_giao_lap != "-- Chọn địa điểm --":
+    if diem_giao_lap != "-- Chọn địa điểm --" and not diem_giao_lap.startswith("("):
         so_luong_co_dinh = 3  # Định mức phân bổ kho
         st.info(f"📦 Số lượng thiết bị phân bổ tại **{diem_giao_lap}**: **{so_luong_co_dinh} bộ** (Cố định từ Kho)")
         so_luong_hien_tai = st.number_input("Số lượng thiết bị áp dụng báo cáo", value=float(so_luong_co_dinh), disabled=True)
@@ -111,22 +117,28 @@ elif st.session_state.nav_tab == "Bao_cao":
     col_b1, col_b2, col_b3 = st.columns(3)
     with col_b1:
         if st.button("✅ ĐÃ GIAO XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
-                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
+            if doi_thuc_hien.startswith("--") or doi_thuc_hien.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Tên đội hợp lệ!")
+            elif diem_giao_lap.startswith("--") or diem_giao_lap.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Địa điểm hợp lệ!")
             else:
-                st.success(f"🎉 Gửi báo cáo thành công: ĐÃ GIAO XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
+                st.success(f"🎉 Gửi báo cáo thành công: ĐÃ GIAO XONG cho đội {doi_thuc_hien} tại {diem_giao_lap} ({ten_du_an_chon})!")
     with col_b2:
         if st.button("✅ ĐÃ LẮP XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
-                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
+            if doi_thuc_hien.startswith("--") or doi_thuc_hien.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Tên đội hợp lệ!")
+            elif diem_giao_lap.startswith("--") or diem_giao_lap.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Địa điểm hợp lệ!")
             else:
-                st.success(f"🎉 Gửi báo cáo thành công: ĐÃ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
+                st.success(f"🎉 Gửi báo cáo thành công: ĐÃ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap} ({ten_du_an_chon})!")
     with col_b3:
         if st.button("🚀 ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
-                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
+            if doi_thuc_hien.startswith("--") or doi_thuc_hien.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Tên đội hợp lệ!")
+            elif diem_giao_lap.startswith("--") or diem_giao_lap.startswith("("):
+                st.warning("⚠️ Vui lòng chọn Địa điểm hợp lệ!")
             else:
-                st.success(f"🎉 Gửi báo cáo thành công TRỌN GÓI: ĐÃ GIAO VÀ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}!")
+                st.success(f"🎉 Gửi báo cáo thành công TRỌN GÓI: ĐÃ GIAO VÀ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap} ({ten_du_an_chon})!")
 
 # ================= 3. TAB ADMIN DUYỆT (PASS: 880880) =================
 elif st.session_state.nav_tab == "Admin":
