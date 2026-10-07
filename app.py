@@ -8,7 +8,6 @@ st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_ic
 SECURE_PASS = "880880"
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
 
-@st.cache_resource
 def get_gspread_client():
     try:
         if "gcp_service_account" in st.secrets:
@@ -27,8 +26,8 @@ def get_sheet_column_values(sheet_name, col_idx):
             sheet = client.open_by_key(SPREADSHEET_ID).worksheet(sheet_name)
             all_rows = sheet.get_all_values()
             values = []
-            if len(all_rows) > 2:
-                for row in all_rows[2:]:
+            if len(all_rows) > 1:
+                for row in all_rows[1:]:
                     if len(row) > col_idx:
                         val = row[col_idx].strip()
                         if val != "" and val not in values:
@@ -73,13 +72,29 @@ if st.session_state.nav_tab == "Dang_ky":
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG")
     
-    danh_sach_du_an = ["DA880 - Nâng cấp hạ tầng kỹ thuật", "DA76 - Cung cấp thiết bị thôn xã"]
-    du_an_chon = st.selectbox("📂 CHỌN DỰ ÁN TRIỂN KHAI *", danh_sach_du_an)
-    
-    # Đọc trực tiếp thời gian thực từ cột B (index 1) sheet QUAN_LY_DOI
+    col_rf1, col_rf2 = st.columns([3, 1])
+    with col_rf1:
+        danh_sach_du_an = ["DA880 - Nâng cấp hạ tầng kỹ thuật", "DA76 - Cung cấp thiết bị thôn xã"]
+        du_an_chon = st.selectbox("📂 CHỌN DỰ ÁN TRIỂN KHAI *", danh_sach_du_an)
+    with col_rf2:
+        st.write("")
+        st.write("")
+        if st.button("🔄 Làm mới dữ liệu"):
+            st.cache_resource.clear()
+            st.rerun()
+
+    # Đọc trực tiếp từ sheet QUAN_LY_DOI cột B (index 1)
     danh_sach_doi = get_sheet_column_values("QUAN_LY_DOI", 1)
-    
-    # Đọc trực tiếp thời gian thực từ cột D (index 3) sheet DANH_SACH_DIEM
+    if not danh_sach_doi:
+        danh_sach_doi = [
+            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
+            "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
+            "Nguyễn Hải Nam", "Trần Văn C", "Nguyễn Văn D", "Hồ Văn H", 
+            "Nguyễn Văn Ngu", "Như Con Lợn", "Không thì là Bò", 
+            "15 Nó là Súc Vật", "17 Đc Không"
+        ]
+        
+    # Đọc trực tiếp từ sheet DANH_SACH_DIEM cột D (index 3)
     danh_sach_diem = get_sheet_column_values("DANH_SACH_DIEM", 3)
     if not danh_sach_diem:
         danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
