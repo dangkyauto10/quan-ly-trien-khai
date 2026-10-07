@@ -9,7 +9,7 @@ SECURE_PASS = "880880"
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
 
 @st.cache_resource
-def get_google_sheets_client():
+def get_gspread_client():
     try:
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
@@ -20,20 +20,20 @@ def get_google_sheets_client():
         pass
     return None
 
-def get_column_data_realtime(sheet_name, col_index):
+def get_sheet_column_values(sheet_name, col_idx):
     try:
-        client = get_google_sheets_client()
+        client = get_gspread_client()
         if client:
             sheet = client.open_by_key(SPREADSHEET_ID).worksheet(sheet_name)
             all_rows = sheet.get_all_values()
-            data_list = []
+            values = []
             if len(all_rows) > 2:
-                for r in all_rows[2:]:
-                    if len(r) > col_index:
-                        val = r[col_index].strip()
-                        if val != "" and val not in data_list:
-                            data_list.append(val)
-            return data_list
+                for row in all_rows[2:]:
+                    if len(row) > col_idx:
+                        val = row[col_idx].strip()
+                        if val != "" and val not in values:
+                            values.append(val)
+            return values
     except Exception as e:
         pass
     return []
@@ -76,10 +76,11 @@ elif st.session_state.nav_tab == "Bao_cao":
     danh_sach_du_an = ["DA880 - Nâng cấp hạ tầng kỹ thuật", "DA76 - Cung cấp thiết bị thôn xã"]
     du_an_chon = st.selectbox("📂 CHỌN DỰ ÁN TRIỂN KHAI *", danh_sach_du_an)
     
-    # Đọc trực tiếp động 100% qua gspread từ cột B (index 1) sheet QUAN_LY_DOI
-    danh_sach_doi = get_column_data_realtime("QUAN_LY_DOI", 1)
+    # Đọc trực tiếp thời gian thực từ cột B (index 1) sheet QUAN_LY_DOI
+    danh_sach_doi = get_sheet_column_values("QUAN_LY_DOI", 1)
     
-    danh_sach_diem = get_column_data_realtime("DANH_SACH_DIEM", 3)
+    # Đọc trực tiếp thời gian thực từ cột D (index 3) sheet DANH_SACH_DIEM
+    danh_sach_diem = get_sheet_column_values("DANH_SACH_DIEM", 3)
     if not danh_sach_diem:
         danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
         
