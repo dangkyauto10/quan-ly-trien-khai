@@ -3,21 +3,23 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 
-# --- CẤU HÌNH TRANG WEB ---
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự Án Hiện Trường", page_icon="📊", layout="centered")
 
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 
-# --- HÀM KẾT NỐI GOOGLE SHEETS AN TOÀN ---
 @st.cache_resource
 def get_gspread_client():
     try:
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
             if "private_key" in creds_dict:
-                pk = creds_dict["private_key"]
-                if "\\n" in pk:
-                    pk = pk.replace("\\n", "\n")
+                pk = str(creds_dict["private_key"])
+                # Xử lý dứt điểm mọi trường hợp lỗi xuống dòng hoặc ký tự lạ
+                pk = pk.replace("\\n", "\n")
+                if not pk.startswith("-----BEGIN PRIVATE KEY-----"):
+                    pk = "-----BEGIN PRIVATE KEY-----\n" + pk.strip()
+                if not pk.endswith("-----END PRIVATE KEY-----\n"):
+                    pk = pk.strip() + "\n"
                 creds_dict["private_key"] = pk
                 
             scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -27,7 +29,6 @@ def get_gspread_client():
         st.error(f"Lỗi xác thực Google Service Account: {e}")
     return None
 
-# --- HÀM ĐỌC SHEET KHO_PHAN_BO ---
 @st.cache_data(ttl=10)
 def load_kho_phan_bo():
     try:
@@ -48,28 +49,25 @@ def load_kho_phan_bo():
         st.error(f"Lỗi đọc dữ liệu Google Sheets: {e}")
     return None, pd.DataFrame()
 
-# --- GIAO DIỆN ỨNG DỤNG CHÍNH ---
+# GIAO DIỆN CHÍNH
 st.markdown("<h2 style='text-align: center; color: #003366;'>HỆ THỐNG ĐIỀU HÀNH ĐA DỰ ÁN HIỆN TRƯỜNG</h2>", unsafe_allow_html=True)
 st.markdown("---")
 
 ws_kho, df_kho = load_kho_phan_bo()
 
 if not df_kho.empty:
-    # 1. Chọn Dự án
     projects = df_kho['Tên dự án'].unique().tolist() if 'Tên dự án' in df_kho.columns else []
     selected_project = st.selectbox("CHỌN DỰ ÁN TRIỂN KHAI *", options=["-- Chọn dự án --"] + projects)
 
     if selected_project != "-- Chọn dự án --":
         df_proj = df_kho[df_kho['Tên dự án'] == selected_project]
 
-        # 2. Chọn Đội vận chuyển (Cột G)
         doi_list = df_proj['Đội vận chuyển thiết bị'].unique().tolist() if 'Đội vận chuyển thiết bị' in df_proj.columns else []
         selected_doi = st.selectbox("TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", options=["-- Chọn tên đội --"] + doi_list)
 
         if selected_doi != "-- Chọn tên đội --":
             df_doi = df_proj[df_proj['Đội vận chuyển thiết bị'] == selected_doi]
 
-            # 3. Chọn Địa điểm nhận (Cột H)
             diem_list = df_doi['Địa điểm nhận / lắp đặt'].unique().tolist() if 'Địa điểm nhận / lắp đặt' in df_doi.columns else []
             selected_diem = st.selectbox("ĐIỂM GIAO HÀNG & LẮP ĐẶT *", options=["-- Chọn địa điểm --"] + diem_list)
 
@@ -79,7 +77,6 @@ if not df_kho.empty:
                 st.markdown("---")
                 st.info(f"📍 **ĐỊA ĐIỂM ĐÃ CHỌN:** {selected_diem}\n\n*Danh mục thiết bị phân bổ cố định (Không được phép thay đổi số lượng):*")
 
-                # Hiển thị danh sách thiết bị cố định (Read-only)
                 for idx, row in df_filtered.iterrows():
                     ten_tb = row.get('Tên thiết bị / Hạng mục', '')
                     so_luong = row.get('Số lượng', 0)
@@ -90,7 +87,6 @@ if not df_kho.empty:
 
                 st.markdown("---")
                 
-                # Nút hành động cập nhật trạng thái an toàn cột I
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("✅ ĐÃ GIAO XONG", use_container_width=True):
@@ -114,4 +110,4 @@ if not df_kho.empty:
                         except Exception as e:
                             st.error(f"Lỗi cập nhật: {e}")
 else:
-    st.warning("Đang tải dữ liệu hoặc chưa kết nối được với Google Sheets. Vui lòng kiểm tra lại cấu hình kho phân bổ.")
+    st.warning("Đang tải dữ liệu hoặc chưa kết nối được với Google Sheets. Vui lòng kiểm tra lại cấu hình Secrets trên Streamlit Cloud.")
