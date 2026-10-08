@@ -5,7 +5,7 @@ import json
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
 
-# EM ĐÃ RÁP SẴN LINK VÀO ĐÂY, ANH VỸ KHÔNG CẦN CHỈNH SỬA GÌ CẢ
+# Link Apps Script (Vẫn giữ link anh cung cấp để anh không phải sửa code)
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyCjVh5gdBgbQtka1UN_F4WGepgQRYdTcPobXcRr_xy70kN0kn_aLDTVtoI2nObszogsw/exec"
 
 @st.cache_data(ttl=10)
@@ -40,7 +40,6 @@ if st.session_state.nav_tab == "Bao_cao":
     
     raw_data = load_live_data_from_script()
     
-    # Xử lý tương thích cả link Apps Script cũ (list) và mới (dict)
     if isinstance(raw_data, list):
         data_kho = raw_data
         data_du_an = []
@@ -48,11 +47,13 @@ if st.session_state.nav_tab == "Bao_cao":
         data_kho = raw_data.get("KHO_PHAN_BO", [])
         data_du_an = raw_data.get("DANH_SACH_DU_AN", [])
     
-    # 1. ÁNH XẠ CHÍNH XÁC CỘT A TỪ SHEET "DANH_SACH_DU_AN" VÀO DROPDOWN
+    # 1. ÁNH XẠ CHÍNH XÁC "CỘT A" TỪ SHEET VÀO DROPDOWN NHƯ ẢNH ANH VỸ KHOANH TRÒN
     danh_sach_du_an = []
+    
+    # Luồng 1: Nếu đọc được sheet DANH_SACH_DU_AN
     if data_du_an and len(data_du_an) > 1:
         headers_da = [str(x).strip().lower() for x in data_du_an[0]]
-        idx_ma_da = 0
+        idx_ma_da = 0 # Cột A
         for i, h in enumerate(headers_da):
             if "mã dự án" in h or "mã da" in h:
                 idx_ma_da = i
@@ -60,7 +61,24 @@ if st.session_state.nav_tab == "Bao_cao":
                 
         for r in data_du_an[1:]:
             if len(r) > idx_ma_da:
-                val_da = str(r[idx_ma_da]).strip()
+                val_da = str(r[idx_ma_da]).strip() # Chỉ bốc chính xác Cột A
+                if val_da and val_da.lower() not in ["mã dự án", "stt", ""]:
+                    if val_da not in danh_sach_du_an:
+                        danh_sach_du_an.append(val_da)
+
+    # Luồng bọc lót: Nếu link Apps Script CŨ chưa cập nhật, tự bốc cột A từ sheet KHO_PHAN_BO để App không bị liệt
+    rows_kho_data = data_kho[1:] if len(data_kho) > 1 else []
+    if not danh_sach_du_an and rows_kho_data:
+        headers_kho = [str(x).strip().lower() for x in data_kho[0]]
+        idx_mada_kho = 0
+        for i, h in enumerate(headers_kho):
+            if "dự án" in h or "mã da" in h:
+                idx_mada_kho = i
+                break
+        
+        for r in rows_kho_data:
+            if len(r) > idx_mada_kho:
+                val_da = str(r[idx_mada_kho]).strip()
                 if val_da and val_da.lower() not in ["mã dự án", "stt", ""]:
                     if val_da not in danh_sach_du_an:
                         danh_sach_du_an.append(val_da)
@@ -68,8 +86,9 @@ if st.session_state.nav_tab == "Bao_cao":
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1:
         if not danh_sach_du_an:
-            du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", ["-- Chưa có dữ liệu Cột A từ sheet Danh Sách Dự Án --"])
+            du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", ["-- Chưa kết nối được dữ liệu --"])
         else:
+            # Hiển thị đúng chuẩn Cột A: DA880, DA76...
             du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", danh_sach_du_an)
             
     with col_rf2:
@@ -81,10 +100,9 @@ if st.session_state.nav_tab == "Bao_cao":
 
     danh_sach_doi = []
     danh_sach_diem = []
-    project_code = du_an_chon.strip() if "Chưa có dữ liệu" not in du_an_chon else ""
-    rows_kho_data = data_kho[1:] if len(data_kho) > 1 else []
+    project_code = du_an_chon.strip() if "Chưa kết nối" not in du_an_chon else ""
     
-    # 2. QUY CHIẾU LỌC ĐỘI VÀ ĐỊA ĐIỂM TỪ SHEET "KHO_PHAN_BO"
+    # 2. QUY CHIẾU LỌC ĐỘI VÀ ĐỊA ĐIỂM
     if data_kho and len(data_kho) > 0 and project_code:
         headers_kho = [str(x).strip().lower() for x in data_kho[0]]
         
