@@ -72,7 +72,6 @@ if st.session_state.nav_tab == "Bao_cao":
 
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1:
-        # Tự động chọn sẵn dự án đầu tiên để giao diện không bị trống
         du_an_chon = st.selectbox(
             "CHON DU AN TRIEN KHAI *", 
             options=danh_sach_du_an, 
@@ -91,16 +90,15 @@ if st.session_state.nav_tab == "Bao_cao":
     ds_diem = []
     p_code = du_an_chon.strip() if du_an_chon else ""
     
-    # 2. VÉT SẠCH TRỌN VẸN 100% CỘT B TỪ SHEET "QUAN_LY_DOI" (Bỏ qua tiêu đề, lấy tất cả nhân sự)
+    # 2. VÉT TRỌN VẸN TẤT CẢ TÊN TỪ CỘT B CỦA SHEET "QUAN_LY_DOI" (ĐỘC LẬP 100%, KHÔNG BỊ GÒ BÓ)
     if data_doi_master and len(data_doi_master) > 1:
         for r in data_doi_master[1:]:
             if len(r) > 1:
                 v_doi = str(r[1]).strip()
-                # Kiểm tra kỹ để không bỏ sót bất kỳ tên nhân sự nào ở các dòng dưới
                 if v_doi and v_doi.lower() not in ["tên đội", "stt", "none", ""] and v_doi not in ds_doi:
                     ds_doi.append(v_doi)
     
-    # 3. QUY CHIẾU LỌC ĐỊA ĐIỂM TỪ KHO PHÂN BỔ & BỌC LÓT ĐỘI NẾU CẦN
+    # 3. LỌC ĐỊA ĐIỂM TỪ KHO PHÂN BỔ THEO DỰ ÁN
     idx_doi = 6; idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
     if rows_kho and p_code:
         headers = [str(x).strip().lower() for x in data_kho[0]]
@@ -119,12 +117,6 @@ if st.session_state.nav_tab == "Bao_cao":
                     v_diem = str(r[idx_diem]).strip()
                     if v_diem.lower() not in ["địa điểm", "stt", "none"] and v_diem not in ds_diem:
                         ds_diem.append(v_diem)
-                
-                if not ds_doi:
-                    if len(r) > idx_doi and str(r[idx_doi]).strip():
-                        v_doi_kho = str(r[idx_doi]).strip()
-                        if v_doi_kho.lower() not in ["tên đội", "stt", "none"] and v_doi_kho not in ds_doi:
-                            ds_doi.append(v_doi_kho)
 
     doi_thuc_hien = st.selectbox(
         f"TEN DOI VAN CHUYEN / LAP DAT (Tổng danh sách: {len(ds_doi)} nhân sự) *", 
