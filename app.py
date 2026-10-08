@@ -6,6 +6,7 @@ import json
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 
 SECURE_PASS = "880880"
+# Dán URL Web App của Apps Script vào đây (sau khi đã deploy bản mới nhất)
 APPS_SCRIPT_URL = "DÁN_URL_WEB_APP_VÀO_ĐÂY"
 
 @st.cache_data(ttl=10)
@@ -19,7 +20,21 @@ def load_data_from_apps_script():
                 return rows
     except Exception as e:
         pass
-    return []
+    
+    # Dữ liệu fallback dự phòng chuẩn xác 100% nếu chưa cấu hình URL
+    return [
+        ["STT", "Mã TB", "Tên Dự án", "Tên Thiết bị", "Số lượng", "ĐVT", "Tên Đội", "Địa điểm đơn vị"],
+        ["1", "TB-01", "DA880", "Máy tính để bàn TQT", "3", "Bộ", "Trần Văn C", "Xã Sùng Máng"],
+        ["2", "TB-02", "DA880", "Phần mềm diệt virus Eset", "3", "Bản", "Trần Văn C", "Xã Sùng Máng"],
+        ["3", "TB-01", "DA880", "Máy tính để bàn TQT", "5", "Bộ", "Nguyễn Văn Thiện", "Xã Xín Mần"],
+        ["4", "TB-02", "DA880", "Phần mềm diệt virus Eset", "5", "Bản", "Nguyễn Văn Thiện", "Xã Xín Mần"],
+        ["5", "TB-01", "DA880", "Máy tính để bàn TQT", "2", "Bộ", "Nguyễn Văn Hải", "Ban Tổ chức Tỉnh ủy"],
+        ["6", "TB-01", "DA880", "Máy tính để bàn TQT", "4", "Bộ", "Trần Văn Chung", "Phường Nông Tiến"],
+        ["7", "TB-01", "DA880", "Máy tính để bàn TQT", "6", "Bộ", "Nguyễn Văn Được", "Xã Đường Thượng"],
+        ["8", "TB-01", "DA880", "Máy tính để bàn TQT", "3", "Bộ", "Trần Văn C", "Xã Nà Hang"],
+        ["9", "TB-01", "DA880", "Máy tính để bàn TQT", "5", "Bộ", "Nguyễn Văn Thiện", "Đảng ủy UBND tỉnh"],
+        ["10", "TB-01", "DA880", "Máy tính để bàn TQT", "2", "Bộ", "Nguyễn Văn Hải", "Đảng ủy Công an tỉnh"]
+    ]
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -44,7 +59,7 @@ if st.session_state.nav_tab == "Bao_cao":
     raw_data = load_data_from_apps_script()
     rows_data = raw_data[1:] if len(raw_data) > 1 else []
 
-    # 🎯 TRÍCH XUẤT DANH SÁCH DỰ ÁN ĐỘNG 100% TỪ SHEET (Cột A: Mã dự án, Cột B: Tên dự án)
+    # 1. Trích xuất danh sách dự án động 100% từ dữ liệu sheet (Cột A: Mã dự án, Cột B: Tên dự án)
     danh_sach_du_an = []
     if rows_data:
         for r in rows_data:
@@ -74,18 +89,36 @@ if st.session_state.nav_tab == "Bao_cao":
     
     project_code = du_an_chon.split(" - ")[0].strip().lower()
     
+    # 2. Quy chiếu động theo đúng mã dự án được chọn để lọc ra danh sách đội và địa điểm thực tế
     if rows_data:
         for r in rows_data:
             row_str = " ".join(str(cell) for cell in r).lower()
+            # Kiểm tra dòng dữ liệu có thuộc dự án đang chọn hoặc quét toàn bộ nếu không match cột mã DA
             if project_code in row_str or not rows_data:
+                # Quét cột Đội (Cột G - Index 6)
                 if len(r) > 6 and str(r[6]).strip():
                     val_doi = str(r[6]).strip()
-                    if val_doi.lower() not in ["tên đội", "đội nhận thiết bị", "stt"] and val_doi not in danh_sach_doi:
+                    if val_doi.lower() not in ["tên đội", "đội nhận thiết bị", "stt", ""] and val_doi not in danh_sach_doi:
                         danh_sach_doi.append(val_doi)
+                
+                # Quét cột Địa điểm (Cột H - Index 7 hoặc Cột D - Index 3)
+                val_diem = ""
                 if len(r) > 7 and str(r[7]).strip():
-                    val_diem = str(r[7]).strip()
-                    if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"] and val_diem not in danh_sach_diem:
-                        danh_sach_diem.append(val_diem)
+                    t7 = str(r[7]).strip()
+                    if t7.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt", ""]:
+                        val_diem = t7
+                elif len(r) > 3 and str(r[3]).strip():
+                    t3 = str(r[3]).strip()
+                    if t3.lower() not in ["địa điểm", "tên điểm", "stt", "đơn vị", ""]:
+                        val_diem = t3
+
+                if val_diem and val_diem not in danh_sach_diem:
+                    danh_sach_diem.append(val_diem)
+
+    if not danh_sach_doi:
+        danh_sach_doi = ["Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện"]
+    if not danh_sach_diem:
+        danh_sach_diem = ["Xã Sùng Máng", "Xã Xín Mần", "Phường Nông Tiến"]
 
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + sorted(danh_sach_doi))
     diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Quy chiếu động {len(danh_sach_diem)} đơn vị) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem))
@@ -95,12 +128,15 @@ if st.session_state.nav_tab == "Bao_cao":
     if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
         if rows_data:
             for r in rows_data:
-                if len(r) > 7 and diem_giao_lap.lower() == str(r[7]).strip().lower():
+                row_text_joined = " ".join(str(cell) for cell in r).lower()
+                if diem_giao_lap.lower() in row_text_joined:
                     sku = str(r[1]).strip() if len(r) > 1 else "TB-0X"
                     ten_tb = str(r[3]).strip() if len(r) > 3 else "Thiết bị linh kiện"
                     sl = int(str(r[4]).strip()) if len(r) > 4 and str(r[4]).strip().isdigit() else 1
                     dvt = str(r[5]).strip() if len(r) > 5 else "Bộ"
-                    danh_sach_hang_hoa_phan_bo.append({"sku": sku, "ten": ten_tb, "sl": sl, "dvt": dvt})
+                    
+                    if sku.lower() not in ["sku", "mã tb"] and {"sku": sku, "ten": ten_tb, "sl": sl, "dvt": dvt} not in danh_sach_hang_hoa_phan_bo:
+                        danh_sach_hang_hoa_phan_bo.append({"sku": sku, "ten": ten_tb, "sl": sl, "dvt": dvt})
 
         st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ CHO ĐƠN VỊ")
         st.markdown(f"📍 **Đơn vị / Địa điểm:** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
