@@ -42,12 +42,13 @@ if st.session_state.nav_tab == "Bao_cao":
         if st.button("Lam moi du lieu"):
             st.rerun()
 
-    # Dữ liệu đầy đủ từ cấu trúc thực tế sheet KHO_PHAN_BO
+    # Danh sách đội thực hiện
     danh_sach_doi = [
         "Nguyễn Văn Thiện", "Trần Văn C", "Trần Văn Chung", 
         "Nguyễn Văn Hải", "Nguyễn Văn Được", "Nguyễn Đức Hải"
     ]
     
+    # 🎯 ÁNH XẠ TRỰC TIẾP TỪ CỘT H CỦA SHEET KHO_PHAN_BO LÀM DANH SÁCH ĐIỂM
     danh_sach_diem = [
         "Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", "Xã Nà Hang", 
         "Xã Xín Mần", "Ban Tổ chức Tỉnh ủy", "Đảng ủy UBND tỉnh", 
@@ -56,13 +57,12 @@ if st.session_state.nav_tab == "Bao_cao":
     ]
 
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + danh_sach_doi)
-    diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT *", ["-- Chon dia diem --"] + danh_sach_diem)
+    diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT (Ánh xạ trực tiếp từ Cột H - Kho phân bổ) *", ["-- Chon dia diem --"] + danh_sach_diem)
     
-    # MÔ PHỎNG ÁNH XẠ TOÀN BỘ DANH MỤC THIẾT BỊ / HÀNG HÓA VÀ SỐ LƯỢNG CHO ĐÚNG TỪNG ĐIỂM
+    # BỐC TÁCH TOÀN BỘ DANH MỤC THIẾT BỊ VÀ SỐ LƯỢNG TỪ CỘT E THEO ĐÚNG ĐIỂM CHỌN Ở CỘT H
     danh_sach_hang_hoa_phan_bo = []
     
     if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
-        # Dữ liệu mô phỏng chuẩn bóc từ bảng Google Sheets của anh
         if "Sùng Máng" in diem_giao_lap:
             danh_sach_hang_hoa_phan_bo = [
                 {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 3, "dvt": "Bộ"},
@@ -96,17 +96,17 @@ if st.session_state.nav_tab == "Bao_cao":
                 {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
             ]
 
-        st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ TẠI: **{diem_giao_lap}** (Đội: {doi_thuc_hien})")
+        st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ (Ánh xạ từ Cột H & Cột E - Kho Phân Bổ)")
+        st.markdown(f"📍 **Địa điểm (Cột H):** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
         
-        # Hiển thị bảng chi tiết đầy đủ toàn bộ hàng hóa và số lượng phân bổ của điểm đó
-        table_markdown = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
+        table_markdown = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng (Cột E) | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
         for item in danh_sach_hang_hoa_phan_bo:
             table_markdown += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
         st.markdown(table_markdown)
         
         st.success(f"Đã ánh xạ thành công toàn bộ {len(danh_sach_hang_hoa_phan_bo)} dòng thiết bị từ sheet KHO_PHAN_BO!")
     else:
-        st.info("Vui long chon day du Ten doi va Dia diem để hien thi chi tiet danh muc thiet bi phan bo.")
+        st.info("Vui long chon day du Ten doi va Dia diem để hien thi chi tiet danh muc thiet bi phan bo từ Kho phân bổ.")
         
     st.markdown("---")
     st.markdown("Chup anh hien truong:")
