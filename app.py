@@ -20,61 +20,36 @@ def get_gspread_client():
         pass
     return None
 
-def get_all_sheet_values(target_sheet_name):
-    """Lấy toàn bộ dữ liệu thô từ worksheet để quét linh hoạt mọi cột"""
+def get_direct_column_values(keyword, col_idx):
+    """Hàm quét trực tiếp không khoan nhượng: Tìm worksheet chứa từ khóa và lấy thẳng giá trị cột"""
     try:
         client = get_gspread_client()
         if client:
             spreadsheet = client.open_by_key(SPREADSHEET_ID)
             worksheets = spreadsheet.worksheets()
             
-            selected_sheet = None
+            target_ws = None
             for ws in worksheets:
-                if ws.title.strip().lower() == target_sheet_name.strip().lower():
-                    selected_sheet = ws
+                if keyword.lower() in ws.title.lower():
+                    target_ws = ws
                     break
             
-            if not selected_sheet:
-                for ws in worksheets:
-                    if target_sheet_name.strip().lower() in ws.title.strip().lower():
-                        selected_sheet = ws
-                        break
-            if not selected_sheet and worksheets:
-                selected_sheet = worksheets[0]
+            if not target_ws and worksheets:
+                target_ws = worksheets[0]
 
-            if selected_sheet:
-                return selected_sheet.get_all_values()
+            if target_ws:
+                all_rows = target_ws.get_all_values()
+                values = []
+                if len(all_rows) > 1:
+                    for row in all_rows[1:]:
+                        if len(row) > col_idx:
+                            val = row[col_idx].strip()
+                            if val != "" and val not in values:
+                                values.append(val)
+                return values
     except Exception as e:
         pass
     return []
-
-def extract_column_data(all_rows, preferred_indices):
-    """Quét thông minh: Lấy dữ liệu từ các cột ưu tiên, nếu rỗng thì quét toàn bộ các cột trong dòng"""
-    values = []
-    if len(all_rows) > 1:
-        for row in all_rows[1:]:
-            found_in_row = False
-            # Thử lấy từ các cột ưu tiên trước
-            for idx in preferred_indices:
-                if len(row) > idx:
-                    val = row[idx].strip()
-                    if val != "" and not val.isdigit() and val not in values:
-                        # Bỏ qua các từ khóa tiêu đề nếu lọt vào
-                        low_val = val.lower()
-                        if "tên đội" not in low_val and "địa điểm" not in low_val and "khu vực" not in low_val and "mã đội" not in low_val:
-                            values.append(val)
-                            found_in_row = True
-                            break
-            # Nếu cột ưu tiên không có, quét toàn bộ các cột còn lại trong dòng đó để bắt trọn dữ liệu bị lệch cột
-            if not found_in_row:
-                for val in row:
-                    val = val.strip()
-                    if val != "" and not val.isdigit() and val not in values:
-                        low_val = val.lower()
-                        if "tên đội" not in low_val and "địa điểm" not in low_val and "khu vực" not in low_val and "mã đội" not in low_val:
-                            values.append(val)
-                            break
-    return values
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HỆ THỐNG ĐIỀU HÀNH ĐA DỰ ÁN HIỆN TRƯỜNG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -126,9 +101,8 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.cache_resource.clear()
             st.rerun()
 
-    # Lấy dữ liệu tên đội từ sheet QUAN_LY_DOI (ưu tiên cột B index 1, C index 2)
-    rows_doi = get_all_sheet_values("QUAN_LY_DOI")
-    danh_sach_doi = extract_column_data(rows_doi, [1, 2, 0])
+    # Lấy tên đội từ sheet QUAN_LY_DOI (cột B - index 1)
+    danh_sach_doi = get_direct_column_values("QUAN_LY_DOI", 1)
     if not danh_sach_doi:
         danh_sach_doi = [
             "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
@@ -138,9 +112,11 @@ elif st.session_state.nav_tab == "Bao_cao":
             "15 Nó là Súc Vật", "17 Đc Không", "18 đc nào"
         ]
         
-    # Lấy dữ liệu địa điểm từ sheet DANH_SACH_DIEM (ưu tiên cột D index 3, C index 2, E index 4, B index 1)
-    rows_diem = get_all_sheet_values("DANH_SACH_DIEM")
-    danh_sach_diem = extract_column_data(rows_diem, [3, 2, 4, 1, 0])
+    # Lấy trực tiếp điểm giao hàng từ sheet DANH_SACH_DIEM (Cột D tương ứng index 3)[cite: 21]
+    danh_sach_diem = get_direct_column_values("DANH_SACH_DIEM", 3)
+    if not danh_sach_diem:
+        # Nếu chưa tìm thấy cột 3, thử quét cột C (index 2) hoặc B (index 1)
+        danh_sach_diem = get_direct_column_values("DIEM", 2)
     if not danh_sach_diem:
         danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
         
@@ -185,22 +161,3 @@ elif st.session_state.nav_tab == "Bao_cao":
             if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
                 st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
             else:
-                st.success(f"🎉 Gửi báo cáo thành công TRỌN GÓI: **ĐÃ GIAO VÀ LẮP XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})!")
-
-# ================= 3. ADMIN & LINK =================
-elif st.session_state.nav_tab == "Admin":
-    st.markdown("### 🔒 KHU VỰC QUẢN TRỊ - ADMIN DUYỆT")
-    pass_input = st.text_input("Nhập mật khẩu quản trị (Mã PIN):", type="password")
-    if pass_input == SECURE_PASS:
-        st.success("🔓 Đăng nhập Admin thành công!")
-        st.write("- [Chờ duyệt] Thành viên đăng ký mới")
-        if st.button("✅ Duyệt tất cả tài khoản"): st.success("Đã phê duyệt thành công!")
-    elif pass_input != "": st.error("❌ Sai mật khẩu bảo mật! (Pass: 880880)")
-
-elif st.session_state.nav_tab == "Link":
-    st.markdown("### 📈 TRANG THEO DÕI TIẾN ĐỘ CHO LÃNH ĐẠO")
-    pass_link = st.text_input("Nhập mật khẩu truy cập báo cáo (Mã PIN):", type="password")
-    if pass_link == SECURE_PASS:
-        st.success("🔓 Xác thực thành công!")
-        st.markdown("- 🔗 [Mở trực tiếp Google Sheets Tổng hợp](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
-    elif pass_link != "": st.error("❌ Sai mật khẩu truy cập! (Pass: 880880)")
