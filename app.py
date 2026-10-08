@@ -7,12 +7,12 @@ st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_ic
 SECURE_PASS = "880880"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanFGwYnCu56rCOhY9q5emNGasXqwZRJlySd0CaysgNbb8BkjmNA/exec"
 
-def submit_to_google(ten_doi, diem_lap, diem_giao, sl, gps, tinh_trang):
+def submit_to_google(ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_trang):
     payload = {
         "ten_doi": ten_doi,
         "diem_lap_dat": diem_lap,
         "diem_giao_hang": diem_giao,
-        "so_luong_tb": sl,
+        "ds_hang_hoa": ds_hang,
         "link_maps": gps,
         "tinh_trang": tinh_trang
     }
@@ -46,6 +46,8 @@ with col3: btn_admin = st.button("Admin duyet", use_container_width=True)
 with col4: btn_link = st.button("Link bao cao", use_container_width=True)
 
 if "nav_tab" not in st.session_state: st.session_state.nav_tab = "Bao_cao"
+if "gps_checked" not in st.session_state: st.session_state.gps_checked = False
+
 if btn_dang_ky: st.session_state.nav_tab = "Dang_ky"
 if btn_bao_cao: st.session_state.nav_tab = "Bao_cao"
 if btn_admin: st.session_state.nav_tab = "Admin"
@@ -57,22 +59,13 @@ if st.session_state.nav_tab == "Bao_cao":
     st.markdown("### BAO CAO NHIEM VU HIEN TRUONG (ALLOCATION SYNC)")
     
     raw_data, err_msg = load_live_data()
-    if err_msg:
-        st.error(err_msg)
+    if err_msg: st.error(err_msg)
         
     data_kho, data_du_an, sheet_doi_raw = [], [], []
-    
     if isinstance(raw_data, dict):
-        for k, v in raw_data.items():
-            k_lower = str(k).lower()
-            if "kho" in k_lower: data_kho = v
-            elif "du_an" in k_lower or "danh_sach_du_an" in k_lower: data_du_an = v
-            elif "doi" in k_lower or "quan_ly_doi" in k_lower: sheet_doi_raw = v
-        if not data_kho and "KHO_PHAN_BO" in raw_data: data_kho = raw_data["KHO_PHAN_BO"]
-        if not data_du_an and "DANH_SACH_DU_AN" in raw_data: data_du_an = raw_data["DANH_SACH_DU_AN"]
-        if not sheet_doi_raw and "QUAN_LY_DOI" in raw_data: sheet_doi_raw = raw_data["QUAN_LY_DOI"]
-    elif isinstance(raw_data, list):
-        data_kho = raw_data
+        data_kho = raw_data.get("KHO_PHAN_BO", [])
+        data_du_an = raw_data.get("DANH_SACH_DU_AN", [])
+        sheet_doi_raw = raw_data.get("QUAN_LY_DOI", [])
 
     danh_sach_du_an = []
     if data_du_an:
@@ -81,7 +74,6 @@ if st.session_state.nav_tab == "Bao_cao":
                 val = str(r[0]).strip()
                 if val and val.lower() not in ["mã dự án", "mã da", "stt", "none", "", "dự án", "tên dự án"]:
                     if val not in danh_sach_du_an: danh_sach_du_an.append(val)
-                        
     if not danh_sach_du_an and data_kho:
         for r in data_kho:
             if len(r) > 0:
@@ -93,11 +85,9 @@ if st.session_state.nav_tab == "Bao_cao":
     with col_rf1:
         du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", options=danh_sach_du_an, index=None, placeholder="-- Gõ để tìm hoặc chọn mã dự án --")
     with col_rf2:
-        st.write("")
-        st.write("")
+        st.write(""); st.write("")
         if st.button("Lam moi du lieu"):
-            st.cache_data.clear()
-            st.rerun()
+            st.cache_data.clear(); st.rerun()
 
     ds_doi, ds_diem = [], []
     p_code = du_an_chon.strip() if du_an_chon else ""
@@ -112,7 +102,6 @@ if st.session_state.nav_tab == "Bao_cao":
                 val = str(r[col_idx_ten_doi]).strip()
                 if val and val.lower() not in ["tên đội", "ten doi", "stt", "none", "", "mã đội"]:
                     if val not in ds_doi: ds_doi.append(val)
-                        
     if not ds_doi and data_kho:
         for r in data_kho:
             if len(r) > 6:
@@ -144,7 +133,6 @@ if st.session_state.nav_tab == "Bao_cao":
     diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Đồng bộ {len(ds_diem)} đơn vị) *", options=sorted(ds_diem), index=None, placeholder="-- Gõ để tìm hoặc chọn địa điểm --")
     
     ds_hang = []
-    total_sl = 0
     if diem_giao_lap and doi_thuc_hien and p_code:
         for r in data_kho:
             r_proj = str(r[0]).strip().lower() if len(r) > 0 else ""
@@ -157,10 +145,6 @@ if st.session_state.nav_tab == "Bao_cao":
                 dvt = str(r[idx_dvt]).strip() if len(r) > idx_dvt else "Bộ"
                 if ten and ten.lower() not in ["tên tb", "thiết bị", "none", ""]:
                     ds_hang.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
-                    try:
-                        total_sl += float(sl)
-                    except:
-                        pass
 
         st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ CHO ĐƠN VỊ")
         st.markdown(f"📍 **Đơn vị / Địa điểm:** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
@@ -169,7 +153,7 @@ if st.session_state.nav_tab == "Bao_cao":
             tb_md = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
             for item in ds_hang: tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
             st.markdown(tb_md)
-            st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị thực tế! Tổng số lượng: {total_sl}")
+            st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị thực tế!")
         else:
             st.warning("Không tìm thấy dữ liệu thiết bị khớp với đơn vị này.")
     else:
@@ -203,8 +187,8 @@ if st.session_state.nav_tab == "Bao_cao":
             elif not gps_link:
                 st.warning("Vui lòng Check-in GPS trước khi gửi báo cáo!")
             else:
-                if submit_to_google(doi_thuc_hien, diem_giao_lap, diem_giao_lap, total_sl, gps_link, "Đã giao hàng"):
-                    st.success(f"Gửi báo cáo thành công về Sheet BAO_CAO_TRIEN_KHAI!")
+                if submit_to_google(doi_thuc_hien, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Đã giao hàng"):
+                    st.success(f"Gửi báo cáo thành công! ({len(ds_hang)} mặt hàng đã được ghi nhận)")
                 else: st.error("Gửi báo cáo thất bại, vui lòng thử lại!")
     with col_b2:
         if st.button("ĐÃ LẮP XONG (LĐ)", type="primary", use_container_width=True):
@@ -213,8 +197,8 @@ if st.session_state.nav_tab == "Bao_cao":
             elif not gps_link:
                 st.warning("Vui lòng Check-in GPS trước khi gửi báo cáo!")
             else:
-                if submit_to_google(doi_thuc_hien, diem_giao_lap, diem_giao_lap, total_sl, gps_link, "Đã lắp đặt"):
-                    st.success(f"Gửi báo cáo thành công về Sheet BAO_CAO_TRIEN_KHAI!")
+                if submit_to_google(doi_thuc_hien, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Đã lắp đặt"):
+                    st.success(f"Gửi báo cáo thành công! ({len(ds_hang)} mặt hàng đã được ghi nhận)")
                 else: st.error("Gửi báo cáo thất bại, vui lòng thử lại!")
     with col_b3:
         if st.button("ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
@@ -223,8 +207,8 @@ if st.session_state.nav_tab == "Bao_cao":
             elif not gps_link:
                 st.warning("Vui lòng Check-in GPS trước khi gửi báo cáo!")
             else:
-                if submit_to_google(doi_thuc_hien, diem_giao_lap, diem_giao_lap, total_sl, gps_link, "Giao và Lắp xong"):
-                    st.success(f"Gửi báo cáo thành công về Sheet BAO_CAO_TRIEN_KHAI!")
+                if submit_to_google(doi_thuc_hien, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong"):
+                    st.success(f"Gửi báo cáo thành công! ({len(ds_hang)} mặt hàng đã được ghi nhận)")
                 else: st.error("Gửi báo cáo thất bại, vui lòng thử lại!")
 
 elif st.session_state.nav_tab == "Admin":
