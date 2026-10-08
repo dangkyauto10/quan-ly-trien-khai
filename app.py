@@ -1,10 +1,37 @@
 import streamlit as st
 import urllib.request
 import json
+import csv
+import io
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
+
+# LINK 1: KẾT NỐI APPS SCRIPT ĐỂ ĐỌC DỮ LIỆU KHO PHÂN BỔ (LINK CHUẨN CỦA ANH)
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyCjVh5gdBgbQtka1UN_F4WGepgQRYdTcPobXcRr_xy70kN0kn_aLDTVtoI2nObszogsw/exec"
+
+# LINK 2: LUỒNG TÀNG HÌNH ĐỌC TRỰC TIẾP CỘT A TỪ SHEET "DANH_SACH_DU_AN" (KHÔNG CẦN APPS SCRIPT)
+PROJECT_CSV_URL = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/gviz/tq?tqx=out:csv&sheet=DANH_SACH_DU_AN"
+
+@st.cache_data(ttl=10)
+def load_project_list():
+    try:
+        req = urllib.request.Request(PROJECT_CSV_URL, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            content = response.read().decode('utf-8')
+            reader = csv.reader(io.StringIO(content))
+            rows = list(reader)
+            
+            danh_sach = []
+            for r in rows:
+                if len(r) > 0:
+                    val = str(r[0]).strip() # Vét sạch Cột A
+                    if val and val.lower() not in ["mã dự án", "mã da", "stt", ""]:
+                        if val not in danh_sach:
+                            danh_sach.append(val)
+            return danh_sach
+    except Exception:
+        return []
 
 @st.cache_data(ttl=10)
 def load_live_data_from_script():
@@ -13,8 +40,8 @@ def load_live_data_from_script():
         with urllib.request.urlopen(req, timeout=10) as response:
             return json.loads(response.read().decode('utf-8'))
     except Exception as e:
-        st.error(f"🚨 LỖI KẾT NỐI API GOOGLE SHEETS: {e}")
-        return None
+        st.error(f"🚨 LỖI KẾT NỐI API KHO PHÂN BỔ: {e}")
+        return []
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -36,38 +63,18 @@ st.markdown("---")
 if st.session_state.nav_tab == "Bao_cao":
     st.markdown("### BAO CAO NHIEM VU HIEN TRUONG (ALLOCATION SYNC)")
     
+    # 1. BỐC MÃ DỰ ÁN TRỰC TIẾP TỪ SHEET DANH SÁCH DỰ ÁN
+    danh_sach_du_an = load_project_list()
     raw_data = load_live_data_from_script()
+    rows_kho_data = raw_data[1:] if isinstance(raw_data, list) and len(raw_data) > 1 else []
     
-    data_kho = []
-    data_du_an = []
-    
-    if raw_data:
-        if isinstance(raw_data, list):
-            data_kho = raw_data
-        elif isinstance(raw_data, dict):
-            data_kho = raw_data.get("KHO_PHAN_BO", [])
-            data_du_an = raw_data.get("DANH_SACH_DU_AN", [])
-    
-    # 1. VÉT SẠCH 100% CỘT A VÀO DANH SÁCH DỰ ÁN
-    danh_sach_du_an = []
-    
-    # Ưu tiên quét Cột A của sheet Danh Sách Dự Án
-    if data_du_an and len(data_du_an) > 1:
-        for r in data_du_an[1:]:
+    # Bọc lót nếu link Dự án lỗi, vét lại từ Kho Phân Bổ
+    if not danh_sach_du_an and rows_kho_data:
+        for r in rows_kho_data:
             if len(r) > 0:
-                val_da = str(r[0]).strip() # Bốc trực diện Cột A (Index 0)
-                if val_da and val_da.lower() not in ["mã dự án", "stt", ""]:
-                    if val_da not in danh_sach_du_an:
-                        danh_sach_du_an.append(val_da)
-
-    # Bọc lót: Nếu Apps Script chưa đẩy sheet Dự Án ra, vét sạch Cột A từ sheet Kho Phân Bổ
-    if not danh_sach_du_an and data_kho and len(data_kho) > 1:
-        for r in data_kho[1:]:
-            if len(r) > 0:
-                val_da = str(r[0]).strip() # Bốc trực diện Cột A
-                if val_da and val_da.lower() not in ["mã dự án", "stt", ""]:
-                    if val_da not in danh_sach_du_an:
-                        danh_sach_du_an.append(val_da)
+                val_da = str(r[0]).strip()
+                if val_da and val_da.lower() not in ["mã dự án", "stt", ""] and val_da not in danh_sach_du_an:
+                    danh_sach_du_an.append(val_da)
 
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1:
@@ -86,11 +93,10 @@ if st.session_state.nav_tab == "Bao_cao":
     danh_sach_doi = []
     danh_sach_diem = []
     project_code = du_an_chon.strip() if "Chưa kết nối" not in du_an_chon else ""
-    rows_kho_data = data_kho[1:] if len(data_kho) > 1 else []
     
-    # 2. QUY CHIẾU LỌC ĐỘI VÀ ĐỊA ĐIỂM THEO DỰ ÁN ĐÃ CHỌN
+    # 2. QUY CHIẾU LỌC ĐỘI VÀ ĐỊA ĐIỂM TỪ KHO PHÂN BỔ
     if rows_kho_data and project_code:
-        headers_kho = [str(x).strip().lower() for x in data_kho[0]]
+        headers_kho = [str(x).strip().lower() for x in raw_data[0]]
         
         def find_col_kho(kws, default_i):
             for i, h in enumerate(headers_kho):
@@ -105,7 +111,7 @@ if st.session_state.nav_tab == "Bao_cao":
         idx_dvt_kho = find_col_kho(["đvt", "đơn vị tính"], 5)
 
         for r in rows_kho_data:
-            row_proj = str(r[0]).strip() if len(r) > 0 else "" # Cột A của Kho
+            row_proj = str(r[0]).strip() if len(r) > 0 else ""
             if row_proj.lower() == project_code.lower() or project_code.lower() in row_proj.lower():
                 if len(r) > idx_doi_kho and str(r[idx_doi_kho]).strip():
                     val_doi = str(r[idx_doi_kho]).strip()
@@ -164,38 +170,4 @@ if st.session_state.nav_tab == "Bao_cao":
     with col_b1:
         if st.button("ĐÃ GIAO XONG (VC)", type="primary", use_container_width=True):
             if doi_thuc_hien == "-- Chon ten doi --" or diem_giao_lap == "-- Chon dia diem --":
-                st.warning("Vui long chon day du Ten doi va Dia diem!")
-            else:
-                st.success(f"Gửi báo cáo: ĐÃ GIAO XONG (VC) cho đội {doi_thuc_hien} tại {diem_giao_lap}")
-    with col_b2:
-        if st.button("ĐÃ LẮP XONG (LĐ)", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chon ten doi --" or diem_giao_lap == "-- Chon dia diem --":
-                st.warning("Vui long chon day du Ten doi va Dia diem!")
-            else:
-                st.success(f"Gửi báo cáo: ĐÃ LẮP XONG (LĐ) cho đội {doi_thuc_hien} tại {diem_giao_lap}")
-    with col_b3:
-        if st.button("ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chon ten doi --" or diem_giao_lap == "-- Chon dia diem --":
-                st.warning("Vui long chon day du Ten doi va Dia diem!")
-            else:
-                st.success(f"Gửi báo cáo TRỌN GÓI: ĐÃ GIAO VÀ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap}")
-
-elif st.session_state.nav_tab == "Admin":
-    st.markdown("### KHU VỰC QUẢN TRỊ - ADMIN DUYỆT")
-    pass_input = st.text_input("Nhập mật khẩu quản trị (Mã PIN):", type="password")
-    if pass_input == SECURE_PASS:
-        st.success("Đăng nhập Admin thành công!")
-        st.write("- [Chờ duyệt] Thành viên đăng ký mới")
-        if st.button("Duyet tat ca tai khoan"):
-            st.success("Đã phê duyệt thành công!")
-    elif pass_input != "":
-        st.error("Sai mật khẩu bảo mật! (Pass: 880880)")
-
-elif st.session_state.nav_tab == "Link":
-    st.markdown("### TRANG THEO DÕI TIẾN ĐỘ CHO LÃNH ĐẠO")
-    pass_link = st.text_input("Nhập mật khẩu truy cập báo cáo (Mã PIN):", type="password")
-    if pass_link == SECURE_PASS:
-        st.success("Xác thực thành công!")
-        st.markdown("- [Mở trực tiếp Google Sheets Tổng hợp](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
-    elif pass_link != "":
-        st.error("Sai mật khẩu truy cập! (Pass: 880880)")
+                st.warning("Vui long chon day du Ten doi va
