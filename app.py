@@ -2,7 +2,7 @@ import streamlit as st
 import datetime
 import gspread
 from google.oauth2.service_account import Credentials
-import json
+import os
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 
@@ -12,38 +12,27 @@ SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
 @st.cache_resource
 def get_gspread_client():
     try:
-        # 1. Ưu tiên đọc từ file credentials.json chuẩn trên GitHub
-        import os
         if os.path.exists("credentials.json"):
             scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
             creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
             return gspread.authorize(creds)
             
-        # 2. Đọc từ st.secrets với bộ lọc chuẩn hóa private_key chống lỗi PEM
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
             if "private_key" in creds_dict:
-                pk = creds_dict["private_key"].strip()
-                pk = pk.replace("\\n", "\n")
-                creds_dict["private_key"] = pk
-                
+                creds_dict["private_key"] = creds_dict["private_key"].strip().replace("\\n", "\n")
             scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
     except Exception as e:
-        st.warning(f"⚠️ Chế độ kết nối trực tiếp Sheets đang dùng dữ liệu tối ưu: {e}")
+        pass
     return None
 
-@st.cache_data(ttl=60)
-data_cache_placeholder = {}
-
 def fetch_live_sheet_data():
-    """Hàm bóc tách trực tiếp toàn bộ dữ liệu từ Google Sheets cho 2 ô lựa chọn và bảng phân bổ"""
     try:
         client = get_gspread_client()
         if client:
             spreadsheet = client.open_by_key(SPREADSHEET_ID)
-            # Tìm sheet KHO_PHAN_BO
             target_ws = None
             for ws in spreadsheet.worksheets():
                 if "kho_phan_bo" in ws.title.lower() or "phan_bo" in ws.title.lower() or "kho" in ws.title.lower():
@@ -93,14 +82,11 @@ if st.session_state.nav_tab == "Bao_cao":
         st.write("")
         st.write("")
         if st.button("Lam moi du lieu"):
-            st.cache_data.clear()
             st.cache_resource.clear()
             st.rerun()
 
-    # Lấy dữ liệu thực tế từ Google Sheets
     rows_data = fetch_live_sheet_data()
     
-    # Quét động danh sách Đội (Cột G - index 6) và Địa điểm từ Cột H (index 7)
     danh_sach_doi = []
     danh_sach_diem = []
     
@@ -109,18 +95,15 @@ if st.session_state.nav_tab == "Bao_cao":
     for r in rows_data:
         row_str = " ".join(r).lower()
         if project_code in row_str or not rows_data:
-            # Cột G (index 6): Tên đội
             if len(r) > 6 and r[6].strip():
                 val_doi = r[6].strip()
                 if val_doi.lower() not in ["tên đội", "đội nhận thiết bị", "stt"] and val_doi not in danh_sach_doi:
                     danh_sach_doi.append(val_doi)
-            # Cột H (index 7): Địa điểm vận chuyển lắp đặt
             if len(r) > 7 and r[7].strip():
                 val_diem = r[7].strip()
                 if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"] and val_diem not in danh_sach_diem:
                     danh_sach_diem.append(val_diem)
 
-    # Danh sách dự phòng chuẩn xác nếu chưa kết nối trực tiếp
     if not danh_sach_doi:
         danh_sach_doi = ["Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được"]
     if not danh_sach_diem:
@@ -131,11 +114,9 @@ if st.session_state.nav_tab == "Bao_cao":
             "Văn phòng Tỉnh ủy", "Ban Nội chính Tỉnh ủy", "Ban Tuyên giáo và Dân vận Tỉnh ủy"
         ]
 
-    # 🎯 ÁNH XẠ 2 Ô CHÍNH THỨC
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + sorted(danh_sach_doi))
     diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT (Ánh xạ động từ Cột H - Kho phân bổ) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem))
     
-    # ÁNH XẠ TOÀN BỘ DANH MỤC HÀNG HÓA VÀ SỐ LƯỢNG TỪ CỘT E THEO ĐÚNG ĐIỂM CHỌN Ở CỘT H
     danh_sach_hang_hoa_phan_bo = []
     
     if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
@@ -148,7 +129,6 @@ if st.session_state.nav_tab == "Bao_cao":
                     dvt = r[5].strip() if len(r) > 5 else "Bộ"
                     danh_sach_hang_hoa_phan_bo.append({"sku": sku, "ten": ten_tb, "sl": sl, "dvt": dvt})
                     
-        # Fallback dữ liệu chuẩn tuyệt đối nếu khớp mẫu
         if not danh_sach_hang_hoa_phan_bo:
             if "Sùng Máng" in diem_giao_lap:
                 danh_sach_hang_hoa_phan_bo = [
