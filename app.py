@@ -20,7 +20,8 @@ def get_gspread_client():
         pass
     return None
 
-def get_smart_column_data(target_sheet_name, col_indices):
+def get_exact_column_data(target_sheet_name, col_idx):
+    """Đọc thẳng tắp dữ liệu từ cột chỉ định của worksheet mà không lọc rườm rà"""
     try:
         client = get_gspread_client()
         if client:
@@ -33,25 +34,24 @@ def get_smart_column_data(target_sheet_name, col_indices):
                     selected_sheet = ws
                     break
             
-            if not selected_sheet and worksheets:
+            if not selected_sheet:
                 for ws in worksheets:
                     if target_sheet_name.strip().lower() in ws.title.strip().lower():
                         selected_sheet = ws
                         break
-            if not selected_sheet:
+            if not selected_sheet and worksheets:
                 selected_sheet = worksheets[0]
 
-            all_rows = selected_sheet.get_all_values()
-            values = []
-            if len(all_rows) > 1:
-                for row in all_rows[1:]:
-                    for idx in col_indices:
-                        if len(row) > idx:
-                            val = row[idx].strip()
-                            if val != "" and not val.isdigit() and val not in values:
-                                if "tên đội" not in val.lower() and "địa điểm" not in val.lower() and "khu vực" not in val.lower():
-                                    values.append(val)
-            return values
+            if selected_sheet:
+                all_rows = selected_sheet.get_all_values()
+                values = []
+                if len(all_rows) > 1:
+                    for row in all_rows[1:]:
+                        if len(row) > col_idx:
+                            val = row[col_idx].strip()
+                            if val != "" and val not in values:
+                                values.append(val)
+                return values
     except Exception as e:
         pass
     return []
@@ -106,7 +106,8 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.cache_resource.clear()
             st.rerun()
 
-    danh_sach_doi = get_smart_column_data("QUAN_LY_DOI", [1, 2])
+    # Lấy dữ liệu tên đội từ sheet QUAN_LY_DOI (cột B - index 1)
+    danh_sach_doi = get_exact_column_data("QUAN_LY_DOI", 1)
     if not danh_sach_doi:
         danh_sach_doi = [
             "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
@@ -116,7 +117,10 @@ elif st.session_state.nav_tab == "Bao_cao":
             "15 Nó là Súc Vật", "17 Đc Không", "18 đc nào"
         ]
         
-    danh_sach_diem = get_smart_column_data("DANH_SACH_DIEM", [3, 2, 4, 1])
+    # Lấy dữ liệu địa điểm từ sheet DANH_SACH_DIEM (cột D - index 3, nếu không có thử quét cột C index 2)
+    danh_sach_diem = get_exact_column_data("DANH_SACH_DIEM", 3)
+    if not danh_sach_diem:
+        danh_sach_diem = get_exact_column_data("DANH_SACH_DIEM", 2)
     if not danh_sach_diem:
         danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
         
