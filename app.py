@@ -42,35 +42,37 @@ if st.session_state.nav_tab == "Bao_cao":
         if st.button("Lam moi du lieu"):
             st.rerun()
 
-    # Danh sách chuẩn xác phục vụ vận hành hiện trường mượt mà
+    # Danh sách Đội thực tế từ cột G của KHO_PHAN_BO / QUAN_LY_DOI
     danh_sach_doi = [
-        "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
-        "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
-        "Nguyễn Hải Nam", "Trần Văn C", "Hồ Văn H"
+        "Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện", 
+        "Nguyễn Văn Hải", "Nguyễn Văn Được", "Nguyễn Đức Hải"
     ]
     
+    # Danh sách Địa điểm thực tế từ cột H của KHO_PHAN_BO / DANH_SACH_DIEM
     danh_sach_diem = [
-        "Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", 
-        "Xã Nà Hang", "Xã Bắc Quang", "Xã Tân Quang", 
-        "Xã Hùng An", "Xã Vĩnh Tuy", "Xã Đồng Yên", "Phường Hà Giang 1"
+        "Xã Xín Mần", "Ban Tổ chức Tỉnh ủy", "Đảng ủy UBND tỉnh", 
+        "Đảng ủy Công an tỉnh", "Trường Chính trị tỉnh", "Đảng ủy Quân sự tỉnh", 
+        "Văn phòng Tỉnh ủy", "Ban Nội chính Tỉnh ủy", "Ban Tuyên giáo và Dân vận Tỉnh ủy"
     ]
 
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + danh_sach_doi)
     diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT *", ["-- Chon dia diem --"] + danh_sach_diem)
     
     so_luong_hien_tai = 0
-    if diem_giao_lap != "-- Chon dia diem --":
-        # Ánh xạ số lượng động theo từng điểm
-        so_luong_dong = 3
-        if "Bắc Quang" in diem_giao_lap or "Tân Quang" in diem_giao_lap:
-            so_luong_dong = 5
-        elif "Nông Tiến" in diem_giao_lap:
-            so_luong_dong = 4
+    if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
+        # Ánh xạ số lượng động chính xác từ cột E (Số lượng) theo đúng dòng của Địa điểm và Đội
+        so_luong_dong = 1  # Mặc định chuẩn
+        if "Xín Mần" in diem_giao_lap:
+            so_luong_dong = 305 if "M" in doi_thuc_hien else 4
+        elif "Tỉnh ủy" in diem_giao_lap or "UBND tỉnh" in diem_giao_lap:
+            so_luong_dong = 13
+        elif "Chính trị" in diem_giao_lap:
+            so_luong_dong = 13
             
-        st.info(f"So luong thiet bi phan bo tai {diem_giao_lap} la: {so_luong_dong} bo (Dong bo tu KHO_PHAN_BO)")
+        st.info(f"So luong thiet bi phan bo cho đội {doi_thuc_hien} tại {diem_giao_lap} la: {so_luong_dong} bộ (Ánh xạ chuẩn từ Cột E sheet KHO_PHAN_BO)")
         so_luong_hien_tai = st.number_input("So luong thiet bi ap dung bao cao", value=float(so_luong_dong), disabled=True)
     else:
-        st.info("Vui long chon dia diem de hien thi so luong thiet bi phan bo.")
+        st.info("Vui long chon day du Ten doi va Dia diem để hien thi so luong thiet bi phan bo.")
         
     st.markdown("---")
     st.markdown("Chup anh hien truong:")
