@@ -112,30 +112,23 @@ elif st.session_state.nav_tab == "Bao_cao":
         
     data_kho, data_du_an, sheet_doi_raw = [], [], []
     if isinstance(raw_data, dict):
-        for k, v in raw_data.items():
-            k_lower = str(k).lower()
-            if "kho" in k_lower: data_kho = v
-            elif "du_an" in k_lower or "danh_sach_du_an" in k_lower: data_du_an = v
-            elif "doi" in k_lower or "quan_ly_doi" in k_lower: sheet_doi_raw = v
-        if not data_kho and "KHO_PHAN_BO" in raw_data: data_kho = raw_data["KHO_PHAN_BO"]
-        if not data_du_an and "DANH_SACH_DU_AN" in raw_data: data_du_an = raw_data["DANH_SACH_DU_AN"]
-        if not sheet_doi_raw and "QUAN_LY_DOI" in raw_data: sheet_doi_raw = raw_data["QUAN_LY_DOI"]
-    elif isinstance(raw_data, list):
-        data_kho = raw_data
+        # Đồng bộ chính xác Key từ JSON của Apps Script
+        data_kho = raw_data.get("KHO_PHAN_BO", [])
+        data_du_an = raw_data.get("DANH_SACH_DU_AN", [])
+        sheet_doi_raw = raw_data.get("QUAN_LY_DOI", [])
 
-    # --- LẤY DANH SÁCH DỰ ÁN ---
     danh_sach_du_an = []
     if data_du_an:
         for r in data_du_an:
             if len(r) > 0:
                 val = str(r[0]).strip()
-                if val and val.lower() not in ["mã dự án", "mã da", "stt", "none", "", "dự án", "tên dự án"]:
+                if val and val.upper() not in ["MÃ DỰ ÁN", "MÃ DA", "STT", "NONE", "", "DỰ ÁN", "TÊN DỰ ÁN"]:
                     if val not in danh_sach_du_an: danh_sach_du_an.append(val)
     if not danh_sach_du_an and data_kho:
         for r in data_kho:
             if len(r) > 0:
                 val = str(r[0]).strip()
-                if val and val.lower() not in ["mã dự án", "stt", "none", "", "dự án"]:
+                if val and val.upper() not in ["MÃ DỰ ÁN", "STT", "NONE", "", "DỰ ÁN"]:
                     if val not in danh_sach_du_an: danh_sach_du_an.append(val)
 
     col_rf1, col_rf2 = st.columns([3, 1])
@@ -147,47 +140,48 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.cache_data.clear(); st.rerun()
 
     ds_doi = []
-    p_code = du_an_chon.strip() if du_an_chon else ""
+    p_code = du_an_chon.strip().upper() if du_an_chon else ""
     
     if sheet_doi_raw:
         col_idx_ten_doi = 1
         for r in sheet_doi_raw[:3]:
             for idx, h in enumerate(r):
-                if "tên đội" in str(h).strip().lower() or "ten doi" in str(h).strip().lower(): col_idx_ten_doi = idx
+                if "TÊN ĐỘI" in str(h).strip().upper() or "TEN DOI" in str(h).strip().upper(): col_idx_ten_doi = idx
         for r in sheet_doi_raw:
             if len(r) > col_idx_ten_doi:
                 val = str(r[col_idx_ten_doi]).strip()
-                if val and val.lower() not in ["tên đội", "ten doi", "stt", "none", "", "mã đội"]:
+                if val and val.upper() not in ["TÊN ĐỘI", "TEN DOI", "STT", "NONE", "", "MÃ ĐỘI"]:
                     if val not in ds_doi: ds_doi.append(val)
     if not ds_doi and data_kho:
         for r in data_kho:
             if len(r) > 6:
                 val = str(r[6]).strip()
-                if val and val.lower() not in ["tên đội", "stt", "none", ""] and val not in ds_doi:
+                if val and val.upper() not in ["TÊN ĐỘI", "STT", "NONE", ""] and val not in ds_doi:
                     ds_doi.append(val)
 
     doi_thuc_hien = st.selectbox(f"TEN DOI VAN CHUYEN / LAP DAT (Đồng bộ {len(ds_doi)} nhân sự) *", options=ds_doi, index=None, placeholder="-- Gõ để tìm hoặc chọn tên đội --")
 
-    # --- BỘ LỌC CỘT THÔNG MINH (CHỐNG TRƯỢT 100%) ---
+    # --- BỘ LỌC CỘT ĐỘNG UPPERCASE THÔNG MINH (BẢO TỒN THÀNH TỰU PRO) ---
     idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
     if data_kho:
         for r in data_kho[:3]:
             for i, h in enumerate(r):
-                h_str = str(h).strip().lower()
-                if "địa điểm" in h_str or "vận chuyển lắp đặt" in h_str: idx_diem = i
-                elif "mã tb" in h_str or "sku" in h_str: idx_matb = i
-                elif "thiết bị" in h_str or "tên tb" in h_str: idx_tentb = i
-                elif "số lượng" in h_str or "sl" in h_str: idx_sl = i
-                elif "đvt" in h_str or "đơn vị tính" in h_str: idx_dvt = i
+                h_str = str(h).strip().upper()
+                if "ĐỊA ĐIỂM" in h_str or "ĐƠN VỊ" in h_str: idx_diem = i
+                elif "MÃ TB" in h_str or "SKU" in h_str: idx_matb = i
+                elif "THIẾT BỊ" in h_str or "HÀNG HÓA" in h_str: idx_tentb = i
+                elif "SỐ LƯỢNG" in h_str or "SL" in h_str: idx_sl = i
+                elif "ĐVT" in h_str or "ĐƠN VỊ TÍNH" in h_str: idx_dvt = i
 
     ds_diem = []
     if data_kho and p_code:
         for r in data_kho:
-            r_proj = str(r[0]).strip().lower() if len(r) > 0 else ""
-            if p_code.lower() == r_proj or p_code.lower() in r_proj:
+            r_proj = str(r[0]).strip().upper() if len(r) > 0 else ""
+            if p_code in r_proj:
                 if len(r) > idx_diem:
                     v_diem = str(r[idx_diem]).strip()
-                    if v_diem and v_diem.lower() not in ["địa điểm", "đơn vị", "stt", "none", "", "địa điểm vận chuyển lắp đặt"]:
+                    # Quét chặt chẽ bằng UPPERCASE để loại bỏ triệt để dòng Header và quét đúng dữ liệu thực
+                    if v_diem and v_diem.upper() not in ["ĐỊA ĐIỂM", "ĐỊA ĐIỂM VẬN CHUYỂN LẮP ĐẶT", "ĐƠN VỊ", "STT", "NONE", ""]:
                         if v_diem not in ds_diem: ds_diem.append(v_diem)
 
     diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Đồng bộ {len(ds_diem)} đơn vị) *", options=sorted(ds_diem), index=None, placeholder="-- Gõ để tìm hoặc chọn địa điểm --")
@@ -195,15 +189,15 @@ elif st.session_state.nav_tab == "Bao_cao":
     ds_hang = []
     if diem_giao_lap and doi_thuc_hien and p_code:
         for r in data_kho:
-            r_proj = str(r[0]).strip().lower() if len(r) > 0 else ""
-            c_diem = str(r[idx_diem]).strip().lower() if len(r) > idx_diem else ""
+            r_proj = str(r[0]).strip().upper() if len(r) > 0 else ""
+            c_diem = str(r[idx_diem]).strip().upper() if len(r) > idx_diem else ""
             
-            if (p_code.lower() == r_proj or p_code.lower() in r_proj) and diem_giao_lap.lower() == c_diem:
+            if p_code in r_proj and diem_giao_lap.upper() == c_diem:
                 sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
                 ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
                 sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
                 dvt = str(r[idx_dvt]).strip() if len(r) > idx_dvt else "Bộ"
-                if ten and ten.lower() not in ["tên tb", "thiết bị", "none", ""]:
+                if ten and ten.upper() not in ["TÊN TB", "THIẾT BỊ", "NONE", ""]:
                     ds_hang.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
 
         st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ CHO ĐƠN VỊ")
