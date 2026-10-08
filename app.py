@@ -41,16 +41,19 @@ if st.session_state.nav_tab == "Bao_cao":
         
     data_kho = []
     data_du_an = []
+    data_doi_master = []
     
     if raw_data:
-        if isinstance(raw_data, list):
-            data_kho = raw_data
-        elif isinstance(raw_data, dict):
+        if isinstance(raw_data, dict):
             data_kho = raw_data.get("KHO_PHAN_BO", [])
             data_du_an = raw_data.get("DANH_SACH_DU_AN", [])
+            data_doi_master = raw_data.get("QUAN_LY_DOI", [])
+        elif isinstance(raw_data, list):
+            data_kho = raw_data
             
     rows_kho = data_kho[1:] if len(data_kho) > 1 else []
     
+    # 1. ÁNH XẠ DỰ ÁN TỪ CỘT A SHEET DỰ ÁN
     danh_sach_du_an = []
     if data_du_an and len(data_du_an) > 1:
         for r in data_du_an[1:]:
@@ -84,6 +87,15 @@ if st.session_state.nav_tab == "Bao_cao":
     ds_diem = []
     p_code = du_an_chon.strip() if du_an_chon else ""
     
+    # 2. VÉT SẠCH TRỌN VẸN CỘT B TỪ SHEET "QUAN_LY_DOI"
+    if data_doi_master and len(data_doi_master) > 1:
+        for r in data_doi_master[1:]:
+            if len(r) > 1:
+                v_doi = str(r[1]).strip()
+                if v_doi and v_doi.lower() not in ["tên đội", "stt", ""] and v_doi not in ds_doi:
+                    ds_doi.append(v_doi)
+    
+    # 3. QUY CHIẾU LỌC ĐỊA ĐIỂM TỪ KHO PHÂN BỔ & BỌC LÓT ĐỘI NẾU CẦN
     idx_doi = 6; idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
     if rows_kho and p_code:
         headers = [str(x).strip().lower() for x in data_kho[0]]
@@ -98,24 +110,28 @@ if st.session_state.nav_tab == "Bao_cao":
         for r in rows_kho:
             r_proj = str(r[0]).strip().lower() if len(r) > 0 else ""
             if r_proj == p_code.lower() or p_code.lower() in r_proj:
-                if len(r) > idx_doi and str(r[idx_doi]).strip():
-                    v_doi = str(r[idx_doi]).strip()
-                    if v_doi.lower() not in ["tên đội", "stt", ""] and v_doi not in ds_doi:
-                        ds_doi.append(v_doi)
                 if len(r) > idx_diem and str(r[idx_diem]).strip():
                     v_diem = str(r[idx_diem]).strip()
                     if v_diem.lower() not in ["địa điểm", "stt", ""] and v_diem not in ds_diem:
                         ds_diem.append(v_diem)
+                
+                if not ds_doi:
+                    if len(r) > idx_doi and str(r[idx_doi]).strip():
+                        v_doi_kho = str(r[idx_doi]).strip()
+                        if v_doi_kho.lower() not in ["tên đội", "stt", ""] and v_doi_kho not in ds_doi:
+                            ds_doi.append(v_doi_kho)
 
     doi_thuc_hien = st.selectbox(
-        "TEN DOI VAN CHUYEN / LAP DAT *", 
-        options=sorted(ds_doi), index=None, placeholder="-- Gõ để tìm hoặc chọn tên đội --"
+        f"TEN DOI VAN CHUYEN / LAP DAT (Tổng danh sách: {len(ds_doi)} nhân sự) *", 
+        options=ds_doi, index=None, placeholder="-- Gõ để tìm hoặc chọn tên đội --"
     )
+    
     diem_giao_lap = st.selectbox(
         f"DIEM GIAO HANG & LAP DAT (Đồng bộ {len(ds_diem)} đơn vị) *", 
         options=sorted(ds_diem), index=None, placeholder="-- Gõ để tìm hoặc chọn địa điểm --"
     )
     
+    # 4. DANH MỤC THIẾT BỊ
     ds_hang = []
     if diem_giao_lap and doi_thuc_hien and p_code:
         for r in rows_kho:
@@ -141,7 +157,7 @@ if st.session_state.nav_tab == "Bao_cao":
         else:
             st.warning("Không tìm thấy dữ liệu thiết bị khớp với đơn vị này.")
     else:
-        st.info("Vui lòng chọn đầy đủ Tên đội và Địa điểm để hiển thị thiết bị phân bổ.")
+        st.info("Vui lòng chọn đầy đủ Tên đội và Địa điểm để hiển thị danh mục thiết bị phân bổ.")
         
     st.markdown("---")
     st.markdown("Chup anh hien truong:")
