@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+import json
+import os
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự Án Hiện Trường", page_icon="📊", layout="centered")
 
@@ -10,19 +12,28 @@ SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4"
 @st.cache_resource
 def get_gspread_client():
     try:
-        if "gcp_service_account" in st.secrets:
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        
+        if os.path.exists("credentials.json"):
+            # Đọc file credentials.json và tự động sửa lỗi ngắt dòng của private_key nếu có
+            with open("credentials.json", "r", encoding="utf-8") as f:
+                creds_dict = json.load(f)
+            
+            if "private_key" in creds_dict:
+                pk = str(creds_dict["private_key"])
+                # Ép lại ký tự \n thành dấu xuống dòng thực tế để thư viện PEM đọc được
+                pk = pk.replace("\\n", "\n")
+                creds_dict["private_key"] = pk
+                
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            return gspread.authorize(creds)
+            
+        elif "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
             if "private_key" in creds_dict:
                 pk = str(creds_dict["private_key"])
-                # Xử lý dứt điểm mọi trường hợp lỗi xuống dòng hoặc ký tự lạ
                 pk = pk.replace("\\n", "\n")
-                if not pk.startswith("-----BEGIN PRIVATE KEY-----"):
-                    pk = "-----BEGIN PRIVATE KEY-----\n" + pk.strip()
-                if not pk.endswith("-----END PRIVATE KEY-----\n"):
-                    pk = pk.strip() + "\n"
                 creds_dict["private_key"] = pk
-                
-            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
     except Exception as e:
@@ -110,4 +121,4 @@ if not df_kho.empty:
                         except Exception as e:
                             st.error(f"Lỗi cập nhật: {e}")
 else:
-    st.warning("Đang tải dữ liệu hoặc chưa kết nối được với Google Sheets. Vui lòng kiểm tra lại cấu hình Secrets trên Streamlit Cloud.")
+    st.warning("Đang tải dữ liệu hoặc chưa kết nối được với Google Sheets. Vui lòng kiểm tra lại quyền chia sẻ file Google Sheet với Service Account.")
