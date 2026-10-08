@@ -110,11 +110,10 @@ if st.session_state.nav_tab == "Bao_cao":
                 if val and val.lower() not in ["tên đội", "stt", "none", ""] and val not in ds_doi:
                     ds_doi.append(val)
 
-    # User bắt buộc phải chọn Đội trước
     doi_thuc_hien = st.selectbox(f"TEN DOI VAN CHUYEN / LAP DAT (Đồng bộ {len(ds_doi)} nhân sự) *", options=ds_doi, index=None, placeholder="-- Gõ để tìm hoặc chọn tên đội --")
 
     # --- NHẬN DIỆN CỘT TRONG SHEET KHO ---
-    idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5; idx_doi = 6
+    idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
     if data_kho:
         for r in data_kho[:3]:
             for i, h in enumerate(r):
@@ -124,19 +123,13 @@ if st.session_state.nav_tab == "Bao_cao":
                 elif "thiết bị" in h_str or "tên tb" in h_str: idx_tentb = i
                 elif "số lượng" in h_str or "sl" in h_str: idx_sl = i
                 elif "đvt" in h_str or "đơn vị tính" in h_str: idx_dvt = i
-                elif "đội" in h_str or "đội nhận" in h_str: idx_doi = i
 
-    # --- LỌC ĐỊA ĐIỂM THÔNG MINH (CHỈ LẤY ĐỊA ĐIỂM CỦA ĐỘI ĐÃ CHỌN) ---
+    # --- LỌC ĐỊA ĐIỂM (LẤY TẤT CẢ CỦA DỰ ÁN) ---
     ds_diem = []
     if data_kho and p_code:
         for r in data_kho:
             r_proj = str(r[0]).strip().lower() if len(r) > 0 else ""
             if p_code.lower() == r_proj or p_code.lower() in r_proj:
-                # KIỂM TRA ĐỘI TRƯỚC KHI LẤY ĐỊA ĐIỂM
-                c_doi = str(r[idx_doi]).strip() if len(r) > idx_doi else ""
-                if doi_thuc_hien and c_doi.lower() != doi_thuc_hien.lower():
-                    continue # Bỏ qua nếu xã này không phải của đội đang chọn
-                    
                 if len(r) > idx_diem:
                     v_diem = str(r[idx_diem]).strip()
                     if v_diem and v_diem.lower() not in ["địa điểm", "đơn vị", "stt", "none", ""]:
@@ -150,9 +143,8 @@ if st.session_state.nav_tab == "Bao_cao":
         for r in data_kho:
             r_proj = str(r[0]).strip().lower() if len(r) > 0 else ""
             c_diem = str(r[idx_diem]).strip().lower() if len(r) > idx_diem else ""
-            c_doi = str(r[idx_doi]).strip().lower() if len(r) > idx_doi else ""
             
-            if (p_code.lower() == r_proj or p_code.lower() in r_proj) and diem_giao_lap.lower() == c_diem and doi_thuc_hien.lower() == c_doi:
+            if (p_code.lower() == r_proj or p_code.lower() in r_proj) and diem_giao_lap.lower() == c_diem:
                 sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
                 ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
                 sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
