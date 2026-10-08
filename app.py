@@ -5,6 +5,7 @@ from streamlit_geolocation import streamlit_geolocation
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
+# Đảm bảo URL này là bản Deploy mới nhất của Apps Script
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanFGwYnCu56rCOhY9q5emNGasXqwZRJlySd0CaysgNbb8BkjmNA/exec"
 
 def submit_registration(ho_ten, sdt, dia_ban, chuyen_mon, phuong_tien):
@@ -112,7 +113,6 @@ elif st.session_state.nav_tab == "Bao_cao":
         
     data_kho, data_du_an, sheet_doi_raw = [], [], []
     if isinstance(raw_data, dict):
-        # Đồng bộ chính xác Key từ JSON của Apps Script
         data_kho = raw_data.get("KHO_PHAN_BO", [])
         data_du_an = raw_data.get("DANH_SACH_DU_AN", [])
         sheet_doi_raw = raw_data.get("QUAN_LY_DOI", [])
@@ -156,22 +156,23 @@ elif st.session_state.nav_tab == "Bao_cao":
         for r in data_kho:
             if len(r) > 6:
                 val = str(r[6]).strip()
-                if val and val.upper() not in ["TÊN ĐỘI", "STT", "NONE", ""] and val not in ds_doi:
+                if val and val.upper() not in ["ĐỘI NHẬN THIẾT BỊ", "TÊN ĐỘI", "STT", "NONE", ""] and val not in ds_doi:
                     ds_doi.append(val)
 
     doi_thuc_hien = st.selectbox(f"TEN DOI VAN CHUYEN / LAP DAT (Đồng bộ {len(ds_doi)} nhân sự) *", options=ds_doi, index=None, placeholder="-- Gõ để tìm hoặc chọn tên đội --")
 
-    # --- BỘ LỌC CỘT ĐỘNG UPPERCASE THÔNG MINH (BẢO TỒN THÀNH TỰU PRO) ---
+    # --- BỘ LỌC CỘT ĐỘNG UPPERCASE THÔNG MINH (ÉP CHUẨN KÝ TỰ VIẾT HOA) ---
     idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
     if data_kho:
         for r in data_kho[:3]:
             for i, h in enumerate(r):
                 h_str = str(h).strip().upper()
-                if "ĐỊA ĐIỂM" in h_str or "ĐƠN VỊ" in h_str: idx_diem = i
-                elif "MÃ TB" in h_str or "SKU" in h_str: idx_matb = i
-                elif "THIẾT BỊ" in h_str or "HÀNG HÓA" in h_str: idx_tentb = i
-                elif "SỐ LƯỢNG" in h_str or "SL" in h_str: idx_sl = i
-                elif "ĐVT" in h_str or "ĐƠN VỊ TÍNH" in h_str: idx_dvt = i
+                # Khóa chính xác các cụm từ để không bị chéo cột (ví dụ: Đơn vị tính không được đè lên Địa điểm)
+                if h_str in ["ĐỊA ĐIỂM VẬN CHUYỂN LẮP ĐẶT", "ĐỊA ĐIỂM", "ĐƠN VỊ"]: idx_diem = i
+                elif h_str in ["MÃ THIẾT BỊ / SKU", "MÃ TB", "SKU"]: idx_matb = i
+                elif h_str in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN TB", "THIẾT BỊ", "HÀNG HÓA"]: idx_tentb = i
+                elif h_str in ["SỐ LƯỢNG", "SL"]: idx_sl = i
+                elif h_str in ["ĐƠN VỊ TÍNH", "ĐVT"]: idx_dvt = i
 
     ds_diem = []
     if data_kho and p_code:
@@ -180,8 +181,7 @@ elif st.session_state.nav_tab == "Bao_cao":
             if p_code in r_proj:
                 if len(r) > idx_diem:
                     v_diem = str(r[idx_diem]).strip()
-                    # Quét chặt chẽ bằng UPPERCASE để loại bỏ triệt để dòng Header và quét đúng dữ liệu thực
-                    if v_diem and v_diem.upper() not in ["ĐỊA ĐIỂM", "ĐỊA ĐIỂM VẬN CHUYỂN LẮP ĐẶT", "ĐƠN VỊ", "STT", "NONE", ""]:
+                    if v_diem and v_diem.upper() not in ["ĐỊA ĐIỂM VẬN CHUYỂN LẮP ĐẶT", "ĐỊA ĐIỂM", "ĐƠN VỊ", "STT", "NONE", ""]:
                         if v_diem not in ds_diem: ds_diem.append(v_diem)
 
     diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Đồng bộ {len(ds_diem)} đơn vị) *", options=sorted(ds_diem), index=None, placeholder="-- Gõ để tìm hoặc chọn địa điểm --")
@@ -197,7 +197,7 @@ elif st.session_state.nav_tab == "Bao_cao":
                 ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
                 sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
                 dvt = str(r[idx_dvt]).strip() if len(r) > idx_dvt else "Bộ"
-                if ten and ten.upper() not in ["TÊN TB", "THIẾT BỊ", "NONE", ""]:
+                if ten and ten.upper() not in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN TB", "THIẾT BỊ", "NONE", ""]:
                     ds_hang.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
 
         st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ CHO ĐƠN VỊ")
