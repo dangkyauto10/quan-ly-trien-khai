@@ -60,6 +60,23 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HỆ THỐNG ĐIỀ
 st.markdown("---")
 
 col1, col2, col3, col4 = st.columns(4)
-with col1: btn_dang_ky = st.button("📝 Đăng ký", use_container_width=True)
-with col2: btn_bao_cao = st.button("📊 Báo cáo", use_container_width=True)
-with col3: btn_admin = st.
+with col1:
+    btn_dang_ky = st.button("📝 Đăng ký", use_container_width=True)
+with col2:
+    btn_bao_cao = st.button("📊 Báo cáo", use_container_width=True)
+with col3:
+    btn_admin = st.button("🔒 Admin duyệt", use_container_width=True)
+with col4:
+    btn_link = st.button("📈 Link báo cáo", use_container_width=True)
+
+if "nav_tab" not in st.session_state: st.session_state.nav_tab = "Bao_cao"
+if btn_dang_ky: st.session_state.nav_tab = "Dang_ky"
+if btn_bao_cao: st.session_state.nav_tab = "Bao_cao"
+if btn_admin: st.session_state.nav_tab = "Admin"
+if btn_link: st.session_state.nav_tab = "Link"
+
+st.markdown("---")
+
+# ================= 1. TAB ĐĂNG KÝ THÀNH VIÊN =================
+if st.session_state.nav_tab == "Dang_ky":
+    st.markdown("### 📝 Đ
