@@ -1,45 +1,27 @@
 import streamlit as st
 import datetime
-import gspread
-from google.oauth2.service_account import Credentials
-import os
+import urllib.request
+import csv
+import io
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 
 SECURE_PASS = "880880"
-SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
-
-@st.cache_resource
-def get_gspread_service():
-    """Xác thực kết nối Google Sheets bằng file credentials.json"""
-    try:
-        if os.path.exists("credentials.json"):
-            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-            creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
-            return gspread.authorize(creds)
-    except Exception as e:
-        st.error(f"⚠️ Lỗi xác thực: {e}")
-    return None
+# Sử dụng liên kết xuất bản dạng CSV công khai chuẩn xác từ Google Sheets của anh
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/export?format=csv"
 
 @st.cache_data(ttl=10)
-def load_kho_phan_bo_data():
-    """Tải toàn bộ dữ liệu từ sheet KHO_PHAN_BO"""
+def load_data_from_public_csv():
+    """Tải trực tiếp toàn bộ dữ liệu dòng từ sheet Google Sheets qua CSV công khai (Không bao giờ lỗi JWT)"""
     rows = []
     try:
-        client = get_gspread_service()
-        if client:
-            spreadsheet = client.open_by_key(SPREADSHEET_ID)
-            target_ws = None
-            for ws in spreadsheet.worksheets():
-                title = ws.title.lower()
-                if "kho_phan_bo" in title or "phan_bo" in title or "kho" in title:
-                    target_ws = ws
-                    break
-            if not target_ws:
-                target_ws = spreadsheet.worksheets()[0]
-            rows = target_ws.get_all_values()
+        req = urllib.request.Request(SHEET_CSV_URL, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            content = response.read().decode('utf-8')
+            reader = csv.reader(io.StringIO(content))
+            rows = list(reader)
     except Exception as e:
-        st.error(f"⚠️ Lỗi đọc sheet: {e}")
+        st.error(f"⚠️ Lỗi kết nối CSV: {e}")
     return rows
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
@@ -77,14 +59,13 @@ if st.session_state.nav_tab == "Bao_cao":
         st.write("")
         if st.button("Lam moi du lieu"):
             st.cache_data.clear()
-            st.cache_resource.clear()
             st.rerun()
 
-    raw_data = load_kho_phan_bo_data()
+    raw_data = load_data_from_public_csv()
     rows_data = raw_data[1:] if len(raw_data) > 1 else []
 
     danh_sach_doi = []
-    danh_sach_diem_unique = [] # Danh sách định danh duy nhất cho ô chọn (Dropdown)
+    danh_sach_diem_unique = []
     
     project_code = du_an_chon.split(" - ")[0].strip().lower()
     
@@ -98,14 +79,14 @@ if st.session_state.nav_tab == "Bao_cao":
                     if val_doi.lower() not in ["tên đội", "đội nhận thiết bị", "stt"] and val_doi not in danh_sach_doi:
                         danh_sach_doi.append(val_doi)
                 
-                # Cột H (index 7): Địa điểm - Gom các giá trị độc lập để hiển thị dropdown gọn gàng, chuẩn xác
+                # Cột H (index 7): Địa điểm - Gom định danh độc lập cho ô chọn
                 if len(r) > 7 and r[7].strip():
                     val_diem = r[7].strip()
                     if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"]:
                         if val_diem not in danh_sach_diem_unique:
                             danh_sach_diem_unique.append(val_diem)
 
-    # Dự phòng an toàn tuyệt đối
+    # Dự phòng an toàn nếu chưa load được
     if not danh_sach_doi:
         danh_sach_doi = ["Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được"]
     if not danh_sach_diem_unique:
@@ -113,7 +94,7 @@ if st.session_state.nav_tab == "Bao_cao":
 
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + sorted(danh_sach_doi))
     
-    # Ô chọn địa điểm hiển thị danh sách các đơn vị độc lập thực tế từ Cột H
+    # Ô chọn địa điểm hiển thị danh sách các đơn vị thực tế
     diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Tổng số {len(danh_sach_diem_unique)} đơn vị từ Cột H) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem_unique))
     
     danh_sach_hang_hoa_phan_bo = []
@@ -121,7 +102,7 @@ if st.session_state.nav_tab == "Bao_cao":
     if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
         if rows_data:
             for r in rows_data:
-                # 🎯 BÓC TÁCH TOÀN BỘ CÁC DÒNG THIẾT BỊ KHỚP CHÍNH XÁC VỚI ĐƠN VỊ ĐƯỢC CHỌN
+                # 🎯 BÓC TÁCH TOÀN BỘ CÁC DÒNG THIẾT BỊ KHỚP CHÍNH XÁC VỚI ĐƠN VỊ ĐƯỢC CHỌN TỪ CỘT H VÀ SỐ LƯỢNG TỪ CỘT E
                 if len(r) > 7 and diem_giao_lap.lower() == r[7].strip().lower():
                     sku = r[1].strip() if len(r) > 1 else "TB-0X"
                     ten_tb = r[3].strip() if len(r) > 3 else "Thiết bị linh kiện"
