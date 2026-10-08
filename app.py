@@ -7,8 +7,27 @@ st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_ic
 SECURE_PASS = "880880"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanFGwYnCu56rCOhY9q5emNGasXqwZRJlySd0CaysgNbb8BkjmNA/exec"
 
+def submit_registration(ho_ten, sdt, dia_ban, chuyen_mon, phuong_tien):
+    payload = {
+        "action": "dang_ky",
+        "ho_ten": ho_ten,
+        "sdt": sdt,
+        "dia_ban": dia_ban,
+        "chuyen_mon": chuyen_mon,
+        "phuong_tien": phuong_tien
+    }
+    try:
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
+        with urllib.request.urlopen(req, timeout=15) as response:
+            res = json.loads(response.read().decode('utf-8'))
+            return res.get("status") == "success"
+    except:
+        return False
+
 def submit_to_google(ma_da, ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_trang):
     payload = {
+        "action": "bao_cao",
         "ma_du_an": ma_da,
         "ten_doi": ten_doi,
         "diem_lap_dat": diem_lap,
@@ -46,7 +65,7 @@ with col2: btn_bao_cao = st.button("Bao cao", use_container_width=True)
 with col3: btn_admin = st.button("Admin duyet", use_container_width=True)
 with col4: btn_link = st.button("Link bao cao", use_container_width=True)
 
-if "nav_tab" not in st.session_state: st.session_state.nav_tab = "Bao_cao"
+if "nav_tab" not in st.session_state: st.session_state.nav_tab = "Dang_ky"
 
 if btn_dang_ky: st.session_state.nav_tab = "Dang_ky"
 if btn_bao_cao: st.session_state.nav_tab = "Bao_cao"
@@ -55,7 +74,37 @@ if btn_link: st.session_state.nav_tab = "Link"
 
 st.markdown("---")
 
-if st.session_state.nav_tab == "Bao_cao":
+# ================= TAB ĐĂNG KÝ THÀNH VIÊN =================
+if st.session_state.nav_tab == "Dang_ky":
+    st.markdown("### 📝 ĐĂNG KÝ THÔNG TIN NHÂN SỰ / THÀNH VIÊN ĐỘI THI CÔNG")
+    st.info("Vui lòng điền đầy đủ thông tin bên dưới để gửi yêu cầu tham gia triển khai dự án về hệ thống.")
+    
+    with st.form("form_dang_ky_thanh_vien"):
+        reg_hoten = st.text_input("Họ và tên *", placeholder="Nhập đầy đủ họ và tên...")
+        reg_sdt = st.text_input("Số điện thoại liên hệ *", placeholder="Nhập số điện thoại (Zalo)...")
+        reg_diaban = st.text_input("Địa bàn phụ trách", placeholder="Ví dụ: Toàn bộ các điểm (Toàn tuyến dự án)")
+        reg_chuyenmon = st.selectbox(
+            "Chuyên môn / Nhiệm vụ",
+            options=["1. Vận chuyển / Giao nhận", "2. KTV Lắp đặt thiết bị", "3. Giám sát / Điều phối chung", "4. Kho vận / Hậu cứ"]
+        )
+        reg_phuongtien = st.selectbox(
+            "Phương tiện di chuyển",
+            options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"]
+        )
+        
+        submitted = st.form_submit_button("Gửi Đăng Ký Thành Viên", type="primary", use_container_width=True)
+        if submitted:
+            if not reg_hoten.strip() or not reg_sdt.strip():
+                st.warning("Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
+            else:
+                success = submit_registration(reg_hoten, reg_sdt, reg_diaban, reg_chuyenmon, reg_phuongtien)
+                if success:
+                    st.success(f"🎉 Đăng ký thành công! Chào mừng {reg_hoten}. Yêu cầu của bạn đã được chuyển vào sheet DANG_KY_THANH_VIEN (Chờ Admin duyệt).")
+                else:
+                    st.error("Gửi đăng ký thất bại, vui lòng thử lại kết nối!")
+
+# ================= TAB BÁO CÁO HIỆN TRƯỜNG =================
+elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### BAO CAO NHIEM VU HIEN TRUONG (ALLOCATION SYNC)")
     
     raw_data, err_msg = load_live_data()
@@ -218,8 +267,7 @@ elif st.session_state.nav_tab == "Admin":
     pass_input = st.text_input("Nhập mật khẩu quản trị (Mã PIN):", type="password")
     if pass_input == SECURE_PASS:
         st.success("Đăng nhập Admin thành công!")
-        st.write("- [Chờ duyệt] Thành viên đăng ký mới")
-        if st.button("Duyet tat ca tai khoan"): st.success("Đã phê duyệt thành công!")
+        st.write("- [Chờ duyệt danh sách thành viên đăng ký]")
     elif pass_input != "": st.error("Sai mật khẩu bảo mật! (Pass: 880880)")
 
 elif st.session_state.nav_tab == "Link":
