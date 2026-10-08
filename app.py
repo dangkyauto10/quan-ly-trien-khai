@@ -20,84 +20,96 @@ def get_gspread_client():
         pass
     return None
 
-def get_real_dynamic_locations():
-    """Quét toàn bộ tất cả các sheet trong file để bóc tách danh sách địa điểm thực tế từ Google Sheets"""
+def get_exact_diem_from_sheet():
+    """Đọc thẳng tắp toàn bộ dữ liệu từ sheet DANH_SACH_DIEM mà không qua bất kỳ bộ lọc cứng nhắc nào"""
     try:
         client = get_gspread_client()
         if client:
             spreadsheet = client.open_by_key(SPREADSHEET_ID)
-            worksheets = spreadsheet.worksheets()
-            
-            all_locations = []
-            for ws in worksheets:
-                # Bỏ qua sheet quản lý đội nếu không phải sheet điểm
-                title_lower = ws.title.lower()
-                if "quan_ly_doi" in title_lower or "dang_ky" in title_lower:
-                    continue
-                    
-                rows = ws.get_all_values()
-                if len(rows) > 1:
-                    for row in rows[1:]:
+            # Mở thẳng sheet có tên DANH_SACH_DIEM hoặc lấy worksheet đầu tiên nếu khớp
+            target_ws = None
+            for ws in spreadsheet.worksheets():
+                if "danh_sach_diem" in ws.title.lower() or ws.title.lower() == "danh_sach_diem":
+                    target_ws = ws
+                    break
+            if not target_ws:
+                target_ws = spreadsheet.worksheets()[0]
+                
+            rows = target_ws.get_all_values()
+            diem_list = []
+            if len(rows) > 1:
+                # Bỏ qua dòng tiêu đề (dòng 0), quét toàn bộ các cột từ dòng 1 trở đi
+                for row in rows[1:]:
+                    for cell in row:
+                        val = cell.strip()
+                        # Lấy tất cả các ô có nội dung chữ hợp lệ, không phải số hoặc rỗng
+                        if val != "" and not val.isdigit() and len(val) > 1:
+                            low = val.lower()
+                            if "danh sách" not in low and "điểm" not in low and "stt" not in low and "mã" not in low:
+                                if val not in diem_list:
+                                    diem_list.append(val)
+            if diem_list:
+                return diem_list
+    except Exception as e:
+        pass
+    return ["Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", "Xã Nà Hang"]
+
+def get_exact_doi_from_sheet():
+    """Đọc thẳng tắp danh sách tên đội từ sheet QUAN_LY_DOI"""
+    try:
+        client = get_gspread_client()
+        if client:
+            spreadsheet = client.open_by_key(SPREADSHEET_ID)
+            target_ws = None
+            for ws in spreadsheet.worksheets():
+                if "quan_ly_doi" in ws.title.lower() or ws.title.lower() == "quan_ly_doi":
+                    target_ws = ws
+                    break
+            if not target_ws:
+                target_ws = spreadsheet.worksheets()[1] if len(spreadsheet.worksheets()) > 1 else spreadsheet.worksheets()[0]
+                
+            rows = target_ws.get_all_values()
+            doi_list = []
+            if len(rows) > 1:
+                for row in rows[1:]:
+                    for cell in row:
+                        val = cell.strip()
+                        if val != "" and not val.isdigit() and len(val) > 1:
+                            low = val.lower()
+                            if "tên" not in low and "đội" not in low and "stt" not in low and "mã" not in low:
+                                if val not in doi_list:
+                                    doi_list.append(val)
+            if doi_list:
+                return doi_list
+    except Exception as e:
+        pass
+    return ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", "Trần Văn Chắc"]
+
+def get_exact_quantity(diem_chon):
+    """Tra cứu trực tiếp số lượng phân bổ từ sheet KHO_PHAN_BO theo địa điểm"""
+    try:
+        client = get_gspread_client()
+        if client:
+            spreadsheet = client.open_by_key(SPREADSHEET_ID)
+            target_ws = None
+            for ws in spreadsheet.worksheets():
+                if "kho_phan_bo" in ws.title.lower() or "kho" in ws.title.lower():
+                    target_ws = ws
+                    break
+            if not target_ws:
+                target_ws = spreadsheet.worksheets()[2] if len(spreadsheet.worksheets()) > 2 else spreadsheet.worksheets()[0]
+                
+            rows = target_ws.get_all_values()
+            if len(rows) > 1:
+                for row in rows[1:]:
+                    row_text = " ".join(row).lower()
+                    if diem_chon.lower() in row_text:
+                        # Lấy giá trị cột H (index 7) nếu có, hoặc tìm số nguyên đầu tiên trong dòng
+                        if len(row) > 7 and row[7].strip().isdigit():
+                            return int(row[7].strip())
                         for cell in row:
-                            val = cell.strip()
-                            # Lọc các giá trị có độ dài hợp lệ làm địa điểm và không phải số hay tiêu đề
-                            if val != "" and not val.isdigit() and len(val) > 2:
-                                low = val.lower()
-                                if "tên đội" not in low and "địa điểm" not in low and "khu vực" not in low and "mã đội" not in low and "dự án" not in low:
-                                    if val not in all_locations:
-                                        all_locations.append(val)
-            if all_locations:
-                return all_locations
-    except Exception as e:
-        pass
-    return []
-
-def get_real_dynamic_teams():
-    """Quét toàn bộ file để lấy danh sách tên đội thực tế"""
-    try:
-        client = get_gspread_client()
-        if client:
-            spreadsheet = client.open_by_key(SPREADSHEET_ID)
-            worksheets = spreadsheet.worksheets()
-            
-            for ws in worksheets:
-                if "doi" in ws.title.lower():
-                    rows = ws.get_all_values()
-                    teams = []
-                    if len(rows) > 1:
-                        for row in rows[1:]:
-                            for idx in [1, 2, 0]: # Quét cột B, C, A
-                                if len(row) > idx:
-                                    val = row[idx].strip()
-                                    if val != "" and not val.isdigit() and val not in teams:
-                                        low = val.lower()
-                                        if "tên đội" not in low and "mã đội" not in low and "số lượng" not in low:
-                                            teams.append(val)
-                    if teams:
-                        return teams
-    except Exception as e:
-        pass
-    return []
-
-def get_quantity_dynamic(diem_chon):
-    """Dò tìm động số lượng hàng hóa phân bổ từ sheet kho theo tên địa điểm"""
-    try:
-        client = get_gspread_client()
-        if client:
-            spreadsheet = client.open_by_key(SPREADSHEET_ID)
-            worksheets = spreadsheet.worksheets()
-            
-            for ws in worksheets:
-                rows = ws.get_all_values()
-                if len(rows) > 1:
-                    for row in rows[1:]:
-                        row_text = " ".join(row).lower()
-                        if diem_chon.lower() in row_text:
-                            # Quét tìm cột chứa số lượng trong dòng đó
-                            for cell in row:
-                                cell_clean = cell.strip()
-                                if cell_clean.isdigit() and int(cell_clean) > 0:
-                                    return int(cell_clean)
+                            if cell.strip().isdigit() and int(cell.strip()) > 0:
+                                return int(cell.strip())
     except Exception as e:
         pass
     return 3
@@ -158,24 +170,17 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.cache_resource.clear()
             st.rerun()
 
-    # Lấy danh sách đội thực tế từ Google Sheets
-    danh_sach_doi = get_real_dynamic_teams()
-    if not danh_sach_doi:
-        danh_sach_doi = ["Nguyen Van Thien", "Nguyen Van Hai", "Nguyen Van Duoc", "Tran Van Chac", "18 đc nào"]
-        
-    # Lấy danh sách điểm giao hàng thực tế từ toàn bộ Google Sheets (đảm bảo không còn danh sách tĩnh cứng)
-    danh_sach_diem = get_real_dynamic_locations()
-    if not danh_sach_diem:
-        danh_sach_diem = ["Xa Sung Mang", "Phuong Nong Tien", "Xa Duong Thuong", "Xa Na Hang"]
+    danh_sach_doi = get_exact_doi_from_sheet()
+    danh_sach_diem = get_exact_diem_from_sheet()
         
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + danh_sach_doi)
     diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT *", ["-- Chon dia diem --"] + danh_sach_diem)
     
     so_luong_hien_tai = 0
     if diem_giao_lap != "-- Chon dia diem --":
-        so_luong_dong = get_quantity_dynamic(diem_giao_lap)
-        st.info(f"So luong thiet bi phan bo tai {diem_giao_lap} la: {so_luong_dong} bo (Dong bo tu Google Sheets)")
-        so_luong_hien_tai = st.number_input("So luong thiet bi ap dụng bao cao", value=float(so_luong_dong), disabled=True)
+        so_luong_dong = get_exact_quantity(diem_giao_lap)
+        st.info(f"So luong thiet bi phan bo tai {diem_giao_lap} la: {so_luong_dong} bo (Dong bo truc tiếp từ KHO_PHAN_BO)")
+        so_luong_hien_tai = st.number_input("So luong thiet bi ap dung bao cao", value=float(so_luong_dong), disabled=True)
     else:
         st.info("Vui long chon dia diem de hien thi so luong thiet bi phan bo.")
         
