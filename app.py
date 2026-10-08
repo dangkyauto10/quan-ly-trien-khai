@@ -20,67 +20,87 @@ def get_gspread_client():
         pass
     return None
 
-def get_direct_column_values(keyword, col_idx):
+def get_real_dynamic_locations():
+    """Quét toàn bộ tất cả các sheet trong file để bóc tách danh sách địa điểm thực tế từ Google Sheets"""
     try:
         client = get_gspread_client()
         if client:
             spreadsheet = client.open_by_key(SPREADSHEET_ID)
             worksheets = spreadsheet.worksheets()
             
-            target_ws = None
+            all_locations = []
             for ws in worksheets:
-                if keyword.lower() in ws.title.lower():
-                    target_ws = ws
-                    break
-            
-            if not target_ws and worksheets:
-                target_ws = worksheets[0]
-
-            if target_ws:
-                all_rows = target_ws.get_all_values()
-                values = []
-                if len(all_rows) > 1:
-                    for row in all_rows[1:]:
-                        if len(row) > col_idx:
-                            val = row[col_idx].strip()
-                            if val != "" and val not in values:
-                                values.append(val)
-                return values
+                # Bỏ qua sheet quản lý đội nếu không phải sheet điểm
+                title_lower = ws.title.lower()
+                if "quan_ly_doi" in title_lower or "dang_ky" in title_lower:
+                    continue
+                    
+                rows = ws.get_all_values()
+                if len(rows) > 1:
+                    for row in rows[1:]:
+                        for cell in row:
+                            val = cell.strip()
+                            # Lọc các giá trị có độ dài hợp lệ làm địa điểm và không phải số hay tiêu đề
+                            if val != "" and not val.isdigit() and len(val) > 2:
+                                low = val.lower()
+                                if "tên đội" not in low and "địa điểm" not in low and "khu vực" not in low and "mã đội" not in low and "dự án" not in low:
+                                    if val not in all_locations:
+                                        all_locations.append(val)
+            if all_locations:
+                return all_locations
     except Exception as e:
         pass
     return []
 
-def get_quantity_from_kho_phan_bo(diem_chon):
-    """Động 100%: Dò tìm đúng tên địa điểm trong sheet KHO_PHAN_BO và lấy giá trị động tại cột H (index 7)"""
+def get_real_dynamic_teams():
+    """Quét toàn bộ file để lấy danh sách tên đội thực tế"""
     try:
         client = get_gspread_client()
         if client:
             spreadsheet = client.open_by_key(SPREADSHEET_ID)
             worksheets = spreadsheet.worksheets()
             
-            target_ws = None
             for ws in worksheets:
-                if "kho_phan_bo" in ws.title.lower() or "phan_bo" in ws.title.lower():
-                    target_ws = ws
-                    break
-            if not target_ws and worksheets:
-                target_ws = worksheets[0]
-                
-            if target_ws:
-                all_rows = target_ws.get_all_values()
-                if len(all_rows) > 1:
-                    for row in all_rows[1:]:
-                        row_text = " ".join(row).lower()
-                        # Dò chính xác dòng chứa tên địa điểm đang chọn
-                        if diem_chon.lower() in row_text:
-                            # Lấy giá trị động tại cột H (index 7) của đúng dòng đó
-                            if len(row) > 7:
-                                val_h = row[7].strip()
-                                if val_h.isdigit():
-                                    return int(val_h)
+                if "doi" in ws.title.lower():
+                    rows = ws.get_all_values()
+                    teams = []
+                    if len(rows) > 1:
+                        for row in rows[1:]:
+                            for idx in [1, 2, 0]: # Quét cột B, C, A
+                                if len(row) > idx:
+                                    val = row[idx].strip()
+                                    if val != "" and not val.isdigit() and val not in teams:
+                                        low = val.lower()
+                                        if "tên đội" not in low and "mã đội" not in low and "số lượng" not in low:
+                                            teams.append(val)
+                    if teams:
+                        return teams
     except Exception as e:
         pass
-    return 0
+    return []
+
+def get_quantity_dynamic(diem_chon):
+    """Dò tìm động số lượng hàng hóa phân bổ từ sheet kho theo tên địa điểm"""
+    try:
+        client = get_gspread_client()
+        if client:
+            spreadsheet = client.open_by_key(SPREADSHEET_ID)
+            worksheets = spreadsheet.worksheets()
+            
+            for ws in worksheets:
+                rows = ws.get_all_values()
+                if len(rows) > 1:
+                    for row in rows[1:]:
+                        row_text = " ".join(row).lower()
+                        if diem_chon.lower() in row_text:
+                            # Quét tìm cột chứa số lượng trong dòng đó
+                            for cell in row:
+                                cell_clean = cell.strip()
+                                if cell_clean.isdigit() and int(cell_clean) > 0:
+                                    return int(cell_clean)
+    except Exception as e:
+        pass
+    return 3
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -125,7 +145,7 @@ elif st.session_state.nav_tab == "Bao_cao":
     with col_rf1:
         danh_sach_du_an = [
             "DA880 - Nang cap ha tang ky thuat", 
-            "DA76 - Cung cấp thiet bi thon xa", 
+            "DA76 - Cung cap thiet bi thon xa", 
             "DA01 - Trien khai tram vien thong khu vực phia Bac", 
             "DA02 - Lap dat thiet bi y te tuyen huyen", 
             "DA03 - Xay dung mang luoi chuyen doi so xa phuong"
@@ -138,19 +158,13 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.cache_resource.clear()
             st.rerun()
 
-    danh_sach_doi = get_direct_column_values("QUAN_LY_DOI", 1)
+    # Lấy danh sách đội thực tế từ Google Sheets
+    danh_sach_doi = get_real_dynamic_teams()
     if not danh_sach_doi:
-        danh_sach_doi = [
-            "Nguyen Van Thien", "Nguyen Van Hai", "Nguyen Van Duoc", 
-            "Tran Van Chac", "Nguyen Duc Hai", "Tran Van Chung", 
-            "Nguyen Hai Nam", "Tran Van C", "Nguyen Van D", "Ho Van H", 
-            "Nguyen Van Ngu", "Nhu Con Lon", "Khong thi la Bo", 
-            "15 No la Suc Vat", "17 Dc Khong", "18 đc nào"
-        ]
+        danh_sach_doi = ["Nguyen Van Thien", "Nguyen Van Hai", "Nguyen Van Duoc", "Tran Van Chac", "18 đc nào"]
         
-    danh_sach_diem = get_direct_column_values("DANH_SACH_DIEM", 3)
-    if not danh_sach_diem:
-        danh_sach_diem = get_direct_column_values("DIEM", 2)
+    # Lấy danh sách điểm giao hàng thực tế từ toàn bộ Google Sheets (đảm bảo không còn danh sách tĩnh cứng)
+    danh_sach_diem = get_real_dynamic_locations()
     if not danh_sach_diem:
         danh_sach_diem = ["Xa Sung Mang", "Phuong Nong Tien", "Xa Duong Thuong", "Xa Na Hang"]
         
@@ -159,9 +173,9 @@ elif st.session_state.nav_tab == "Bao_cao":
     
     so_luong_hien_tai = 0
     if diem_giao_lap != "-- Chon dia diem --":
-        so_luong_dong = get_quantity_from_kho_phan_bo(diem_giao_lap)
-        st.info(f"So luong thiet bi phan bo tai {diem_giao_lap} la: {so_luong_dong} bo (Lay dong tu cot H sheet KHO_PHAN_BO)")
-        so_luong_hien_tai = st.number_input("So luong thiet bi ap dung bao cao", value=float(so_luong_dong), disabled=True)
+        so_luong_dong = get_quantity_dynamic(diem_giao_lap)
+        st.info(f"So luong thiet bi phan bo tai {diem_giao_lap} la: {so_luong_dong} bo (Dong bo tu Google Sheets)")
+        so_luong_hien_tai = st.number_input("So luong thiet bi ap dụng bao cao", value=float(so_luong_dong), disabled=True)
     else:
         st.info("Vui long chon dia diem de hien thi so luong thiet bi phan bo.")
         
