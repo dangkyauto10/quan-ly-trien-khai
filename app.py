@@ -15,13 +15,11 @@ def get_gspread_client():
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         
         if os.path.exists("credentials.json"):
-            # Đọc file credentials.json và tự động sửa lỗi ngắt dòng của private_key nếu có
             with open("credentials.json", "r", encoding="utf-8") as f:
                 creds_dict = json.load(f)
             
             if "private_key" in creds_dict:
                 pk = str(creds_dict["private_key"])
-                # Ép lại ký tự \n thành dấu xuống dòng thực tế để thư viện PEM đọc được
                 pk = pk.replace("\\n", "\n")
                 creds_dict["private_key"] = pk
                 
@@ -60,7 +58,26 @@ def load_kho_phan_bo():
         st.error(f"Lỗi đọc dữ liệu Google Sheets: {e}")
     return None, pd.DataFrame()
 
-# GIAO DIỆN CHÍNH
+@st.cache_data(ttl=10)
+def load_quan_ly_doi():
+    """Lấy danh sách đội vận chuyển từ cột B sheet QUAN_LY_DOI"""
+    try:
+        client = get_gspread_client()
+        if client:
+            spreadsheet = client.open_by_key(SPREADSHEET_ID)
+            target_ws = None
+            for ws in spreadsheet.worksheets():
+                if "quan_ly_doi" in ws.title.lower() or "quan ly doi" in ws.title.lower():
+                    target_ws = ws
+                    break
+            if target_ws:
+                col_b = target_ws.col_values(2)
+                return [item.strip() for item in col_b if item and item.strip() != "" and item.strip().lower() != "tên đội"]
+    except Exception as e:
+        pass
+    return []
+
+# --- GIAO DIỆN CHÍNH ---
 st.markdown("<h2 style='text-align: center; color: #003366;'>HỆ THỐNG ĐIỀU HÀNH ĐA DỰ ÁN HIỆN TRƯỜNG</h2>", unsafe_allow_html=True)
 st.markdown("---")
 
@@ -73,8 +90,12 @@ if not df_kho.empty:
     if selected_project != "-- Chọn dự án --":
         df_proj = df_kho[df_kho['Tên dự án'] == selected_project]
 
-        doi_list = df_proj['Đội vận chuyển thiết bị'].unique().tolist() if 'Đội vận chuyển thiết bị' in df_proj.columns else []
-        selected_doi = st.selectbox("TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", options=["-- Chọn tên đội --"] + doi_list)
+        # Lấy danh sách đội từ sheet QUAN_LY_DOI cột B kết hợp dữ liệu kho
+        doi_from_sheet = load_quan_ly_doi()
+        doi_from_kho = df_proj['Đội vận chuyển thiết bị'].unique().tolist() if 'Đội vận chuyển thiết bị' in df_proj.columns else []
+        combined_doi = sorted(list(set(doi_from_sheet + doi_from_kho)))
+
+        selected_doi = st.selectbox("TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", options=["-- Chọn tên đội --"] + combined_doi)
 
         if selected_doi != "-- Chọn tên đội --":
             df_doi = df_proj[df_proj['Đội vận chuyển thiết bị'] == selected_doi]
