@@ -50,6 +50,38 @@ def get_direct_column_values(keyword, col_idx):
         pass
     return []
 
+def get_quantity_from_kho_phan_bo(diem_chon):
+    """Động 100%: Dò tìm đúng tên địa điểm trong sheet KHO_PHAN_BO và lấy giá trị động tại cột H (index 7)"""
+    try:
+        client = get_gspread_client()
+        if client:
+            spreadsheet = client.open_by_key(SPREADSHEET_ID)
+            worksheets = spreadsheet.worksheets()
+            
+            target_ws = None
+            for ws in worksheets:
+                if "kho_phan_bo" in ws.title.lower() or "phan_bo" in ws.title.lower():
+                    target_ws = ws
+                    break
+            if not target_ws and worksheets:
+                target_ws = worksheets[0]
+                
+            if target_ws:
+                all_rows = target_ws.get_all_values()
+                if len(all_rows) > 1:
+                    for row in all_rows[1:]:
+                        row_text = " ".join(row).lower()
+                        # Dò chính xác dòng chứa tên địa điểm đang chọn
+                        if diem_chon.lower() in row_text:
+                            # Lấy giá trị động tại cột H (index 7) của đúng dòng đó
+                            if len(row) > 7:
+                                val_h = row[7].strip()
+                                if val_h.isdigit():
+                                    return int(val_h)
+    except Exception as e:
+        pass
+    return 0
+
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
 st.markdown("---")
 
@@ -93,7 +125,7 @@ elif st.session_state.nav_tab == "Bao_cao":
     with col_rf1:
         danh_sach_du_an = [
             "DA880 - Nang cap ha tang ky thuat", 
-            "DA76 - Cung cap thiet bi thon xã", 
+            "DA76 - Cung cấp thiet bi thon xa", 
             "DA01 - Trien khai tram vien thong khu vực phia Bac", 
             "DA02 - Lap dat thiet bi y te tuyen huyen", 
             "DA03 - Xay dung mang luoi chuyen doi so xa phuong"
@@ -127,9 +159,9 @@ elif st.session_state.nav_tab == "Bao_cao":
     
     so_luong_hien_tai = 0
     if diem_giao_lap != "-- Chon dia diem --":
-        so_luong_co_dinh = 3
-        st.info("So luong thiet bi phan bo tai diem nay la 3 bo (Co dinh từ Kho)")
-        so_luong_hien_tai = st.number_input("So luong thiet bi ap dung bao cao", value=float(so_luong_co_dinh), disabled=True)
+        so_luong_dong = get_quantity_from_kho_phan_bo(diem_giao_lap)
+        st.info(f"So luong thiet bi phan bo tai {diem_giao_lap} la: {so_luong_dong} bo (Lay dong tu cot H sheet KHO_PHAN_BO)")
+        so_luong_hien_tai = st.number_input("So luong thiet bi ap dung bao cao", value=float(so_luong_dong), disabled=True)
     else:
         st.info("Vui long chon dia diem de hien thi so luong thiet bi phan bo.")
         
