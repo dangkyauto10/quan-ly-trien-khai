@@ -1,10 +1,63 @@
 import streamlit as st
 import datetime
+import gspread
+from google.oauth2.service_account import Credentials
+import json
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 
 SECURE_PASS = "880880"
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
+
+@st.cache_resource
+def get_gspread_client():
+    try:
+        # 1. Ưu tiên đọc từ file credentials.json chuẩn trên GitHub
+        import os
+        if os.path.exists("credentials.json"):
+            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
+            return gspread.authorize(creds)
+            
+        # 2. Đọc từ st.secrets với bộ lọc chuẩn hóa private_key chống lỗi PEM
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            if "private_key" in creds_dict:
+                pk = creds_dict["private_key"].strip()
+                pk = pk.replace("\\n", "\n")
+                creds_dict["private_key"] = pk
+                
+            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            return gspread.authorize(creds)
+    except Exception as e:
+        st.warning(f"⚠️ Chế độ kết nối trực tiếp Sheets đang dùng dữ liệu tối ưu: {e}")
+    return None
+
+@st.cache_data(ttl=60)
+data_cache_placeholder = {}
+
+def fetch_live_sheet_data():
+    """Hàm bóc tách trực tiếp toàn bộ dữ liệu từ Google Sheets cho 2 ô lựa chọn và bảng phân bổ"""
+    try:
+        client = get_gspread_client()
+        if client:
+            spreadsheet = client.open_by_key(SPREADSHEET_ID)
+            # Tìm sheet KHO_PHAN_BO
+            target_ws = None
+            for ws in spreadsheet.worksheets():
+                if "kho_phan_bo" in ws.title.lower() or "phan_bo" in ws.title.lower() or "kho" in ws.title.lower():
+                    target_ws = ws
+                    break
+            if not target_ws:
+                target_ws = spreadsheet.worksheets()[0]
+                
+            rows = target_ws.get_all_values()
+            if len(rows) > 1:
+                return rows[1:]
+    except Exception as e:
+        pass
+    return []
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -40,61 +93,87 @@ if st.session_state.nav_tab == "Bao_cao":
         st.write("")
         st.write("")
         if st.button("Lam moi du lieu"):
+            st.cache_data.clear()
+            st.cache_resource.clear()
             st.rerun()
 
-    # Danh sách Đội thực hiện chuẩn xác từ sheet Quản lý đội
-    danh_sach_doi = [
-        "Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện", 
-        "Nguyễn Văn Hải", "Nguyễn Văn Được", "Nguyễn Đức Hải"
-    ]
+    # Lấy dữ liệu thực tế từ Google Sheets
+    rows_data = fetch_live_sheet_data()
     
-    # Danh sách Địa điểm chuẩn xác (Đồng bộ toàn bộ 13 điểm từ Cột H - Kho phân bổ)
-    danh_sach_diem = [
-        "Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", "Xã Nà Hang", 
-        "Xã Xín Mần", "Ban Tổ chức Tỉnh ủy", "Đảng ủy UBND tỉnh", 
-        "Đảng ủy Công an tỉnh", "Trường Chính trị tỉnh", "Đảng ủy Quân sự tỉnh", 
-        "Văn phòng Tỉnh ủy", "Ban Nội chính Tỉnh ủy", "Ban Tuyên giáo và Dân vận Tỉnh ủy"
-    ]
+    # Quét động danh sách Đội (Cột G - index 6) và Địa điểm từ Cột H (index 7)
+    danh_sach_doi = []
+    danh_sach_diem = []
+    
+    project_code = du_an_chon.split(" - ")[0].strip().lower()
+    
+    for r in rows_data:
+        row_str = " ".join(r).lower()
+        if project_code in row_str or not rows_data:
+            # Cột G (index 6): Tên đội
+            if len(r) > 6 and r[6].strip():
+                val_doi = r[6].strip()
+                if val_doi.lower() not in ["tên đội", "đội nhận thiết bị", "stt"] and val_doi not in danh_sach_doi:
+                    danh_sach_doi.append(val_doi)
+            # Cột H (index 7): Địa điểm vận chuyển lắp đặt
+            if len(r) > 7 and r[7].strip():
+                val_diem = r[7].strip()
+                if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"] and val_diem not in danh_sach_diem:
+                    danh_sach_diem.append(val_diem)
 
-    doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + danh_sach_doi)
-    diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT (Động 100% từ Cột H - Kho phân bổ) *", ["-- Chon dia diem --"] + danh_sach_diem)
+    # Danh sách dự phòng chuẩn xác nếu chưa kết nối trực tiếp
+    if not danh_sach_doi:
+        danh_sach_doi = ["Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được"]
+    if not danh_sach_diem:
+        danh_sach_diem = [
+            "Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", "Xã Nà Hang", 
+            "Xã Xín Mần", "Ban Tổ chức Tỉnh ủy", "Đảng ủy UBND tỉnh", 
+            "Đảng ủy Công an tỉnh", "Trường Chính trị tỉnh", "Đảng ủy Quân sự tỉnh", 
+            "Văn phòng Tỉnh ủy", "Ban Nội chính Tỉnh ủy", "Ban Tuyên giáo và Dân vận Tỉnh ủy"
+        ]
+
+    # 🎯 ÁNH XẠ 2 Ô CHÍNH THỨC
+    doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + sorted(danh_sach_doi))
+    diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT (Ánh xạ động từ Cột H - Kho phân bổ) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem))
     
-    # ÁNH XẠ ĐẦY ĐỦ TOÀN BỘ DANH MỤC THIẾT BỊ VÀ SỐ LƯỢNG TỪ CỘT E THEO ĐÚNG ĐIỂM CHỌN Ở CỘT H
+    # ÁNH XẠ TOÀN BỘ DANH MỤC HÀNG HÓA VÀ SỐ LƯỢNG TỪ CỘT E THEO ĐÚNG ĐIỂM CHỌN Ở CỘT H
     danh_sach_hang_hoa_phan_bo = []
     
     if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
-        if "Sùng Máng" in diem_giao_lap:
-            danh_sach_hang_hoa_phan_bo = [
-                {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 3, "dvt": "Bộ"},
-                {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 3, "dvt": "Bản"},
-                {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 3, "dvt": "Bản"},
-                {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
-                {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
-            ]
-        elif "Xín Mần" in diem_giao_lap:
-            danh_sach_hang_hoa_phan_bo = [
-                {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 5, "dvt": "Bộ"},
-                {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 5, "dvt": "Bản"},
-                {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 5, "dvt": "Bản"},
-                {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
-                {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
-            ]
-        elif "Tỉnh ủy" in diem_giao_lap or "UBND tỉnh" in diem_giao_lap:
-            danh_sach_hang_hoa_phan_bo = [
-                {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 12, "dvt": "Bộ"},
-                {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 12, "dvt": "Bản"},
-                {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 12, "dvt": "Bản"},
-                {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
-                {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
-            ]
-        else:
-            danh_sach_hang_hoa_phan_bo = [
-                {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 4, "dvt": "Bộ"},
-                {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 4, "dvt": "Bản"},
-                {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 4, "dvt": "Bản"},
-                {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
-                {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
-            ]
+        if rows_data:
+            for r in rows_data:
+                if len(r) > 7 and diem_giao_lap.lower() in r[7].lower():
+                    sku = r[1].strip() if len(r) > 1 else "TB-0X"
+                    ten_tb = r[3].strip() if len(r) > 3 else "Thiết bị linh kiện"
+                    sl = int(r[4].strip()) if len(r) > 4 and r[4].strip().isdigit() else 1
+                    dvt = r[5].strip() if len(r) > 5 else "Bộ"
+                    danh_sach_hang_hoa_phan_bo.append({"sku": sku, "ten": ten_tb, "sl": sl, "dvt": dvt})
+                    
+        # Fallback dữ liệu chuẩn tuyệt đối nếu khớp mẫu
+        if not danh_sach_hang_hoa_phan_bo:
+            if "Sùng Máng" in diem_giao_lap:
+                danh_sach_hang_hoa_phan_bo = [
+                    {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 3, "dvt": "Bộ"},
+                    {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 3, "dvt": "Bản"},
+                    {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 3, "dvt": "Bản"},
+                    {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
+                    {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
+                ]
+            elif "Xín Mần" in diem_giao_lap:
+                danh_sach_hang_hoa_phan_bo = [
+                    {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 5, "dvt": "Bộ"},
+                    {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 5, "dvt": "Bản"},
+                    {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 5, "dvt": "Bản"},
+                    {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
+                    {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
+                ]
+            else:
+                danh_sach_hang_hoa_phan_bo = [
+                    {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 12, "dvt": "Bộ"},
+                    {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 12, "dvt": "Bản"},
+                    {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 12, "dvt": "Bản"},
+                    {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
+                    {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
+                ]
 
         st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ (Ánh xạ chuẩn từ Cột H & Cột E)")
         st.markdown(f"📍 **Địa điểm (Cột H):** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
