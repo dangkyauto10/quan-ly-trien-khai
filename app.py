@@ -20,8 +20,8 @@ def get_gspread_client():
         pass
     return None
 
-def get_exact_column_data(target_sheet_name, col_idx):
-    """Đọc thẳng tắp dữ liệu từ cột chỉ định của worksheet mà không lọc rườm rà"""
+def get_all_sheet_values(target_sheet_name):
+    """Lấy toàn bộ dữ liệu thô từ worksheet để quét linh hoạt mọi cột"""
     try:
         client = get_gspread_client()
         if client:
@@ -43,18 +43,38 @@ def get_exact_column_data(target_sheet_name, col_idx):
                 selected_sheet = worksheets[0]
 
             if selected_sheet:
-                all_rows = selected_sheet.get_all_values()
-                values = []
-                if len(all_rows) > 1:
-                    for row in all_rows[1:]:
-                        if len(row) > col_idx:
-                            val = row[col_idx].strip()
-                            if val != "" and val not in values:
-                                values.append(val)
-                return values
+                return selected_sheet.get_all_values()
     except Exception as e:
         pass
     return []
+
+def extract_column_data(all_rows, preferred_indices):
+    """Quét thông minh: Lấy dữ liệu từ các cột ưu tiên, nếu rỗng thì quét toàn bộ các cột trong dòng"""
+    values = []
+    if len(all_rows) > 1:
+        for row in all_rows[1:]:
+            found_in_row = False
+            # Thử lấy từ các cột ưu tiên trước
+            for idx in preferred_indices:
+                if len(row) > idx:
+                    val = row[idx].strip()
+                    if val != "" and not val.isdigit() and val not in values:
+                        # Bỏ qua các từ khóa tiêu đề nếu lọt vào
+                        low_val = val.lower()
+                        if "tên đội" not in low_val and "địa điểm" not in low_val and "khu vực" not in low_val and "mã đội" not in low_val:
+                            values.append(val)
+                            found_in_row = True
+                            break
+            # Nếu cột ưu tiên không có, quét toàn bộ các cột còn lại trong dòng đó để bắt trọn dữ liệu bị lệch cột
+            if not found_in_row:
+                for val in row:
+                    val = val.strip()
+                    if val != "" and not val.isdigit() and val not in values:
+                        low_val = val.lower()
+                        if "tên đội" not in low_val and "địa điểm" not in low_val and "khu vực" not in low_val and "mã đội" not in low_val:
+                            values.append(val)
+                            break
+    return values
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HỆ THỐNG ĐIỀU HÀNH ĐA DỰ ÁN HIỆN TRƯỜNG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -106,8 +126,9 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.cache_resource.clear()
             st.rerun()
 
-    # Lấy dữ liệu tên đội từ sheet QUAN_LY_DOI (cột B - index 1)
-    danh_sach_doi = get_exact_column_data("QUAN_LY_DOI", 1)
+    # Lấy dữ liệu tên đội từ sheet QUAN_LY_DOI (ưu tiên cột B index 1, C index 2)
+    rows_doi = get_all_sheet_values("QUAN_LY_DOI")
+    danh_sach_doi = extract_column_data(rows_doi, [1, 2, 0])
     if not danh_sach_doi:
         danh_sach_doi = [
             "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
@@ -117,10 +138,9 @@ elif st.session_state.nav_tab == "Bao_cao":
             "15 Nó là Súc Vật", "17 Đc Không", "18 đc nào"
         ]
         
-    # Lấy dữ liệu địa điểm từ sheet DANH_SACH_DIEM (cột D - index 3, nếu không có thử quét cột C index 2)
-    danh_sach_diem = get_exact_column_data("DANH_SACH_DIEM", 3)
-    if not danh_sach_diem:
-        danh_sach_diem = get_exact_column_data("DANH_SACH_DIEM", 2)
+    # Lấy dữ liệu địa điểm từ sheet DANH_SACH_DIEM (ưu tiên cột D index 3, C index 2, E index 4, B index 1)
+    rows_diem = get_all_sheet_values("DANH_SACH_DIEM")
+    danh_sach_diem = extract_column_data(rows_diem, [3, 2, 4, 1, 0])
     if not danh_sach_diem:
         danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
         
