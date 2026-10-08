@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+import json
 import os
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự Án Hiện Trường", page_icon="📊", layout="centered")
@@ -13,15 +14,25 @@ def get_gspread_client():
     try:
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         
-        # Dùng trực tiếp hàm chuẩn của Google Auth cho file json (giải quyết triệt để lỗi JWT Signature)
         if os.path.exists("credentials.json"):
-            creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
+            with open("credentials.json", "r", encoding="utf-8") as f:
+                creds_dict = json.load(f)
+            
+            # Xử lý chuẩn xác lỗi ngắt dòng JWT Signature của private_key
+            if "private_key" in creds_dict:
+                pk = str(creds_dict["private_key"])
+                pk = pk.replace("\\n", "\n")
+                creds_dict["private_key"] = pk
+                
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
             
         elif "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
             if "private_key" in creds_dict:
-                creds_dict["private_key"] = str(creds_dict["private_key"]).replace("\\n", "\n")
+                pk = str(creds_dict["private_key"])
+                pk = pk.replace("\\n", "\n")
+                creds_dict["private_key"] = pk
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
     except Exception as e:
@@ -50,7 +61,6 @@ def load_kho_phan_bo():
 
 @st.cache_data(ttl=10)
 def load_quan_ly_doi():
-    """Lấy danh sách đội vận chuyển từ cột B sheet QUAN_LY_DOI"""
     try:
         client = get_gspread_client()
         if client:
