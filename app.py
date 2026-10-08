@@ -29,6 +29,7 @@ def get_gspread_client():
     return None
 
 def fetch_live_sheet_data():
+    """Hàm quét trực tiếp toàn bộ dữ liệu từ sheet KHO_PHAN_BO"""
     try:
         client = get_gspread_client()
         if client:
@@ -43,7 +44,7 @@ def fetch_live_sheet_data():
                 
             rows = target_ws.get_all_values()
             if len(rows) > 1:
-                return rows[1:]
+                return rows[1:] # Bỏ dòng tiêu đề đầu tiên
     except Exception as e:
         pass
     return []
@@ -85,26 +86,27 @@ if st.session_state.nav_tab == "Bao_cao":
             st.cache_resource.clear()
             st.rerun()
 
+    # Lấy dữ liệu sống từ Google Sheets
     rows_data = fetch_live_sheet_data()
     
     danh_sach_doi = []
     danh_sach_diem = []
     
-    project_code = du_an_chon.split(" - ")[0].strip().lower()
-    
-    for r in rows_data:
-        row_str = " ".join(r).lower()
-        if project_code in row_str or not rows_data:
+    # Quét toàn bộ dữ liệu từ các cột thực tế
+    if rows_data:
+        for r in rows_data:
+            # Cột G (index 6): Tên đội
             if len(r) > 6 and r[6].strip():
                 val_doi = r[6].strip()
                 if val_doi.lower() not in ["tên đội", "đội nhận thiết bị", "stt"] and val_doi not in danh_sach_doi:
                     danh_sach_doi.append(val_doi)
+            # Cột H (index 7): Địa điểm vận chuyển lắp đặt (Lấy toàn bộ không bỏ sót)
             if len(r) > 7 and r[7].strip():
                 val_diem = r[7].strip()
-                if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"]:
-                    if val_diem not in danh_sach_diem:
-                        danh_sach_diem.append(val_diem)
+                if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"] and val_diem not in danh_sach_diem:
+                    danh_sach_diem.append(val_diem)
 
+    # Dự phòng an toàn nếu chưa kết nối được mạng
     if not danh_sach_doi:
         danh_sach_doi = ["Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được"]
     if not danh_sach_diem:
@@ -116,8 +118,9 @@ if st.session_state.nav_tab == "Bao_cao":
         ]
 
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + sorted(danh_sach_doi))
-    diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT (Ánh xạ từ Cột H - Kho phân bổ) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem))
+    diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Đã quét {len(danh_sach_diem)} điểm từ Cột H) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem))
     
+    # ÁNH XẠ TOÀN BỘ DANH MỤC THIẾT BỊ VÀ SỐ LƯỢNG TỪ CỘT E THEO ĐÚNG ĐIỂM CHỌN
     danh_sach_hang_hoa_phan_bo = []
     
     if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
