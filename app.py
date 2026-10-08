@@ -63,7 +63,6 @@ if st.session_state.nav_tab == "Bao_cao":
                 if val and val.lower() not in ["mã dự án", "mã da", "stt", "none"] and val not in danh_sach_du_an:
                     danh_sach_du_an.append(val)
                     
-    # Bọc lót lấy từ Kho nếu sheet dự án trống
     if not danh_sach_du_an and rows_kho:
         for r in rows_kho:
             if len(r) > 0:
@@ -73,10 +72,11 @@ if st.session_state.nav_tab == "Bao_cao":
 
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1:
+        # Tự động chọn sẵn dự án đầu tiên để giao diện không bị trống
         du_an_chon = st.selectbox(
             "CHON DU AN TRIEN KHAI *", 
             options=danh_sach_du_an, 
-            index=None, 
+            index=0 if danh_sach_du_an else None, 
             placeholder="-- Gõ để tìm hoặc chọn mã dự án --"
         )
             
@@ -91,12 +91,13 @@ if st.session_state.nav_tab == "Bao_cao":
     ds_diem = []
     p_code = du_an_chon.strip() if du_an_chon else ""
     
-    # 2. VÉT SẠCH TRỌN VẸN CỘT B TỪ SHEET "QUAN_LY_DOI" (ĐẾN DÒNG CUỐI CÙNG)
+    # 2. VÉT SẠCH TRỌN VẸN 100% CỘT B TỪ SHEET "QUAN_LY_DOI" (Bỏ qua tiêu đề, lấy tất cả nhân sự)
     if data_doi_master and len(data_doi_master) > 1:
         for r in data_doi_master[1:]:
             if len(r) > 1:
                 v_doi = str(r[1]).strip()
-                if v_doi and v_doi.lower() not in ["tên đội", "stt", "none"] and v_doi not in ds_doi:
+                # Kiểm tra kỹ để không bỏ sót bất kỳ tên nhân sự nào ở các dòng dưới
+                if v_doi and v_doi.lower() not in ["tên đội", "stt", "none", ""] and v_doi not in ds_doi:
                     ds_doi.append(v_doi)
     
     # 3. QUY CHIẾU LỌC ĐỊA ĐIỂM TỪ KHO PHÂN BỔ & BỌC LÓT ĐỘI NẾU CẦN
