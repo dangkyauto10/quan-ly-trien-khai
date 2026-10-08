@@ -6,8 +6,7 @@ st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_ic
 SECURE_PASS = "880880"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyCjVh5gdBgbQtka1UN_F4WGepgQRYdTcPobXcRr_xy70kN0kn_aLDTVtoI2nObszogsw/exec"
 
-# TĂNG THỜI GIAN CACHE (TTL = 60 giây) ĐỂ TRÁNH GỌI API LIÊN TỤC GÂY QUÁ TẢI HẠN MỨC
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=10)
 def load_live_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -16,7 +15,7 @@ def load_live_data():
             data = json.loads(res_text)
             return data, None
     except Exception as e:
-        return None, f"🚨 LỖI KẾT NỐI API HOẶC HẾT HẠN MỨC: {e}"
+        return None, f"🚨 LỖI KẾT NỐI API: {e}"
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -40,21 +39,21 @@ if st.session_state.nav_tab == "Bao_cao":
     
     raw_data, err_msg = load_live_data()
     if err_msg:
-        st.warning(f"{err_msg} -> Đang sử dụng dữ liệu lưu đệm an toàn.")
+        st.error(err_msg)
         
     data_kho = []
     data_du_an = []
-    data_doi_master = []
+    sheet_doi_raw = []
     
     if isinstance(raw_data, dict):
         for k, v in raw_data.items():
             k_lower = str(k).lower()
             if "kho" in k_lower: data_kho = v
             elif "du_an" in k_lower or "danh_sach_du_an" in k_lower: data_du_an = v
-            elif "doi" in k_lower or "quan_ly_doi" in k_lower: data_doi_master = v
+            elif "doi" in k_lower or "quan_ly_doi" in k_lower: sheet_doi_raw = v
         if not data_kho and "KHO_PHAN_BO" in raw_data: data_kho = raw_data["KHO_PHAN_BO"]
         if not data_du_an and "DANH_SACH_DU_AN" in raw_data: data_du_an = raw_data["DANH_SACH_DU_AN"]
-        if not data_doi_master and "QUAN_LY_DOI" in raw_data: data_doi_master = raw_data["QUAN_LY_DOI"]
+        if not sheet_doi_raw and "QUAN_LY_DOI" in raw_data: sheet_doi_raw = raw_data["QUAN_LY_DOI"]
     elif isinstance(raw_data, list):
         data_kho = raw_data
         
@@ -96,21 +95,30 @@ if st.session_state.nav_tab == "Bao_cao":
     ds_diem = []
     p_code = du_an_chon.strip() if du_an_chon else ""
     
-    # 2. VÉT TRỌN VẸN CỘT B TỪ SHEET QUẢN LÝ ĐỘI
-    if data_doi_master and len(data_doi_master) > 1:
-        for r in data_doi_master[1:]:
-            if len(r) > 1:
-                v_doi = str(r[1]).strip()
-                if v_doi and v_doi.lower() not in ["tên đội", "stt", "none", ""] and v_doi not in ds_doi:
-                    ds_doi.append(v_doi)
-                    
+    # 2. VÉT TRỌN VẸN TOÀN BỘ CỘT TÊN ĐỘI TỪ SHEET "QUAN_LY_DOI" (ĐỒNG BỘ 100% TỪ TRÊN XUỐNG DƯỚI)
+    if sheet_doi_raw and len(sheet_doi_raw) > 1:
+        header_doi = [str(x).strip().lower() for x in sheet_doi_raw[0]] if len(sheet_doi_raw) > 0 else []
+        col_idx_ten_doi = 1 # Mặc định cột B
+        for idx, h in enumerate(header_doi):
+            if "tên đội" in h or "ten doi" in h:
+                col_idx_ten_doi = idx
+                break
+                
+        for r in sheet_doi_raw[1:]:
+            if len(r) > col_idx_ten_doi:
+                val = str(r[col_idx_ten_doi]).strip()
+                if val and val.lower() not in ["tên đội", "ten doi", "stt", "none", ""]:
+                    if val not in ds_doi:
+                        ds_doi.append(val)
+                        
+    # Bọc lót bổ sung nếu sheet QUAN_LY_DOI trống
     if not ds_doi and rows_kho:
         for r in rows_kho:
             if len(r) > 6:
-                v_doi_kho = str(r[6]).strip()
-                if v_doi_kho and v_doi_kho.lower() not in ["tên đội", "stt", "none", ""] and v_doi_kho not in ds_doi:
-                    ds_doi.append(v_doi_kho)
-    
+                val = str(r[6]).strip()
+                if val and val.lower() not in ["tên đội", "stt", "none", ""] and val not in ds_doi:
+                    ds_doi.append(val)
+
     # 3. LỌC ĐỊA ĐIỂM TỪ KHO PHÂN BỔ THEO DỰ ÁN
     idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
     if rows_kho and p_code:
@@ -131,7 +139,7 @@ if st.session_state.nav_tab == "Bao_cao":
                         ds_diem.append(v_diem)
 
     doi_thuc_hien = st.selectbox(
-        f"TEN DOI VAN CHUYEN / LAP DAT (Tổng danh sách: {len(ds_doi)} nhân sự) *", 
+        f"TEN DOI VAN CHUYEN / LAP DAT (Đồng bộ {len(ds_doi)} nhân sự) *", 
         options=ds_doi, index=None, placeholder="-- Gõ để tìm hoặc chọn tên đội --"
     )
     
@@ -184,29 +192,4 @@ if st.session_state.nav_tab == "Bao_cao":
             else: st.success(f"Gửi báo cáo: ĐÃ GIAO XONG (VC) cho dự án {p_code} - Đội {doi_thuc_hien} tại {diem_giao_lap}")
     with col_b2:
         if st.button("ĐÃ LẮP XONG (LĐ)", type="primary", use_container_width=True):
-            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("Vui lòng chọn đầy đủ thông tin!")
-            else: st.success(f"Gửi báo cáo: ĐÃ LẮP XONG (LĐ) cho dự án {p_code} - Đội {doi_thuc_hien} tại {diem_giao_lap}")
-    with col_b3:
-        if st.button("ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
-            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("Vui lòng chọn đầy đủ thông tin!")
-            else: st.success(f"Gửi báo cáo TRỌN GÓI: GIAO VÀ LẮP XONG cho dự án {p_code} - Đội {doi_thuc_hien} tại {diem_giao_lap}")
-
-elif st.session_state.nav_tab == "Admin":
-    st.markdown("### KHU VỰC QUẢN TRỊ - ADMIN DUYỆT")
-    pass_input = st.text_input("Nhập mật khẩu quản trị (Mã PIN):", type="password")
-    if pass_input == SECURE_PASS:
-        st.success("Đăng nhập Admin thành công!")
-        st.write("- [Chờ duyệt] Thành viên đăng ký mới")
-        if st.button("Duyet tat ca tai khoan"):
-            st.success("Đã phê duyệt thành công!")
-    elif pass_input != "":
-        st.error("Sai mật khẩu bảo mật! (Pass: 880880)")
-
-elif st.session_state.nav_tab == "Link":
-    st.markdown("### TRANG THEO DÕI TIẾN ĐỘ CHO LÃNH ĐẠO")
-    pass_link = st.text_input("Nhập mật khẩu truy cập báo cáo (Mã PIN):", type="password")
-    if pass_link == SECURE_PASS:
-        st.success("Xác thực thành công!")
-        st.markdown("- [Mở trực tiếp Google Sheets Tổng hợp](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
-    elif pass_link != "":
-        st.error("Sai mật khẩu truy cập! (Pass: 880880)")
+            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("V
