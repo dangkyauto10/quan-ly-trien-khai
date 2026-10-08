@@ -1,32 +1,22 @@
 import streamlit as st
-import datetime
 import urllib.request
 import json
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 
 SECURE_PASS = "880880"
-# Sử dụng trực tiếp dữ liệu chuẩn tuyệt đối, loại bỏ hoàn toàn các lỗi gọi mạng bên ngoài gây lỗi 404
+# ĐÃ RÁP CHUẨN XÁC LINK APPS SCRIPT WEB APP CỦA DỰ ÁN
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyCjVh5gdBgbQtka1UN_F4WGepgQRYdTcPobXcRr_xy70kN0kn_aLDTVtoI2nObszogsw/exec"
+
 @st.cache_data(ttl=10)
-def load_system_data():
-    return [
-        ["Mã dự án", "Tên dự án", "STT", "Mã TB", "Tên Thiết bị", "Số lượng", "ĐVT", "Tên Đội", "Địa điểm vận chuyển lắp đặt"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "1", "TB-01", "Máy tính để bàn TQT", "3", "Bộ", "Trần Văn C", "Xã Sùng Máng"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "2", "TB-02", "Phần mềm diệt virus Eset", "3", "Bản", "Trần Văn C", "Xã Sùng Máng"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "3", "TB-01", "Máy tính để bàn TQT", "5", "Bộ", "Nguyễn Văn Thiện", "Xã Xín Mần"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "4", "TB-02", "Phần mềm diệt virus Eset", "5", "Bản", "Nguyễn Văn Thiện", "Xã Xín Mần"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "5", "TB-01", "Máy tính để bàn TQT", "2", "Bộ", "Nguyễn Văn Hải", "Ban Tổ chức Tỉnh ủy"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "6", "TB-01", "Máy tính để bàn TQT", "4", "Bộ", "Trần Văn Chung", "Phường Nông Tiến"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "7", "TB-01", "Máy tính để bàn TQT", "6", "Bộ", "Nguyễn Văn Được", "Xã Đường Thượng"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "8", "TB-01", "Máy tính để bàn TQT", "3", "Bộ", "Trần Văn C", "Xã Nà Hang"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "9", "TB-01", "Máy tính để bàn TQT", "5", "Bộ", "Nguyễn Văn Thiện", "Đảng ủy UBND tỉnh"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "10", "TB-01", "Máy tính để bàn TQT", "2", "Bộ", "Nguyễn Văn Hải", "Đảng ủy Công an tỉnh"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "11", "TB-01", "Máy tính để bàn TQT", "4", "Bộ", "Trần Văn Chung", "Trường Chính trị tỉnh"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "12", "TB-01", "Máy tính để bàn TQT", "3", "Bộ", "Nguyễn Văn Được", "Đảng ủy Quân sự tỉnh"],
-        ["DA880", "Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "13", "TB-01", "Máy tính để bàn TQT", "5", "Bộ", "Trần Văn C", "Văn phòng Tỉnh ủy"],
-        ["DA76", "Cung cấp thiết bị cho các Thôn, Xã", "1", "TB-01", "Máy thu hình thông minh", "1", "Chiếc", "Trần Văn C", "Xã Bắc Quang"],
-        ["DA76", "Cung cấp thiết bị cho các Thôn, Xã", "2", "TB-02", "Bộ thu phát sóng Wi-Fi", "2", "Bộ", "Nguyễn Văn Thiện", "Xã Tân Quang"]
-    ]
+def load_live_data_from_script():
+    try:
+        req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            return json.loads(response.read().decode('utf-8'))
+    except Exception as e:
+        st.error(f"🚨 LỖI KẾT NỐI TỚI GOOGLE SHEETS: {e}. Vui lòng kiểm tra lại quyền truy cập hoặc file Sheet.")
+        return []
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -46,12 +36,11 @@ if btn_link: st.session_state.nav_tab = "Link"
 st.markdown("---")
 
 if st.session_state.nav_tab == "Bao_cao":
-    st.markdown("### BAO CAO NHIEM VU HIEN TRUONG (DINH NGHIA DINH MUC TU SHEET)")
+    st.markdown("### BAO CAO NHIEM VU HIEN TRUONG (ALLOCATION SYNC)")
     
-    raw_data = load_system_data()
+    raw_data = load_live_data_from_script()
     rows_data = raw_data[1:] if len(raw_data) > 1 else []
 
-    # 1. Trích xuất chuẩn xác danh sách dự án động 100% từ Cột A và Cột B của sheet
     danh_sach_du_an = []
     if rows_data:
         for r in rows_data:
@@ -63,70 +52,13 @@ if st.session_state.nav_tab == "Bao_cao":
                     if item_str not in danh_sach_du_an:
                         danh_sach_du_an.append(item_str)
 
-    if not danh_sach_du_an:
-        danh_sach_du_an = ["DA880 - Nâng cấp hạ tầng kỹ thuật phục vụ chuyển đổi số các cơ quan Đảng", "DA76 - Cung cấp thiết bị cho các Thôn, Xã"]
-
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1:
-        du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", danh_sach_du_an)
+        if not danh_sach_du_an:
+            du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", ["-- Chưa có dữ liệu dự án --"])
+        else:
+            du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", danh_sach_du_an)
+            
     with col_rf2:
         st.write("")
         st.write("")
-        if st.button("Lam moi du lieu"):
-            st.cache_data.clear()
-            st.rerun()
-
-    danh_sach_doi = []
-    danh_sach_diem = []
-    
-    project_code = du_an_chon.split(" - ")[0].strip().lower()
-    
-    # 2. Quy chiếu động lọc danh sách đội (Cột G) và địa điểm (Cột H) chính xác theo dự án được chọn
-    if rows_data:
-        for r in rows_data:
-            row_proj = str(r[0]).strip().lower() if len(r) > 0 else ""
-            if project_code in row_proj or not project_code:
-                if len(r) > 7 and str(r[7]).strip():
-                    val_doi = str(r[7]).strip()
-                    if val_doi.lower() not in ["tên đội", "đội nhận thiết bị", "stt", ""] and val_doi not in danh_sach_doi:
-                        danh_sach_doi.append(val_doi)
-                if len(r) > 8 and str(r[8]).strip():
-                    val_diem = str(r[8]).strip()
-                    if val_diem.lower() not in ["địa điểm vận chuyển lắp đặt", "địa điểm", "stt", ""] and val_diem not in danh_sach_diem:
-                        danh_sach_diem.append(val_diem)
-
-    if not danh_sach_doi:
-        danh_sach_doi = ["Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện"]
-    if not danh_sach_diem:
-        danh_sach_diem = ["Xã Sùng Máng", "Xã Xín Mần", "Phường Nông Tiến"]
-
-    doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + sorted(danh_sach_doi))
-    diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Quy chiếu chuẩn {len(danh_sach_diem)} đơn vị) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem))
-    
-    danh_sach_hang_hoa_phan_bo = []
-    
-    if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
-        if rows_data:
-            for r in rows_data:
-                row_proj = str(r[0]).strip().lower() if len(r) > 0 else ""
-                diem_cell = str(r[8]).strip().lower() if len(r) > 8 else ""
-                if (project_code in row_proj or not project_code) and diem_giao_lap.lower() == diem_cell:
-                    sku = str(r[3]).strip() if len(r) > 3 else "TB-0X"
-                    ten_tb = str(r[4]).strip() if len(r) > 4 else "Thiết bị linh kiện"
-                    sl = int(str(r[5]).strip()) if len(r) > 5 and str(r[5]).strip().isdigit() else 1
-                    dvt = str(r[6]).strip() if len(r) > 6 else "Bộ"
-                    danh_sach_hang_hoa_phan_bo.append({"sku": sku, "ten": ten_tb, "sl": sl, "dvt": dvt})
-
-        st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ CHO ĐƠN VỊ")
-        st.markdown(f"📍 **Đơn vị / Địa điểm:** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
-        
-        if danh_sach_hang_hoa_phan_bo:
-            table_markdown = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ (Cột E) | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
-            for item in danh_sach_hang_hoa_phan_bo:
-                table_markdown += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
-            st.markdown(table_markdown)
-            st.success(f"Đã ánh xạ thành công toàn bộ {len(danh_sach_hang_hoa_phan_bo)} dòng thiết bị định mức!")
-        else:
-            st.warning("Không tìm thấy dữ liệu thiết bị khớp với đơn vị này.")
-    else:
-        st.info("Vui long chon day du Ten doi va Dia diem để hien thi chi tiết danh muc thiết bị phân bổ.")
