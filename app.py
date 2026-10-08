@@ -65,7 +65,7 @@ with col2: btn_bao_cao = st.button("Bao cao", use_container_width=True)
 with col3: btn_admin = st.button("Admin duyet", use_container_width=True)
 with col4: btn_link = st.button("Link bao cao", use_container_width=True)
 
-if "nav_tab" not in st.session_state: st.session_state.nav_tab = "Dang_ky"
+if "nav_tab" not in st.session_state: st.session_state.nav_tab = "Bao_cao"
 
 if btn_dang_ky: st.session_state.nav_tab = "Dang_ky"
 if btn_bao_cao: st.session_state.nav_tab = "Bao_cao"
@@ -112,10 +112,18 @@ elif st.session_state.nav_tab == "Bao_cao":
         
     data_kho, data_du_an, sheet_doi_raw = [], [], []
     if isinstance(raw_data, dict):
-        data_kho = raw_data.get("KHO_PHAN_BO", [])
-        data_du_an = raw_data.get("DANH_SACH_DU_AN", [])
-        sheet_doi_raw = raw_data.get("QUAN_LY_DOI", [])
+        for k, v in raw_data.items():
+            k_lower = str(k).lower()
+            if "kho" in k_lower: data_kho = v
+            elif "du_an" in k_lower or "danh_sach_du_an" in k_lower: data_du_an = v
+            elif "doi" in k_lower or "quan_ly_doi" in k_lower: sheet_doi_raw = v
+        if not data_kho and "KHO_PHAN_BO" in raw_data: data_kho = raw_data["KHO_PHAN_BO"]
+        if not data_du_an and "DANH_SACH_DU_AN" in raw_data: data_du_an = raw_data["DANH_SACH_DU_AN"]
+        if not sheet_doi_raw and "QUAN_LY_DOI" in raw_data: sheet_doi_raw = raw_data["QUAN_LY_DOI"]
+    elif isinstance(raw_data, list):
+        data_kho = raw_data
 
+    # --- LẤY DANH SÁCH DỰ ÁN THÔNG MINH ---
     danh_sach_du_an = []
     if data_du_an:
         for r in data_du_an:
@@ -160,7 +168,7 @@ elif st.session_state.nav_tab == "Bao_cao":
 
     doi_thuc_hien = st.selectbox(f"TEN DOI VAN CHUYEN / LAP DAT (Đồng bộ {len(ds_doi)} nhân sự) *", options=ds_doi, index=None, placeholder="-- Gõ để tìm hoặc chọn tên đội --")
 
-    # --- TỰ ĐỘNG NHẬN DIỆN CỘT TRONG SHEET KHO_PHAN_BO ---
+    # --- NHẬN DIỆN CỘT TRONG SHEET KHO ---
     idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
     if data_kho:
         for r in data_kho[:3]:
