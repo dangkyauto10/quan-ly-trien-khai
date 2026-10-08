@@ -72,7 +72,6 @@ if st.session_state.nav_tab == "Bao_cao":
 
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1:
-        # Ô chọn dự án áp dụng tính năng tìm kiếm thông minh (index=None, placeholder)
         du_an_chon = st.selectbox(
             "CHON DU AN TRIEN KHAI *", 
             options=danh_sach_du_an, 
@@ -91,7 +90,7 @@ if st.session_state.nav_tab == "Bao_cao":
     ds_diem = []
     p_code = du_an_chon.strip() if du_an_chon else ""
     
-    # 2. VÉT SẠCH TRỌN VẸN CỘT B TỪ SHEET "QUAN_LY_DOI"
+    # 2. VÉT SẠCH TRỌN VẸN CỘT B TỪ SHEET "QUAN_LY_DOI" (ĐẾN DÒNG CUỐI CÙNG)
     if data_doi_master and len(data_doi_master) > 1:
         for r in data_doi_master[1:]:
             if len(r) > 1:
