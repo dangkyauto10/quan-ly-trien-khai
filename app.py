@@ -93,7 +93,7 @@ elif st.session_state.nav_tab == "Bao_cao":
     with col_rf1:
         danh_sach_du_an = [
             "DA880 - Nang cap ha tang ky thuat", 
-            "DA76 - Cung cap thiet bi thon xa", 
+            "DA76 - Cung cap thiet bi thon xã", 
             "DA01 - Trien khai tram vien thong khu vực phia Bac", 
             "DA02 - Lap dat thiet bi y te tuyen huyen", 
             "DA03 - Xay dung mang luoi chuyen doi so xa phuong"
@@ -113,7 +113,7 @@ elif st.session_state.nav_tab == "Bao_cao":
             "Tran Van Chac", "Nguyen Duc Hai", "Tran Van Chung", 
             "Nguyen Hai Nam", "Tran Van C", "Nguyen Van D", "Ho Van H", 
             "Nguyen Van Ngu", "Nhu Con Lon", "Khong thi la Bo", 
-            "15 No la Suc Vat", "17 Dc Khong", "18 dc nao"
+            "15 No la Suc Vat", "17 Dc Khong", "18 đc nào"
         ]
         
     danh_sach_diem = get_direct_column_values("DANH_SACH_DIEM", 3)
@@ -128,13 +128,13 @@ elif st.session_state.nav_tab == "Bao_cao":
     so_luong_hien_tai = 0
     if diem_giao_lap != "-- Chon dia diem --":
         so_luong_co_dinh = 3
-        st.info(f"So luong thiet bi phan bo tai {diem_giao_lap}: {so_luong_co_dinh} bo (Co dinh từ Kho)")
+        st.info("So luong thiet bi phan bo tai diem nay la 3 bo (Co dinh từ Kho)")
         so_luong_hien_tai = st.number_input("So luong thiet bi ap dung bao cao", value=float(so_luong_co_dinh), disabled=True)
     else:
         st.info("Vui long chon dia diem de hien thi so luong thiet bi phan bo.")
         
     st.markdown("---")
-    st.markdown("Chup anh hien truong (Ho tro camera sau/truoc của thiet bi):")
+    st.markdown("Chup anh hien truong:")
     camera_file = st.camera_input("Chup anh thuc te")
     
     st.markdown("---")
@@ -151,10 +151,37 @@ elif st.session_state.nav_tab == "Bao_cao":
             if doi_thuc_hien == "-- Chon ten doi --" or diem_giao_lap == "-- Chon dia diem --":
                 st.warning("Vui long chon day du Ten doi va Dia diem!")
             else:
-                st.success(f"Gui bao cao thanh cong: DA GIAO XONG cho doi {doi_thuc_hien} tai {diem_giao_lap} ({du_an_chon})")
+                st.success("Gui bao cao thanh cong: DA GIAO XONG!")
     with col_b2:
         if st.button("DA LAP XONG", type="primary", use_container_width=True):
             if doi_thuc_hien == "-- Chon ten doi --" or diem_giao_lap == "-- Chon dia diem --":
                 st.warning("Vui long chon day du Ten doi va Dia diem!")
             else:
-                st.success(f"Gui bao cao thanh cong: DA LAP XONG cho doi {doi_thuc_
+                st.success("Gui bao cao thanh cong: DA LAP XONG!")
+    with col_b3:
+        if st.button("DA GIAO VA LAP XONG", type="primary", use_container_width=True):
+            if doi_thuc_hien == "-- Chon ten doi --" or diem_giao_lap == "-- Chon dia diem --":
+                st.warning("Vui long chon day du Ten doi va Dia diem!")
+            else:
+                st.success("Gui bao cao thanh cong: DA GIAO VA LAP XONG TRON GOI!")
+
+# ================= 3. ADMIN & LINK =================
+elif st.session_state.nav_tab == "Admin":
+    st.markdown("### KHU VUC QUAN TRI - ADMIN DUYỆT")
+    pass_input = st.text_input("Nhap mat khau quan tri (Ma PIN):", type="password")
+    if pass_input == SECURE_PASS:
+        st.success("Dang nhap Admin thanh cong!")
+        st.write("- [Cho duyet] Thanh vien dang ky moi")
+        if st.button("Duyet tat ca tai khoan"):
+            st.success("Da phe duyet thanh cong!")
+    elif pass_input != "":
+        st.error("Sai mat khau bao mat! (Pass: 880880)")
+
+elif st.session_state.nav_tab == "Link":
+    st.markdown("### TRANG THEO DOI TIEN DO CHO LANH DAO")
+    pass_link = st.text_input("Nhap mat khau truy cap bao cao (Ma PIN):", type="password")
+    if pass_link == SECURE_PASS:
+        st.success("Xac thuc thanh cong!")
+        st.markdown("- [Mo truc tiep Google Sheets Tong hop](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
+    elif pass_link != "":
+        st.error("Sai mat khau truy cap! (Pass: 880880)")
