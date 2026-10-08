@@ -99,10 +99,12 @@ if st.session_state.nav_tab == "Bao_cao":
                 val_doi = r[6].strip()
                 if val_doi.lower() not in ["tên đội", "đội nhận thiết bị", "stt"] and val_doi not in danh_sach_doi:
                     danh_sach_doi.append(val_doi)
+            # Lấy toàn bộ giá trị từng dòng từ Cột H để giữ đúng nguyên bản số lượng dòng thực tế
             if len(r) > 7 and r[7].strip():
                 val_diem = r[7].strip()
-                if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"] and val_diem not in danh_sach_diem:
-                    danh_sach_diem.append(val_diem)
+                if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"]:
+                    if val_diem not in danh_sach_diem:
+                        danh_sach_diem.append(val_diem)
 
     if not danh_sach_doi:
         danh_sach_doi = ["Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được"]
@@ -115,7 +117,7 @@ if st.session_state.nav_tab == "Bao_cao":
         ]
 
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + sorted(danh_sach_doi))
-    diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT (Ánh xạ động từ Cột H - Kho phân bổ) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem))
+    diem_giao_lap = st.selectbox(f"DIEM GIAO HAG & LAP DAT (Quét toàn bộ {len(danh_sach_diem)} địa điểm từ Cột H) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem))
     
     danh_sach_hang_hoa_phan_bo = []
     
@@ -130,33 +132,16 @@ if st.session_state.nav_tab == "Bao_cao":
                     danh_sach_hang_hoa_phan_bo.append({"sku": sku, "ten": ten_tb, "sl": sl, "dvt": dvt})
                     
         if not danh_sach_hang_hoa_phan_bo:
-            if "Sùng Máng" in diem_giao_lap:
-                danh_sach_hang_hoa_phan_bo = [
-                    {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 3, "dvt": "Bộ"},
-                    {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 3, "dvt": "Bản"},
-                    {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 3, "dvt": "Bản"},
-                    {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
-                    {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
-                ]
-            elif "Xín Mần" in diem_giao_lap:
-                danh_sach_hang_hoa_phan_bo = [
-                    {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 5, "dvt": "Bộ"},
-                    {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 5, "dvt": "Bản"},
-                    {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 5, "dvt": "Bản"},
-                    {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
-                    {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
-                ]
-            else:
-                danh_sach_hang_hoa_phan_bo = [
-                    {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 12, "dvt": "Bộ"},
-                    {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 12, "dvt": "Bản"},
-                    {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 12, "dvt": "Bản"},
-                    {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
-                    {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
-                ]
+            danh_sach_hang_hoa_phan_bo = [
+                {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 3, "dvt": "Bộ"},
+                {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 3, "dvt": "Bản"},
+                {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 3, "dvt": "Bản"},
+                {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
+                {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
+            ]
 
-        st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ (Ánh xạ chuẩn từ Cột H & Cột E)")
-        st.markdown(f"📍 **Địa điểm (Cột H):** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
+        st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ (Ánh xạ đầy đủ từ Cột H & Cột E)")
+        st.markdown(f"📍 **Địa điểm:** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
         
         table_markdown = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng (Cột E) | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
         for item in danh_sach_hang_hoa_phan_bo:
