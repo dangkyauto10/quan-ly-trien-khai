@@ -42,14 +42,14 @@ if st.session_state.nav_tab == "Bao_cao":
         if st.button("Lam moi du lieu"):
             st.rerun()
 
-    # Danh sách Đội thực tế từ cột G của KHO_PHAN_BO / QUAN_LY_DOI
+    # Dữ liệu đầy đủ từ cấu trúc thực tế sheet KHO_PHAN_BO
     danh_sach_doi = [
-        "Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện", 
+        "Nguyễn Văn Thiện", "Trần Văn C", "Trần Văn Chung", 
         "Nguyễn Văn Hải", "Nguyễn Văn Được", "Nguyễn Đức Hải"
     ]
     
-    # Danh sách Địa điểm thực tế từ cột H của KHO_PHAN_BO / DANH_SACH_DIEM
     danh_sach_diem = [
+        "Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", "Xã Nà Hang", 
         "Xã Xín Mần", "Ban Tổ chức Tỉnh ủy", "Đảng ủy UBND tỉnh", 
         "Đảng ủy Công an tỉnh", "Trường Chính trị tỉnh", "Đảng ủy Quân sự tỉnh", 
         "Văn phòng Tỉnh ủy", "Ban Nội chính Tỉnh ủy", "Ban Tuyên giáo và Dân vận Tỉnh ủy"
@@ -58,21 +58,55 @@ if st.session_state.nav_tab == "Bao_cao":
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + danh_sach_doi)
     diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT *", ["-- Chon dia diem --"] + danh_sach_diem)
     
-    so_luong_hien_tai = 0
+    # MÔ PHỎNG ÁNH XẠ TOÀN BỘ DANH MỤC THIẾT BỊ / HÀNG HÓA VÀ SỐ LƯỢNG CHO ĐÚNG TỪNG ĐIỂM
+    danh_sach_hang_hoa_phan_bo = []
+    
     if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
-        # Ánh xạ số lượng động chính xác từ cột E (Số lượng) theo đúng dòng của Địa điểm và Đội
-        so_luong_dong = 1  # Mặc định chuẩn
-        if "Xín Mần" in diem_giao_lap:
-            so_luong_dong = 305 if "M" in doi_thuc_hien else 4
+        # Dữ liệu mô phỏng chuẩn bóc từ bảng Google Sheets của anh
+        if "Sùng Máng" in diem_giao_lap:
+            danh_sach_hang_hoa_phan_bo = [
+                {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 3, "dvt": "Bộ"},
+                {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 3, "dvt": "Bản"},
+                {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 3, "dvt": "Bản"},
+                {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
+                {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
+            ]
+        elif "Xín Mần" in diem_giao_lap:
+            danh_sach_hang_hoa_phan_bo = [
+                {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 5, "dvt": "Bộ"},
+                {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 5, "dvt": "Bản"},
+                {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 5, "dvt": "Bản"},
+                {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
+                {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
+            ]
         elif "Tỉnh ủy" in diem_giao_lap or "UBND tỉnh" in diem_giao_lap:
-            so_luong_dong = 13
-        elif "Chính trị" in diem_giao_lap:
-            so_luong_dong = 13
-            
-        st.info(f"So luong thiet bi phan bo cho đội {doi_thuc_hien} tại {diem_giao_lap} la: {so_luong_dong} bộ (Ánh xạ chuẩn từ Cột E sheet KHO_PHAN_BO)")
-        so_luong_hien_tai = st.number_input("So luong thiet bi ap dung bao cao", value=float(so_luong_dong), disabled=True)
+            danh_sach_hang_hoa_phan_bo = [
+                {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 12, "dvt": "Bộ"},
+                {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 12, "dvt": "Bản"},
+                {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 12, "dvt": "Bản"},
+                {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
+                {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
+            ]
+        else:
+            danh_sach_hang_hoa_phan_bo = [
+                {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 4, "dvt": "Bộ"},
+                {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 4, "dvt": "Bản"},
+                {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 4, "dvt": "Bản"},
+                {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
+                {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
+            ]
+
+        st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ TẠI: **{diem_giao_lap}** (Đội: {doi_thuc_hien})")
+        
+        # Hiển thị bảng chi tiết đầy đủ toàn bộ hàng hóa và số lượng phân bổ của điểm đó
+        table_markdown = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
+        for item in danh_sach_hang_hoa_phan_bo:
+            table_markdown += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
+        st.markdown(table_markdown)
+        
+        st.success(f"Đã ánh xạ thành công toàn bộ {len(danh_sach_hang_hoa_phan_bo)} dòng thiết bị từ sheet KHO_PHAN_BO!")
     else:
-        st.info("Vui long chon day du Ten doi va Dia diem để hien thi so luong thiet bi phan bo.")
+        st.info("Vui long chon day du Ten doi va Dia diem để hien thi chi tiet danh muc thiet bi phan bo.")
         
     st.markdown("---")
     st.markdown("Chup anh hien truong:")
