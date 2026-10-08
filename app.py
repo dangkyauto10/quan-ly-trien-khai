@@ -53,7 +53,7 @@ if st.session_state.nav_tab == "Bao_cao":
             
     rows_kho = data_kho[1:] if len(data_kho) > 1 else []
     
-    # 1. ÁNH XẠ DỰ ÁN TỪ CỘT A SHEET DỰ ÁN
+    # 1. VÉT SẠCH TRỌN VẸN CỘT A TỪ SHEET "DANH_SACH_DU_AN"
     danh_sach_du_an = []
     if data_du_an and len(data_du_an) > 1:
         for r in data_du_an[1:]:
@@ -62,6 +62,7 @@ if st.session_state.nav_tab == "Bao_cao":
                 if val and val.lower() not in ["mã dự án", "mã da", "stt", ""] and val not in danh_sach_du_an:
                     danh_sach_du_an.append(val)
                     
+    # Bọc lót lấy từ Kho nếu sheet dự án trống
     if not danh_sach_du_an and rows_kho:
         for r in rows_kho:
             if len(r) > 0:
@@ -71,10 +72,13 @@ if st.session_state.nav_tab == "Bao_cao":
 
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1:
-        if not danh_sach_du_an:
-            du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", options=[], index=None, placeholder="-- Đang chờ dữ liệu Dự Án --")
-        else:
-            du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", options=danh_sach_du_an, index=0)
+        # Ô chọn dự án áp dụng tính năng tìm kiếm thông minh (index=None, placeholder)
+        du_an_chon = st.selectbox(
+            "CHON DU AN TRIEN KHAI *", 
+            options=danh_sach_du_an, 
+            index=None, 
+            placeholder="-- Gõ để tìm hoặc chọn mã dự án --"
+        )
             
     with col_rf2:
         st.write("")
@@ -92,7 +96,7 @@ if st.session_state.nav_tab == "Bao_cao":
         for r in data_doi_master[1:]:
             if len(r) > 1:
                 v_doi = str(r[1]).strip()
-                if v_doi and v_doi.lower() not in ["tên đội", "stt", ""] and v_doi not in ds_doi:
+                if v_doi and v_doi.lower() not in ["tên đội", "stt"] and v_doi not in ds_doi:
                     ds_doi.append(v_doi)
     
     # 3. QUY CHIẾU LỌC ĐỊA ĐIỂM TỪ KHO PHÂN BỔ & BỌC LÓT ĐỘI NẾU CẦN
@@ -157,7 +161,7 @@ if st.session_state.nav_tab == "Bao_cao":
         else:
             st.warning("Không tìm thấy dữ liệu thiết bị khớp với đơn vị này.")
     else:
-        st.info("Vui lòng chọn đầy đủ Tên đội và Địa điểm để hiển thị danh mục thiết bị phân bổ.")
+        st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm để hiển thị thiết bị phân bổ.")
         
     st.markdown("---")
     st.markdown("Chup anh hien truong:")
@@ -171,16 +175,16 @@ if st.session_state.nav_tab == "Bao_cao":
     col_b1, col_b2, col_b3 = st.columns(3)
     with col_b1:
         if st.button("ĐÃ GIAO XONG (VC)", type="primary", use_container_width=True):
-            if not doi_thuc_hien or not diem_giao_lap: st.warning("Vui lòng chọn đầy đủ!")
-            else: st.success(f"Gửi báo cáo: ĐÃ GIAO XONG (VC) cho {doi_thuc_hien} tại {diem_giao_lap}")
+            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("Vui lòng chọn đầy đủ thông tin!")
+            else: st.success(f"Gửi báo cáo: ĐÃ GIAO XONG (VC) cho dự án {p_code} - Đội {doi_thuc_hien} tại {diem_giao_lap}")
     with col_b2:
         if st.button("ĐÃ LẮP XONG (LĐ)", type="primary", use_container_width=True):
-            if not doi_thuc_hien or not diem_giao_lap: st.warning("Vui lòng chọn đầy đủ!")
-            else: st.success(f"Gửi báo cáo: ĐÃ LẮP XONG (LĐ) cho {doi_thuc_hien} tại {diem_giao_lap}")
+            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("Vui lòng chọn đầy đủ thông tin!")
+            else: st.success(f"Gửi báo cáo: ĐÃ LẮP XONG (LĐ) cho dự án {p_code} - Đội {doi_thuc_hien} tại {diem_giao_lap}")
     with col_b3:
         if st.button("ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
-            if not doi_thuc_hien or not diem_giao_lap: st.warning("Vui lòng chọn đầy đủ!")
-            else: st.success(f"Gửi báo cáo TRỌN GÓI: GIAO VÀ LẮP XONG cho {doi_thuc_hien} tại {diem_giao_lap}")
+            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("Vui lòng chọn đầy đủ thông tin!")
+            else: st.success(f"Gửi báo cáo TRỌN GÓI: GIAO VÀ LẮP XONG cho dự án {p_code} - Đội {doi_thuc_hien} tại {diem_giao_lap}")
 
 elif st.session_state.nav_tab == "Admin":
     st.markdown("### KHU VỰC QUẢN TRỊ - ADMIN DUYỆT")
