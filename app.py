@@ -57,15 +57,15 @@ if st.session_state.nav_tab == "Bao_cao":
     elif isinstance(raw_data, list):
         data_kho = raw_data
         
-    rows_kho = data_kho[2:] if len(data_kho) > 2 else (data_kho[1:] if len(data_kho) > 1 else [])
+    rows_kho = data_kho[1:] if len(data_kho) > 1 else []
     
     # 1. VÉT SẠCH CỘT A TỪ SHEET "DANH_SACH_DU_AN"
     danh_sach_du_an = []
-    if data_du_an:
-        for r in data_du_an:
+    if data_du_an and len(data_du_an) > 1:
+        for r in data_du_an[1:]:
             if len(r) > 0:
                 val = str(r[0]).strip()
-                if val and val.lower() not in ["mã dự án", "mã da", "stt", "none", "", "dự án"]:
+                if val and val.lower() not in ["mã dự án", "mã da", "stt", "none", ""]:
                     if val not in danh_sach_du_an:
                         danh_sach_du_an.append(val)
                         
@@ -98,11 +98,18 @@ if st.session_state.nav_tab == "Bao_cao":
     p_code = du_an_chon.strip() if du_an_chon else ""
     
     # 2. VÉT TRỌN VẸN TOÀN BỘ CỘT B (TÊN ĐỘI) TỪ SHEET "QUAN_LY_DOI"
-    if sheet_doi_raw:
-        for r in sheet_doi_raw:
-            if len(r) > 1:
-                val = str(r[1]).strip()
-                if val and val.lower() not in ["tên đội", "ten doi", "stt", "none", "", "mã đội"]:
+    if sheet_doi_raw and len(sheet_doi_raw) > 1:
+        header_doi = [str(x).strip().lower() for x in sheet_doi_raw[0]]
+        col_idx_ten_doi = 1 # Mặc định cột B
+        for idx, h in enumerate(header_doi):
+            if "tên đội" in h or "ten doi" in h:
+                col_idx_ten_doi = idx
+                break
+                
+        for r in sheet_doi_raw[1:]:
+            if len(r) > col_idx_ten_doi:
+                val = str(r[col_idx_ten_doi]).strip()
+                if val and val.lower() not in ["tên đội", "ten doi", "stt", "none", ""]:
                     if val not in ds_doi:
                         ds_doi.append(val)
                         
@@ -116,16 +123,13 @@ if st.session_state.nav_tab == "Bao_cao":
     # 3. LỌC ĐỊA ĐIỂM TỪ KHO PHÂN BỔ THEO DỰ ÁN
     idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
     if rows_kho and p_code:
-        header_kho = data_kho[0] if len(data_kho) > 0 else []
-        header_kho_2 = data_kho[1] if len(data_kho) > 1 else []
-        combined_headers = [str(x).strip().lower() for x in header_kho] + [str(x).strip().lower() for x in header_kho_2]
-        
-        for i, h in enumerate(combined_headers):
-            if "địa điểm" in h or "đơn vị" in h: idx_diem = i % len(header_kho) if len(header_kho) > 0 else 7
-            elif "mã tb" in h or "sku" in h: idx_matb = i % len(header_kho) if len(header_kho) > 0 else 1
-            elif "thiết bị" in h or "tên tb" in h: idx_tentb = i % len(header_kho) if len(header_kho) > 0 else 3
-            elif "số lượng" in h or "sl" in h: idx_sl = i % len(header_kho) if len(header_kho) > 0 else 4
-            elif "đvt" in h or "đơn vị tính" in h: idx_dvt = i % len(header_kho) if len(header_kho) > 0 else 5
+        headers = [str(x).strip().lower() for x in data_kho[0]]
+        for i, h in enumerate(headers):
+            if "địa điểm" in h or "đơn vị" in h: idx_diem = i
+            elif "mã tb" in h or "sku" in h: idx_matb = i
+            elif "thiết bị" in h or "tên tb" in h: idx_tentb = i
+            elif "số lượng" in h or "sl" in h: idx_sl = i
+            elif "đvt" in h or "đơn vị tính" in h: idx_dvt = i
 
         for r in rows_kho:
             r_proj = str(r[0]).strip().lower() if len(r) > 0 else ""
@@ -164,3 +168,54 @@ if st.session_state.nav_tab == "Bao_cao":
         
         if ds_hang:
             tb_md = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
+            for item in ds_hang:
+                tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
+            st.markdown(tb_md)
+            st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị thực tế!")
+        else:
+            st.warning("Không tìm thấy dữ liệu thiết bị khớp với đơn vị này.")
+    else:
+        st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm để hiển thị thiết bị phân bổ.")
+        
+    st.markdown("---")
+    st.markdown("Chup anh hien truong:")
+    st.camera_input("Chup anh thuc te")
+    
+    st.markdown("---")
+    if st.button("Check-in GPS Tọa độ Hiện trường", use_container_width=True):
+        st.success("Check-in GPS thành công!")
+        
+    st.markdown("---")
+    col_b1, col_b2, col_b3 = st.columns(3)
+    with col_b1:
+        if st.button("ĐÃ GIAO XONG (VC)", type="primary", use_container_width=True):
+            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("Vui lòng chọn đầy đủ thông tin!")
+            else: st.success(f"Gửi báo cáo: ĐÃ GIAO XONG (VC) cho dự án {p_code} - Đội {doi_thuc_hien} tại {diem_giao_lap}")
+    with col_b2:
+        if st.button("ĐÃ LẮP XONG (LĐ)", type="primary", use_container_width=True):
+            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("Vui lòng chọn đầy đủ thông tin!")
+            else: st.success(f"Gửi báo cáo: ĐÃ LẮP XONG (LĐ) cho dự án {p_code} - Đội {doi_thuc_hien} tại {diem_giao_lap}")
+    with col_b3:
+        if st.button("ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
+            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("Vui lòng chọn đầy đủ thông tin!")
+            else: st.success(f"Gửi báo cáo TRỌN GÓI: GIAO VÀ LẮP XONG cho dự án {p_code} - Đội {doi_thuc_hien} tại {diem_giao_lap}")
+
+elif st.session_state.nav_tab == "Admin":
+    st.markdown("### KHU VỰC QUẢN TRỊ - ADMIN DUYỆT")
+    pass_input = st.text_input("Nhập mật khẩu quản trị (Mã PIN):", type="password")
+    if pass_input == SECURE_PASS:
+        st.success("Đăng nhập Admin thành công!")
+        st.write("- [Chờ duyệt] Thành viên đăng ký mới")
+        if st.button("Duyet tat ca tai khoan"):
+            st.success("Đã phê duyệt thành công!")
+    elif pass_input != "":
+        st.error("Sai mật khẩu bảo mật! (Pass: 880880)")
+
+elif st.session_state.nav_tab == "Link":
+    st.markdown("### TRANG THEO DÕI TIẾN ĐỘ CHO LÃNH ĐẠO")
+    pass_link = st.text_input("Nhập mật khẩu truy cập báo cáo (Mã PIN):", type="password")
+    if pass_link == SECURE_PASS:
+        st.success("Xác thực thành công!")
+        st.markdown("- [Mở trực tiếp Google Sheets Tổng hợp](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
+    elif pass_link != "":
+        st.error("Sai mật khẩu truy cập! (Pass: 880880)")
