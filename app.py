@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-import json
 import os
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự Án Hiện Trường", page_icon="📊", layout="centered")
@@ -14,24 +13,15 @@ def get_gspread_client():
     try:
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         
+        # Dùng trực tiếp hàm chuẩn của Google Auth cho file json (giải quyết triệt để lỗi JWT Signature)
         if os.path.exists("credentials.json"):
-            with open("credentials.json", "r", encoding="utf-8") as f:
-                creds_dict = json.load(f)
-            
-            if "private_key" in creds_dict:
-                pk = str(creds_dict["private_key"])
-                pk = pk.replace("\\n", "\n")
-                creds_dict["private_key"] = pk
-                
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
             return gspread.authorize(creds)
             
         elif "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
             if "private_key" in creds_dict:
-                pk = str(creds_dict["private_key"])
-                pk = pk.replace("\\n", "\n")
-                creds_dict["private_key"] = pk
+                creds_dict["private_key"] = str(creds_dict["private_key"]).replace("\\n", "\n")
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(creds)
     except Exception as e:
@@ -90,7 +80,6 @@ if not df_kho.empty:
     if selected_project != "-- Chọn dự án --":
         df_proj = df_kho[df_kho['Tên dự án'] == selected_project]
 
-        # Lấy danh sách đội từ sheet QUAN_LY_DOI cột B kết hợp dữ liệu kho
         doi_from_sheet = load_quan_ly_doi()
         doi_from_kho = df_proj['Đội vận chuyển thiết bị'].unique().tolist() if 'Đội vận chuyển thiết bị' in df_proj.columns else []
         combined_doi = sorted(list(set(doi_from_sheet + doi_from_kho)))
