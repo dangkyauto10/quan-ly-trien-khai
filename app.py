@@ -21,21 +21,18 @@ def get_gspread_client():
     return None
 
 def get_smart_column_data(target_sheet_name, col_indices):
-    """Hàm quét thông minh: Tự động tìm đúng worksheet (kể cả có lệch tên hoặc khoảng trắng) và quét các cột chỉ định"""
     try:
         client = get_gspread_client()
         if client:
             spreadsheet = client.open_by_key(SPREADSHEET_ID)
             worksheets = spreadsheet.worksheets()
             
-            # Tìm sheet khớp tên (bỏ qua khoảng trắng, chữ hoa/thường)
             selected_sheet = None
             for ws in worksheets:
                 if ws.title.strip().lower() == target_sheet_name.strip().lower():
                     selected_sheet = ws
                     break
             
-            # Nếu không tìm thấy chính xác, lấy sheet đầu tiên hoặc thử tìm gần đúng
             if not selected_sheet and worksheets:
                 for ws in worksheets:
                     if target_sheet_name.strip().lower() in ws.title.strip().lower():
@@ -52,7 +49,6 @@ def get_smart_column_data(target_sheet_name, col_indices):
                         if len(row) > idx:
                             val = row[idx].strip()
                             if val != "" and not val.isdigit() and val not in values:
-                                # Lọc bỏ các tiêu đề cột nếu bị lẫn vào
                                 if "tên đội" not in val.lower() and "địa điểm" not in val.lower() and "khu vực" not in val.lower():
                                     values.append(val)
             return values
@@ -66,91 +62,4 @@ st.markdown("---")
 col1, col2, col3, col4 = st.columns(4)
 with col1: btn_dang_ky = st.button("📝 Đăng ký", use_container_width=True)
 with col2: btn_bao_cao = st.button("📊 Báo cáo", use_container_width=True)
-with col3: btn_admin = st.button("🔒 Admin duyệt", use_container_width=True)
-with col4: btn_link = st.button("📈 Link báo cáo", use_container_width=True)
-
-if "nav_tab" not in st.session_state: st.session_state.nav_tab = "Bao_cao"
-if btn_dang_ky: st.session_state.nav_tab = "Dang_ky"
-if btn_bao_cao: st.session_state.nav_tab = "Bao_cao"
-if btn_admin: st.session_state.nav_tab = "Admin"
-if btn_link: st.session_state.nav_tab = "Link"
-
-st.markdown("---")
-
-# ================= 1. TAB ĐĂNG KÝ THÀNH VIÊN =================
-if st.session_state.nav_tab == "Dang_ky":
-    st.markdown("### 📝 ĐĂNG KÝ THÀNH VIÊN / ĐỘI THỰC HIỆN")
-    with st.form("form_dang_ky"):
-        ten_thanh_vien = st.text_input("Họ và tên *")
-        sdt = st.text_input("Số điện thoại liên hệ *")
-        vai_tro = st.selectbox("Vai trò công việc *", ["Đội Vận Chuyển (VC)", "Đội Lắp Đặt (LD)", "Đội Kiêm Nhiệm (VC & LD)"])
-        don_vi = st.text_input("Đơn vị / Bộ phận công tác *")
-        if st.form_submit_button("Gửi đăng ký", type="primary"):
-            if not ten_thanh_vien or not sdt: 
-                st.warning("⚠️ Vui lòng điền đầy đủ họ tên và số điện thoại!")
-            else: 
-                st.success("🎉 Đăng ký thành công! Vui lòng chờ Admin duyệt tài khoản.")
-
-# ================= 2. TAB BÁO CÁO CỦA ĐỘI VC & LĐ =================
-elif st.session_state.nav_tab == "Bao_cao":
-    st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG")
-    
-    col_rf1, col_rf2 = st.columns([3, 1])
-    with col_rf1:
-        danh_sach_du_an = ["DA880 - Nâng cấp hạ tầng kỹ thuật", "DA76 - Cung cấp thiết bị thôn xã"]
-        du_an_chon = st.selectbox("📂 CHỌN DỰ ÁN TRIỂN KHAI *", danh_sach_du_an)
-    with col_rf2:
-        st.write("")
-        st.write("")
-        if st.button("🔄 Làm mới dữ liệu"):
-            st.cache_resource.clear()
-            st.rerun()
-
-    # Quét động 100% cột B và C (index 1, 2) từ sheet QUAN_LY_DOI
-    danh_sach_doi = get_smart_column_data("QUAN_LY_DOI", [1, 2])
-    if not danh_sach_doi:
-        danh_sach_doi = [
-            "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
-            "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
-            "Nguyễn Hải Nam", "Trần Văn C", "Nguyễn Văn D", "Hồ Văn H", 
-            "Nguyễn Văn Ngu", "Như Con Lợn", "Không thì là Bò", 
-            "15 Nó là Súc Vật", "17 Đc Không", "18 đc nào"
-        ]
-        
-    # Quét động 100% cột D (index 3, 2, 4) từ sheet DANH_SACH_DIEM để lấy trọn vẹn điểm giao hàng
-    danh_sach_diem = get_smart_column_data("DANH_SACH_DIEM", [3, 2, 4, 1])
-    if not danh_sach_diem:
-        danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
-        
-    doi_thuc_hien = st.selectbox("👥 TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", ["-- Chọn tên đội --"] + danh_sach_doi)
-    diem_giao_lap = st.selectbox("📍 ĐIỂM GIAO HÀNG & LẮP ĐẶT *", ["-- Chọn địa điểm --"] + danh_sach_diem)
-    
-    so_luong_hien_tai = 0
-    if diem_giao_lap != "-- Chọn địa điểm --":
-        so_luong_co_dinh = 3
-        st.info(f"📦 Số lượng thiết bị phân bổ tại **{diem_giao_lap}**: **{so_luong_co_dinh} bộ** (Cố định từ Kho)")
-        so_luong_hien_tai = st.number_input("Số lượng thiết bị áp dụng báo cáo", value=float(so_luong_co_dinh), disabled=True)
-    else:
-        st.info("📦 Vui lòng chọn địa điểm để hiển thị số lượng thiết bị phân bổ.")
-        
-    st.markdown("---")
-    st.markdown("📷 **Chụp ảnh hiện trường** (Hỗ trợ camera sau/trước của thiết bị):")
-    camera_file = st.camera_input("Chụp ảnh thực tế")
-    
-    st.markdown("---")
-    st.markdown("📍 **Xác thực GPS hiện trường:**")
-    if st.button("📍 Check-in GPS Tọa độ Hiện trường", use_container_width=True):
-        st.success("📍 Check-in GPS thành công!")
-        
-    st.markdown("---")
-    st.markdown("### 🎛️ BÁO CÁO XÁC NHẬN")
-    
-    col_b1, col_b2, col_b3 = st.columns(3)
-    with col_b1:
-        if st.button("✅ ĐÃ GIAO XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
-                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
-            else:
-                st.success(f"🎉 Gửi báo cáo thành công: **ĐÃ GIAO XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})!")
-    with col_b2:
-        if st.button("✅ ĐÃ LẮ
+with col3: btn_admin = st.
