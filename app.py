@@ -1,6 +1,7 @@
 import streamlit as st
 import urllib.request
 import json
+from streamlit_geolocation import streamlit_geolocation
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
@@ -18,7 +19,7 @@ def submit_to_google(ten_doi, diem_lap, diem_giao, sl, gps, tinh_trang):
     try:
         data = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=15) as response:
             res = json.loads(response.read().decode('utf-8'))
             return res.get("status") == "success"
     except:
@@ -28,7 +29,7 @@ def submit_to_google(ten_doi, diem_lap, diem_giao, sl, gps, tinh_trang):
 def load_live_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=15) as response:
             res_text = response.read().decode('utf-8')
             data = json.loads(res_text)
             return data, None
@@ -45,8 +46,6 @@ with col3: btn_admin = st.button("Admin duyet", use_container_width=True)
 with col4: btn_link = st.button("Link bao cao", use_container_width=True)
 
 if "nav_tab" not in st.session_state: st.session_state.nav_tab = "Bao_cao"
-if "gps_checked" not in st.session_state: st.session_state.gps_checked = False
-
 if btn_dang_ky: st.session_state.nav_tab = "Dang_ky"
 if btn_bao_cao: st.session_state.nav_tab = "Bao_cao"
 if btn_admin: st.session_state.nav_tab = "Admin"
@@ -181,34 +180,48 @@ if st.session_state.nav_tab == "Bao_cao":
     st.camera_input("Chup anh thuc te")
     
     st.markdown("---")
-    if st.button("Check-in GPS Tọa độ Hiện trường", use_container_width=True):
-        st.session_state.gps_checked = True
-        st.success("Check-in GPS thành công!")
+    st.markdown("### 📍 CHECK-IN TỌA ĐỘ GPS (CHÍNH XÁC CAO)")
+    st.info("Bấm vào biểu tượng 🎯 bên dưới và chọn Cấp quyền (Allow) Vị trí để lấy tọa độ thực tế.")
+    
+    loc = streamlit_geolocation()
+    gps_link = ""
+    
+    if loc and loc.get('latitude'):
+        lat = loc['latitude']
+        lon = loc['longitude']
+        gps_link = f"https://www.google.com/maps?q={lat},{lon}"
+        st.success(f"✅ Đã chốt tọa độ thành công! (Lat: {lat}, Lon: {lon})")
+        st.markdown(f"[📍 Mở kiểm tra vị trí vừa lấy trên bản đồ]({gps_link})")
         
     st.markdown("---")
-    gps_link = "Đã Check-in" if st.session_state.gps_checked else ""
     
     col_b1, col_b2, col_b3 = st.columns(3)
     with col_b1:
         if st.button("ĐÃ GIAO XONG (VC)", type="primary", use_container_width=True):
             if not p_code or not doi_thuc_hien or not diem_giao_lap: 
-                st.warning("Vui lòng chọn đầy đủ thông tin!")
+                st.warning("Vui lòng chọn đầy đủ thông tin Dự án, Đội và Địa điểm!")
+            elif not gps_link:
+                st.warning("Vui lòng Check-in GPS trước khi gửi báo cáo!")
             else:
-                if submit_to_google(doi_thuc_hien, "", diem_giao_lap, total_sl, gps_link, "Đã giao hàng"):
+                if submit_to_google(doi_thuc_hien, diem_giao_lap, diem_giao_lap, total_sl, gps_link, "Đã giao hàng"):
                     st.success(f"Gửi báo cáo thành công về Sheet BAO_CAO_TRIEN_KHAI!")
                 else: st.error("Gửi báo cáo thất bại, vui lòng thử lại!")
     with col_b2:
         if st.button("ĐÃ LẮP XONG (LĐ)", type="primary", use_container_width=True):
             if not p_code or not doi_thuc_hien or not diem_giao_lap: 
-                st.warning("Vui lòng chọn đầy đủ thông tin!")
+                st.warning("Vui lòng chọn đầy đủ thông tin Dự án, Đội và Địa điểm!")
+            elif not gps_link:
+                st.warning("Vui lòng Check-in GPS trước khi gửi báo cáo!")
             else:
-                if submit_to_google(doi_thuc_hien, diem_giao_lap, "", total_sl, gps_link, "Đã lắp đặt"):
+                if submit_to_google(doi_thuc_hien, diem_giao_lap, diem_giao_lap, total_sl, gps_link, "Đã lắp đặt"):
                     st.success(f"Gửi báo cáo thành công về Sheet BAO_CAO_TRIEN_KHAI!")
                 else: st.error("Gửi báo cáo thất bại, vui lòng thử lại!")
     with col_b3:
         if st.button("ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
             if not p_code or not doi_thuc_hien or not diem_giao_lap: 
-                st.warning("Vui lòng chọn đầy đủ thông tin!")
+                st.warning("Vui lòng chọn đầy đủ thông tin Dự án, Đội và Địa điểm!")
+            elif not gps_link:
+                st.warning("Vui lòng Check-in GPS trước khi gửi báo cáo!")
             else:
                 if submit_to_google(doi_thuc_hien, diem_giao_lap, diem_giao_lap, total_sl, gps_link, "Giao và Lắp xong"):
                     st.success(f"Gửi báo cáo thành công về Sheet BAO_CAO_TRIEN_KHAI!")
