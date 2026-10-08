@@ -6,7 +6,8 @@ st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_ic
 SECURE_PASS = "880880"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyCjVh5gdBgbQtka1UN_F4WGepgQRYdTcPobXcRr_xy70kN0kn_aLDTVtoI2nObszogsw/exec"
 
-@st.cache_data(ttl=5)
+# TĂNG THỜI GIAN CACHE (TTL = 60 giây) ĐỂ TRÁNH GỌI API LIÊN TỤC GÂY QUÁ TẢI HẠN MỨC
+@st.cache_data(ttl=60)
 def load_live_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -15,7 +16,7 @@ def load_live_data():
             data = json.loads(res_text)
             return data, None
     except Exception as e:
-        return None, f"🚨 LỖI KẾT NỐI API: {e}"
+        return None, f"🚨 LỖI KẾT NỐI API HOẶC HẾT HẠN MỨC: {e}"
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -39,16 +40,21 @@ if st.session_state.nav_tab == "Bao_cao":
     
     raw_data, err_msg = load_live_data()
     if err_msg:
-        st.error(err_msg)
+        st.warning(f"{err_msg} -> Đang sử dụng dữ liệu lưu đệm an toàn.")
         
     data_kho = []
     data_du_an = []
     data_doi_master = []
     
     if isinstance(raw_data, dict):
-        data_kho = raw_data.get("KHO_PHAN_BO", [])
-        data_du_an = raw_data.get("DANH_SACH_DU_AN", [])
-        data_doi_master = raw_data.get("QUAN_LY_DOI", [])
+        for k, v in raw_data.items():
+            k_lower = str(k).lower()
+            if "kho" in k_lower: data_kho = v
+            elif "du_an" in k_lower or "danh_sach_du_an" in k_lower: data_du_an = v
+            elif "doi" in k_lower or "quan_ly_doi" in k_lower: data_doi_master = v
+        if not data_kho and "KHO_PHAN_BO" in raw_data: data_kho = raw_data["KHO_PHAN_BO"]
+        if not data_du_an and "DANH_SACH_DU_AN" in raw_data: data_du_an = raw_data["DANH_SACH_DU_AN"]
+        if not data_doi_master and "QUAN_LY_DOI" in raw_data: data_doi_master = raw_data["QUAN_LY_DOI"]
     elif isinstance(raw_data, list):
         data_kho = raw_data
         
@@ -60,14 +66,14 @@ if st.session_state.nav_tab == "Bao_cao":
         for r in data_du_an[1:]:
             if len(r) > 0:
                 val = str(r[0]).strip()
-                if val and val.lower() not in ["mã dự án", "mã da", "stt", "none"] and val not in danh_sach_du_an:
+                if val and val.lower() not in ["mã dự án", "mã da", "stt", "none", ""] and val not in danh_sach_du_an:
                     danh_sach_du_an.append(val)
                     
     if not danh_sach_du_an and rows_kho:
         for r in rows_kho:
             if len(r) > 0:
                 val = str(r[0]).strip()
-                if val and val.lower() not in ["mã dự án", "stt", "none"] and val not in danh_sach_du_an:
+                if val and val.lower() not in ["mã dự án", "stt", "none", ""] and val not in danh_sach_du_an:
                     danh_sach_du_an.append(val)
 
     col_rf1, col_rf2 = st.columns([3, 1])
@@ -90,21 +96,27 @@ if st.session_state.nav_tab == "Bao_cao":
     ds_diem = []
     p_code = du_an_chon.strip() if du_an_chon else ""
     
-    # 2. VÉT TRỌN VẸN TẤT CẢ TÊN TỪ CỘT B CỦA SHEET "QUAN_LY_DOI" (ĐỘC LẬP 100%, KHÔNG BỊ GÒ BÓ)
+    # 2. VÉT TRỌN VẸN CỘT B TỪ SHEET QUẢN LÝ ĐỘI
     if data_doi_master and len(data_doi_master) > 1:
         for r in data_doi_master[1:]:
             if len(r) > 1:
                 v_doi = str(r[1]).strip()
                 if v_doi and v_doi.lower() not in ["tên đội", "stt", "none", ""] and v_doi not in ds_doi:
                     ds_doi.append(v_doi)
+                    
+    if not ds_doi and rows_kho:
+        for r in rows_kho:
+            if len(r) > 6:
+                v_doi_kho = str(r[6]).strip()
+                if v_doi_kho and v_doi_kho.lower() not in ["tên đội", "stt", "none", ""] and v_doi_kho not in ds_doi:
+                    ds_doi.append(v_doi_kho)
     
     # 3. LỌC ĐỊA ĐIỂM TỪ KHO PHÂN BỔ THEO DỰ ÁN
-    idx_doi = 6; idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
+    idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
     if rows_kho and p_code:
         headers = [str(x).strip().lower() for x in data_kho[0]]
         for i, h in enumerate(headers):
-            if "đội" in h: idx_doi = i
-            elif "địa điểm" in h or "đơn vị" in h: idx_diem = i
+            if "địa điểm" in h or "đơn vị" in h: idx_diem = i
             elif "mã tb" in h or "sku" in h: idx_matb = i
             elif "thiết bị" in h or "tên tb" in h: idx_tentb = i
             elif "số lượng" in h or "sl" in h: idx_sl = i
@@ -115,7 +127,7 @@ if st.session_state.nav_tab == "Bao_cao":
             if r_proj == p_code.lower() or p_code.lower() in r_proj:
                 if len(r) > idx_diem and str(r[idx_diem]).strip():
                     v_diem = str(r[idx_diem]).strip()
-                    if v_diem.lower() not in ["địa điểm", "stt", "none"] and v_diem not in ds_diem:
+                    if v_diem.lower() not in ["địa điểm", "stt", "none", ""] and v_diem not in ds_diem:
                         ds_diem.append(v_diem)
 
     doi_thuc_hien = st.selectbox(
