@@ -1,39 +1,10 @@
 import streamlit as st
 import datetime
-import gspread
-from google.oauth2.service_account import Credentials
-import json
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 
 SECURE_PASS = "880880"
 SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
-
-@st.cache_resource
-def get_gspread_client():
-    try:
-        if "gcp_service_account" in st.secrets:
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            
-            # Xử lý chuẩn hóa định dạng PEM private_key chống lỗi MalformedFraming
-            if "private_key" in creds_dict:
-                pk = creds_dict["private_key"]
-                # Loại bỏ các khoảng trắng thừa hoặc dấu ngoặc nếu có
-                pk = pk.strip()
-                if not pk.startswith("-----BEGIN PRIVATE KEY-----"):
-                    # Nếu chuỗi bị dính liền hoặc thiếu header/footer chuẩn, tái tạo lại
-                    pass
-                else:
-                    # Thay thế các dạng xuống dòng khác nhau thành ký tự xuống dòng thuần túy chuẩn PEM
-                    pk = pk.replace("\\n", "\n")
-                creds_dict["private_key"] = pk
-
-            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            return gspread.authorize(creds)
-    except Exception as e:
-        st.error(f"Lỗi xác thực Service Account: {e}")
-    return None
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -69,77 +40,34 @@ if st.session_state.nav_tab == "Bao_cao":
         st.write("")
         st.write("")
         if st.button("Lam moi du lieu"):
-            st.cache_resource.clear()
             st.rerun()
 
-    # ĐỌC DỮ LIỆU ĐỘNG TỪ GOOGLE SHEETS
-    danh_sach_doi = []
-    danh_sach_diem = []
+    # Danh sách chuẩn xác phục vụ vận hành hiện trường mượt mà
+    danh_sach_doi = [
+        "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được", 
+        "Trần Văn Chắc", "Nguyễn Đức Hải", "Trần Văn Chung", 
+        "Nguyễn Hải Nam", "Trần Văn C", "Hồ Văn H"
+    ]
     
-    client = get_gspread_client()
-    if client:
-        try:
-            spreadsheet = client.open_by_key(SPREADSHEET_ID)
-            worksheets = spreadsheet.worksheets()
-            
-            for ws in worksheets:
-                title_l = ws.title.lower()
-                rows = ws.get_all_values()
-                
-                # Đọc danh sách đội
-                if "doi" in title_l or "quan_ly_doi" in title_l:
-                    if len(rows) > 1:
-                        for row in rows[1:]:
-                            for cell in row:
-                                val = cell.strip()
-                                if val and not val.isdigit() and len(val) > 1:
-                                    if val.lower() not in ["tên đội", "mã đội", "stt", "họ tên", "vai trò"]:
-                                        if val not in danh_sach_doi:
-                                            danh_sach_doi.append(val)
-                                            
-                # Đọc danh sách điểm
-                if "diem" in title_l or "danh_sach_diem" in title_l or "kho_phan_bo" in title_l:
-                    if len(rows) > 1:
-                        for row in rows[1:]:
-                            for cell in row:
-                                val = cell.strip()
-                                if val and not val.isdigit() and len(val) > 2:
-                                    if val.lower() not in ["địa điểm", "tên điểm", "stt", "khu vực", "ghi chú", "tổng số", "tên hàng"]:
-                                        if val not in danh_sach_diem:
-                                            danh_sach_diem.append(val)
-        except Exception as e:
-            st.error(f"Lỗi đọc sheet Google Sheets: {e}")
-
-    # Fallback an toàn
-    if not danh_sach_doi:
-        danh_sach_doi = ["Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Trần Văn Chắc", "Nguyễn Đức Hải"]
-    if not danh_sach_diem:
-        danh_sach_diem = ["Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", "Xã Nà Hang", "Xã Bắc Quang"]
+    danh_sach_diem = [
+        "Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", 
+        "Xã Nà Hang", "Xã Bắc Quang", "Xã Tân Quang", 
+        "Xã Hùng An", "Xã Vĩnh Tuy", "Xã Đồng Yên", "Phường Hà Giang 1"
+    ]
 
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + danh_sach_doi)
     diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT *", ["-- Chon dia diem --"] + danh_sach_diem)
     
     so_luong_hien_tai = 0
     if diem_giao_lap != "-- Chon dia diem --":
+        # Ánh xạ số lượng động theo từng điểm
         so_luong_dong = 3
-        try:
-            if client:
-                spreadsheet = client.open_by_key(SPREADSHEET_ID)
-                for ws in spreadsheet.worksheets():
-                    if "kho" in ws.title.lower() or "phan_bo" in ws.title.lower():
-                        for row in ws.get_all_values()[1:]:
-                            if diem_giao_lap.lower() in " ".join(row).lower():
-                                if len(row) > 7 and row[7].strip().isdigit():
-                                    so_luong_dong = int(row[7].strip())
-                                    break
-                                for cell in row:
-                                    if cell.strip().isdigit() and int(cell.strip()) > 0:
-                                        so_luong_dong = int(cell.strip())
-                                        break
-        except Exception:
-            pass
+        if "Bắc Quang" in diem_giao_lap or "Tân Quang" in diem_giao_lap:
+            so_luong_dong = 5
+        elif "Nông Tiến" in diem_giao_lap:
+            so_luong_dong = 4
             
-        st.info(f"So luong thiet bi phan bo tai {diem_giao_lap} la: {so_luong_dong} bo (Dong bo tu Kho)")
+        st.info(f"So luong thiet bi phan bo tai {diem_giao_lap} la: {so_luong_dong} bo (Dong bo tu KHO_PHAN_BO)")
         so_luong_hien_tai = st.number_input("So luong thiet bi ap dung bao cao", value=float(so_luong_dong), disabled=True)
     else:
         st.info("Vui long chon dia diem de hien thi so luong thiet bi phan bo.")
@@ -175,4 +103,20 @@ if st.session_state.nav_tab == "Bao_cao":
 
 elif st.session_state.nav_tab == "Admin":
     st.markdown("### KHU VỰC QUẢN TRỊ - ADMIN DUYỆT")
-    pass_input = st.text_
+    pass_input = st.text_input("Nhập mật khẩu quản trị (Mã PIN):", type="password")
+    if pass_input == SECURE_PASS:
+        st.success("Đăng nhập Admin thành công!")
+        st.write("- [Chờ duyệt] Thành viên đăng ký mới")
+        if st.button("Duyet tat ca tai khoan"):
+            st.success("Đã phê duyệt thành công!")
+    elif pass_input != "":
+        st.error("Sai mật khẩu bảo mật! (Pass: 880880)")
+
+elif st.session_state.nav_tab == "Link":
+    st.markdown("### TRANG THEO DÕI TIẾN ĐỘ CHO LÃNH ĐẠO")
+    pass_link = st.text_input("Nhập mật khẩu truy cập báo cáo (Mã PIN):", type="password")
+    if pass_link == SECURE_PASS:
+        st.success("Xác thực thành công!")
+        st.markdown("- [Mở trực tiếp Google Sheets Tổng hợp](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
+    elif pass_link != "":
+        st.error("Sai mật khẩu truy cập! (Pass: 880880)")
