@@ -160,12 +160,13 @@ elif st.session_state.nav_tab == "Bao_cao":
 
     doi_thuc_hien = st.selectbox(f"TEN DOI VAN CHUYEN / LAP DAT (Đồng bộ {len(ds_doi)} nhân sự) *", options=ds_doi, index=None, placeholder="-- Gõ để tìm hoặc chọn tên đội --")
 
+    # --- TỰ ĐỘNG NHẬN DIỆN CỘT TRONG SHEET KHO_PHAN_BO ---
     idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
     if data_kho:
         for r in data_kho[:3]:
             for i, h in enumerate(r):
                 h_str = str(h).strip().lower()
-                if "địa điểm" in h_str or "đơn vị" in h_str: idx_diem = i
+                if "địa điểm" in h_str or "đơn vị" in h_str or "điểm" in h_str: idx_diem = i
                 elif "mã tb" in h_str or "sku" in h_str: idx_matb = i
                 elif "thiết bị" in h_str or "tên tb" in h_str: idx_tentb = i
                 elif "số lượng" in h_str or "sl" in h_str: idx_sl = i
@@ -178,7 +179,7 @@ elif st.session_state.nav_tab == "Bao_cao":
             if p_code.lower() == r_proj or p_code.lower() in r_proj:
                 if len(r) > idx_diem:
                     v_diem = str(r[idx_diem]).strip()
-                    if v_diem and v_diem.lower() not in ["địa điểm", "đơn vị", "stt", "none", ""]:
+                    if v_diem and v_diem.lower() not in ["địa điểm", "đơn vị", "stt", "none", "", "địa điểm vận chuyển lắp đặt"]:
                         if v_diem not in ds_diem: ds_diem.append(v_diem)
 
     diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Đồng bộ {len(ds_diem)} đơn vị) *", options=sorted(ds_diem), index=None, placeholder="-- Gõ để tìm hoặc chọn địa điểm --")
