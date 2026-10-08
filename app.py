@@ -1,23 +1,50 @@
 import streamlit as st
 import datetime
-import urllib.request
-import csv
-import io
+import gspread
+from google.oauth2.service_account import Credentials
+import os
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 
 SECURE_PASS = "880880"
-# Link xuất bản CSV trực tiếp từ sheet KHO_PHAN_BO của anh
-SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/export?format=csv"
+SPREADSHEET_ID = "129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4"
 
-@st.cache_data(ttl=10)
-def get_live_rows_from_sheets():
-    """Hàm tải trực tiếp toàn bộ dữ liệu thô từ Google Sheets, hiển thị lỗi rõ ràng nếu có"""
-    req = urllib.request.Request(SHEET_CSV_URL, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req) as response:
-        content = response.read().decode('utf-8')
-        reader = csv.reader(io.StringIO(content))
-        rows = list(reader)
+@st.cache_resource
+def get_gspread_client_from_json_file():
+    """Xác thực trực tiếp bằng file credentials.json có sẵn trên GitHub để đọc đúng sheet KHO_PHAN_BO"""
+    try:
+        if os.path.exists("credentials.json"):
+            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
+            return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"⚠️ Lỗi xác thực file credentials.json: {e}")
+    return None
+
+@st.cache_data(ttl=15)
+def get_live_rows_from_kho_phan_bo():
+    """Truy xuất trực tiếp chính xác sheet KHO_PHAN_BO từ Google Sheets"""
+    rows = []
+    try:
+        client = get_gspread_client_from_json_file()
+        if client:
+            spreadsheet = client.open_by_key(SPREADSHEET_ID)
+            
+            # Tìm chính xác worksheet có tên chứa 'kho_phan_bo' hoặc 'phan_bo'
+            target_ws = None
+            for ws in spreadsheet.worksheets():
+                title_lower = ws.title.lower()
+                if "kho_phan_bo" in title_lower or "phan_bo" in title_lower or "kho phân bổ" in title_lower:
+                    target_ws = ws
+                    break
+            
+            # Nếu không tìm thấy tên khớp chính xác, lấy sheet hiện hành hoặc sheet đầu tiên
+            if not target_ws:
+                target_ws = spreadsheet.worksheets()[0]
+                
+            rows = target_ws.get_all_values()
+    except Exception as e:
+        st.error(f"⚠️ Không thể kết nối tới Google Sheets: {e}")
     return rows
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
@@ -55,56 +82,55 @@ if st.session_state.nav_tab == "Bao_cao":
         st.write("")
         if st.button("Lam moi du lieu"):
             st.cache_data.clear()
+            st.cache_resource.clear()
             st.rerun()
 
-    # THỰC THI TẢI DỮ LIỆU SỐNG TỪ GOOGLE SHEETS VÀ HIỂN THỊ LOG RÕ RÀNG
+    # TẢI DỮ LIỆU SỐNG TỪ SHEET KHO_PHAN_BO
+    raw_sheet_data = get_live_rows_from_kho_phan_bo()
+    
     rows_data = []
-    try:
-        raw_data = get_live_rows_from_sheets()
-        if len(raw_data) > 1:
-            rows_data = raw_data[1:] # Bỏ dòng tiêu đề đầu tiên
-    except Exception as e:
-        st.error(f"⚠️ Không thể tải dữ liệu trực tiếp từ Google Sheets. Vui lòng kiểm tra quyền chia sẻ công khai (Anyone with the link can view): {e}")
+    if len(raw_sheet_data) > 1:
+        rows_data = raw_sheet_data[1:] # Bỏ dòng tiêu đề
 
     danh_sach_doi = []
     danh_sach_diem = []
     
     project_code = du_an_chon.split(" - ")[0].strip().lower()
     
-    # 🎯 QUY CHIẾU ĐỘNG 100% TỪ TOÀN BỘ CỘT G VÀ CỘT H CỦA SHEET KHO_PHAN_BO
+    # 🎯 QUY CHIẾU TOÀN BỘ DỮ LIỆU ĐỘNG TỪ CỘT G (ĐỘI) VÀ CỘT H (ĐỊA ĐIỂM)
     if rows_data:
         for r in rows_data:
             row_str = " ".join(r).lower()
             if project_code in row_str or not rows_data:
-                # Cột G (index 6): Tên đội
+                # Cột G (index 6): Tên đội nhận thiết bị
                 if len(r) > 6 and r[6].strip():
                     val_doi = r[6].strip()
                     if val_doi.lower() not in ["tên đội", "đội nhận thiết bị", "stt"] and val_doi not in danh_sach_doi:
                         danh_sach_doi.append(val_doi)
                 
-                # Cột H (index 7): Địa điểm vận chuyển lắp đặt (Lấy trọn vẹn từng dòng không sót dòng nào)
+                # Cột H (index 7): Địa điểm vận chuyển lắp đặt (Quy chiếu trọn vẹn từng dòng không sót dòng nào)
                 if len(r) > 7 and r[7].strip():
                     val_diem = r[7].strip()
                     if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"]:
                         danh_sach_diem.append(val_diem)
 
-    # Nếu file Sheets chưa tải được hoặc rỗng, hiển thị cảnh báo để xử lý
+    # Dự phòng an toàn nếu sheet chưa load được
     if not danh_sach_doi:
-        danh_sach_doi = ["Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện"]
+        danh_sach_doi = ["Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được"]
     if not danh_sach_diem:
-        danh_sach_diem = ["Chưa kết nối được dữ liệu cột H từ Google Sheets"]
+        danh_sach_diem = ["Chưa kết nối được dữ liệu cột H từ sheet KHO_PHAN_BO"]
 
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + sorted(danh_sach_doi))
     
-    # Hiển thị chính xác tổng số dòng thực tế quét được từ Cột H
-    diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Quy chiếu trực tiếp {len(danh_sach_diem)} dòng từ Cột H) *", ["-- Chon dia diem --"] + danh_sach_diem)
+    # Ánh xạ chọn địa điểm từ toàn bộ dòng thực tế của Cột H
+    diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Quy chiếu động {len(danh_sach_diem)} mục từ Cột H) *", ["-- Chon dia diem --"] + danh_sach_diem)
     
     danh_sach_hang_hoa_phan_bo = []
     
     if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
         if rows_data:
             for r in rows_data:
-                # Ánh xạ chuẩn xác từng dòng thiết bị thuộc đúng địa điểm được chọn từ Cột H và số lượng từ Cột E
+                # Quy chiếu chính xác các dòng thiết bị thuộc đúng địa điểm được chọn ở Cột H và số lượng ở Cột E
                 if len(r) > 7 and diem_giao_lap.lower() == r[7].strip().lower():
                     sku = r[1].strip() if len(r) > 1 else "TB-0X"
                     ten_tb = r[3].strip() if len(r) > 3 else "Thiết bị linh kiện"
@@ -120,9 +146,9 @@ if st.session_state.nav_tab == "Bao_cao":
             for item in danh_sach_hang_hoa_phan_bo:
                 table_markdown += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
             st.markdown(table_markdown)
-            st.success(f"Đã quy chiếu và ánh xạ thành công toàn bộ {len(danh_sach_hang_hoa_phan_bo)} dòng thiết bị từ Kho phân bổ!")
+            st.success(f"Đã quy chiếu và ánh xạ thành công toàn bộ {len(danh_sach_hang_hoa_phan_bo)} dòng thiết bị từ sheet KHO_PHAN_BO!")
         else:
-            st.warning("Không tìm thấy dữ liệu thiết bị khớp với đơn vị này trong sheet Kho phân bổ.")
+            st.warning("Không tìm thấy dữ liệu thiết bị khớp với đơn vị này trong sheet KHO_PHAN_BO.")
     else:
         st.info("Vui long chon day du Ten doi va Dia diem để hien thi chi tiết danh muc thiết bị phân bổ.")
         
