@@ -21,7 +21,6 @@ def get_gspread_client():
     return None
 
 def get_direct_column_values(keyword, col_idx):
-    """Hàm quét trực tiếp không khoan nhượng: Tìm worksheet chứa từ khóa và lấy thẳng giá trị cột"""
     try:
         client = get_gspread_client()
         if client:
@@ -88,11 +87,18 @@ if st.session_state.nav_tab == "Dang_ky":
 
 # ================= 2. TAB BÁO CÁO CỦA ĐỘI VC & LĐ =================
 elif st.session_state.nav_tab == "Bao_cao":
-    st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG")
+    st.markdown("### 📊 BÁO CÁO NHIỆM VỤ HIỆN TRƯỜNG (1 - 5 DỰ ÁN)")
     
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1:
-        danh_sach_du_an = ["DA880 - Nâng cấp hạ tầng kỹ thuật", "DA76 - Cung cấp thiết bị thôn xã"]
+        # Danh sách mở rộng hỗ trợ đồng thời nhiều dự án thực tế
+        danh_sach_du_an = [
+            "DA880 - Nâng cấp hạ tầng kỹ thuật", 
+            "DA76 - Cung cấp thiết bị thôn xã", 
+            "DA01 - Triển khai trạm viễn thông khu vực phía Bắc", 
+            "DA02 - Lắp đặt thiết bị y tế tuyến huyện", 
+            "DA03 - Xây dựng mạng lưới chuyển đổi số xã phường"
+        ]
         du_an_chon = st.selectbox("📂 CHỌN DỰ ÁN TRIỂN KHAI *", danh_sach_du_an)
     with col_rf2:
         st.write("")
@@ -101,7 +107,6 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.cache_resource.clear()
             st.rerun()
 
-    # Lấy tên đội từ sheet QUAN_LY_DOI (cột B - index 1)
     danh_sach_doi = get_direct_column_values("QUAN_LY_DOI", 1)
     if not danh_sach_doi:
         danh_sach_doi = [
@@ -112,13 +117,11 @@ elif st.session_state.nav_tab == "Bao_cao":
             "15 Nó là Súc Vật", "17 Đc Không", "18 đc nào"
         ]
         
-    # Lấy trực tiếp điểm giao hàng từ sheet DANH_SACH_DIEM (Cột D tương ứng index 3)[cite: 21]
     danh_sach_diem = get_direct_column_values("DANH_SACH_DIEM", 3)
     if not danh_sach_diem:
-        # Nếu chưa tìm thấy cột 3, thử quét cột C (index 2) hoặc B (index 1)
         danh_sach_diem = get_direct_column_values("DIEM", 2)
     if not danh_sach_diem:
-        danh_sach_diem = ["Xã Sùng Máng (DA880)", "Phường Nông Tiến (DA880)", "Xã Đường Thượng (DA880)", "Xã Nà Hang (DA880)"]
+        danh_sach_diem = ["Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", "Xã Nà Hang"]
         
     doi_thuc_hien = st.selectbox("👥 TÊN ĐỘI VẬN CHUYỂN / LẮP ĐẶT *", ["-- Chọn tên đội --"] + danh_sach_doi)
     diem_giao_lap = st.selectbox("📍 ĐIỂM GIAO HÀNG & LẮP ĐẶT *", ["-- Chọn địa điểm --"] + danh_sach_diem)
@@ -155,9 +158,4 @@ elif st.session_state.nav_tab == "Bao_cao":
             if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
                 st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
             else:
-                st.success(f"🎉 Gửi báo cáo thành công: **ĐÃ LẮP XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})!")
-    with col_b3:
-        if st.button("ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
-            if doi_thuc_hien == "-- Chọn tên đội --" or diem_giao_lap == "-- Chọn địa điểm --":
-                st.warning("⚠️ Vui lòng chọn đầy đủ Tên đội và Địa điểm!")
-            else:
+                st.success(f"🎉 Gửi báo cáo thành công: **ĐÃ LẮP XONG** cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})
