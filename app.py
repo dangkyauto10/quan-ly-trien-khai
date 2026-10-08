@@ -28,7 +28,8 @@ def get_gspread_client():
         pass
     return None
 
-def fetch_live_sheet_data():
+def fetch_live_sheet_rows():
+    """Hàm quy chiếu toàn bộ dữ liệu dòng từ sheet KHO_PHAN_BO"""
     try:
         client = get_gspread_client()
         if client:
@@ -85,8 +86,10 @@ if st.session_state.nav_tab == "Bao_cao":
             st.cache_resource.clear()
             st.rerun()
 
-    rows_data = fetch_live_sheet_data()
+    # Lấy toàn bộ dữ liệu trực tiếp từ Google Sheets
+    rows_data = fetch_live_sheet_rows()
     
+    # Quy chiếu động 100% cột G (Đội) và Cột H (Địa điểm) từ số lượng dòng thực tế của sheet
     danh_sach_doi = []
     danh_sach_diem = []
     
@@ -95,65 +98,55 @@ if st.session_state.nav_tab == "Bao_cao":
     for r in rows_data:
         row_str = " ".join(r).lower()
         if project_code in row_str or not rows_data:
+            # Cột G (index 6): Đội nhận thiết bị
             if len(r) > 6 and r[6].strip():
                 val_doi = r[6].strip()
                 if val_doi.lower() not in ["tên đội", "đội nhận thiết bị", "stt"] and val_doi not in danh_sach_doi:
                     danh_sach_doi.append(val_doi)
             
-            # Lấy danh sách các điểm duy nhất từ Cột H để hiển thị trọn vẹn trong ô chọn địa điểm
+            # Cột H (index 7): Địa điểm vận chuyển lắp đặt (Giữ nguyên toàn bộ danh sách dòng thực tế)
             if len(r) > 7 and r[7].strip():
                 val_diem = r[7].strip()
                 if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"]:
-                    if val_diem not in danh_sach_diem:
-                        danh_sach_diem.append(val_diem)
+                    danh_sach_diem.append(val_diem)
 
+    # Nếu chưa kết nối được sheets, sử dụng danh sách quy chiếu mặc định
     if not danh_sach_doi:
         danh_sach_doi = ["Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được"]
     if not danh_sach_diem:
-        danh_sach_diem = [
-            "Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", "Xã Nà Hang", 
-            "Xã Xín Mần", "Ban Tổ chức Tỉnh ủy", "Đảng ủy UBND tỉnh", 
-            "Đảng ủy Công an tỉnh", "Trường Chính trị tỉnh", "Đảng ủy Quân sự tỉnh", 
-            "Văn phòng Tỉnh ủy", "Ban Nội chính Tỉnh ủy", "Ban Tuyên giáo và Dân vận Tỉnh ủy"
-        ]
+        danh_sach_diem = ["Xã Sùng Máng", "Phường Nông Tiến", "Xã Đường Thượng", "Xã Nà Hang", "Xã Xín Mần"]
 
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + sorted(danh_sach_doi))
-    diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Danh sách {len(danh_sach_diem)} đơn vị từ Cột H) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem))
+    
+    # Quy chiếu danh sách địa điểm trực tiếp từ Cột H
+    diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Quy chiếu động {len(danh_sach_diem)} mục từ Cột H) *", ["-- Chon dia diem --"] + danh_sach_diem)
     
     danh_sach_hang_hoa_phan_bo = []
     
     if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
         if rows_data:
             for r in rows_data:
-                # Lọc đúng các dòng thiết bị thuộc riêng địa điểm đơn vị được chọn
+                # Ánh xạ chính xác từng dòng thiết bị thuộc đúng địa điểm được chọn từ Cột H và Cột E
                 if len(r) > 7 and diem_giao_lap.lower() == r[7].strip().lower():
                     sku = r[1].strip() if len(r) > 1 else "TB-0X"
                     ten_tb = r[3].strip() if len(r) > 3 else "Thiết bị linh kiện"
                     sl = int(r[4].strip()) if len(r) > 4 and r[4].strip().isdigit() else 1
                     dvt = r[5].strip() if len(r) > 5 else "Bộ"
                     danh_sach_hang_hoa_phan_bo.append({"sku": sku, "ten": ten_tb, "sl": sl, "dvt": dvt})
-                    
-        # Fallback dữ liệu mẫu nếu không khớp
-        if not danh_sach_hang_hoa_phan_bo:
-            danh_sach_hang_hoa_phan_bo = [
-                {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 3, "dvt": "Bộ"},
-                {"sku": "TB-02", "ten": "Bản quyền phần mềm diệt virus Eset Endpoint", "sl": 3, "dvt": "Bản"},
-                {"sku": "TB-03", "ten": "Bản quyền phần mềm Office 2024 Home and Business", "sl": 3, "dvt": "Bản"},
-                {"sku": "TB-04", "ten": "Thiết bị mạng switch Teltonika SWM281", "sl": 1, "dvt": "Chiếc"},
-                {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
-            ]
 
         st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ CHO ĐƠN VỊ")
         st.markdown(f"📍 **Đơn vị / Địa điểm:** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
         
-        table_markdown = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ (Cột E) | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
-        for item in danh_sach_hang_hoa_phan_bo:
-            table_markdown += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
-        st.markdown(table_markdown)
-        
-        st.success(f"Đã ánh xạ chính xác định mức phân bổ của đơn vị {diem_giao_lap} từ Kho!")
+        if danh_sach_hang_hoa_phan_bo:
+            table_markdown = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ (Cột E) | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
+            for item in danh_sach_hang_hoa_phan_bo:
+                table_markdown += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
+            st.markdown(table_markdown)
+            st.success(f"Đã quy chiếu và ánh xạ thành công toàn bộ {len(danh_sach_hang_hoa_phan_bo)} dòng thiết bị từ Kho phân bổ!")
+        else:
+            st.warning("Không tìm thấy dữ liệu thiết bị khớp với đơn vị này trong sheet Kho phân bổ.")
     else:
-        st.info("Vui long chon day du Ten doi va Dia diem để hien thi chi tiết danh muc thiết bị phân bổ của đơn vị.")
+        st.info("Vui long chon day du Ten doi va Dia diem để hien thi chi tiết danh muc thiết bị phân bổ.")
         
     st.markdown("---")
     st.markdown("Chup anh hien truong:")
@@ -166,17 +159,17 @@ if st.session_state.nav_tab == "Bao_cao":
     st.markdown("---")
     col_b1, col_b2, col_b3 = st.columns(3)
     with col_b1:
-        if st.button("ĐÃ GIAO XONG", type="primary", use_container_width=True):
+        if st.button("ĐÃ GIAO XONG (VC)", type="primary", use_container_width=True):
             if doi_thuc_hien == "-- Chon ten doi --" or diem_giao_lap == "-- Chon dia diem --":
                 st.warning("Vui long chon day du Ten doi va Dia diem!")
             else:
-                st.success(f"Gửi báo cáo thành công: ĐÃ GIAO XONG cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})")
+                st.success(f"Gửi báo cáo thành công: ĐÃ GIAO XONG (VC) cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})")
     with col_b2:
-        if st.button("ĐÃ LẮP XONG", type="primary", use_container_width=True):
+        if st.button("ĐÃ LẮP XONG (LĐ)", type="primary", use_container_width=True):
             if doi_thuc_hien == "-- Chon ten doi --" or diem_giao_lap == "-- Chon dia diem --":
                 st.warning("Vui long chon day du Ten doi va Dia diem!")
             else:
-                st.success(f"Gửi báo cáo thành công: ĐÃ LẮP XONG cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})")
+                st.success(f"Gửi báo cáo thành công: ĐÃ LẮP XONG (LĐ) cho đội {doi_thuc_hien} tại {diem_giao_lap} ({du_an_chon})")
     with col_b3:
         if st.button("ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
             if doi_thuc_hien == "-- Chon ten doi --" or diem_giao_lap == "-- Chon dia diem --":
