@@ -6,7 +6,7 @@ st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_ic
 SECURE_PASS = "880880"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyCjVh5gdBgbQtka1UN_F4WGepgQRYdTcPobXcRr_xy70kN0kn_aLDTVtoI2nObszogsw/exec"
 
-@st.cache_data(ttl=10)
+@st.cache_data(ttl=2)
 def load_live_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -57,23 +57,25 @@ if st.session_state.nav_tab == "Bao_cao":
     elif isinstance(raw_data, list):
         data_kho = raw_data
         
-    rows_kho = data_kho[1:] if len(data_kho) > 1 else []
+    rows_kho = data_kho[2:] if len(data_kho) > 2 else (data_kho[1:] if len(data_kho) > 1 else [])
     
     # 1. VÉT SẠCH TRỌN VẸN CỘT A TỪ SHEET "DANH_SACH_DU_AN"
     danh_sach_du_an = []
-    if data_du_an and len(data_du_an) > 1:
-        for r in data_du_an[1:]:
+    if data_du_an:
+        for r in data_du_an:
             if len(r) > 0:
                 val = str(r[0]).strip()
-                if val and val.lower() not in ["mã dự án", "mã da", "stt", "none", ""] and val not in danh_sach_du_an:
-                    danh_sach_du_an.append(val)
-                    
+                if val and val.lower() not in ["mã dự án", "mã da", "stt", "none", "", "dự án"]:
+                    if val not in danh_sach_du_an:
+                        danh_sach_du_an.append(val)
+                        
     if not danh_sach_du_an and rows_kho:
         for r in rows_kho:
             if len(r) > 0:
                 val = str(r[0]).strip()
-                if val and val.lower() not in ["mã dự án", "stt", "none", ""] and val not in danh_sach_du_an:
-                    danh_sach_du_an.append(val)
+                if val and val.lower() not in ["mã dự án", "stt", "none", ""]:
+                    if val not in danh_sach_du_an:
+                        danh_sach_du_an.append(val)
 
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1:
@@ -95,23 +97,15 @@ if st.session_state.nav_tab == "Bao_cao":
     ds_diem = []
     p_code = du_an_chon.strip() if du_an_chon else ""
     
-    # 2. VÉT TRỌN VẸN TOÀN BỘ CỘT TÊN ĐỘI TỪ SHEET "QUAN_LY_DOI" (ĐỒNG BỘ 100% TỪ TRÊN XUỐNG DƯỚI)
-    if sheet_doi_raw and len(sheet_doi_raw) > 1:
-        header_doi = [str(x).strip().lower() for x in sheet_doi_raw[0]] if len(sheet_doi_raw) > 0 else []
-        col_idx_ten_doi = 1 # Mặc định cột B
-        for idx, h in enumerate(header_doi):
-            if "tên đội" in h or "ten doi" in h:
-                col_idx_ten_doi = idx
-                break
-                
-        for r in sheet_doi_raw[1:]:
-            if len(r) > col_idx_ten_doi:
-                val = str(r[col_idx_ten_doi]).strip()
-                if val and val.lower() not in ["tên đội", "ten doi", "stt", "none", ""]:
+    # 2. VÉT TRỌN VẸN TOÀN BỘ CỘT B (TÊN ĐỘI) TỪ SHEET "QUAN_LY_DOI" (BỎ QUA TIÊU ĐỀ, LẤY HẾT TỪ TRÊN XUỐNG DƯỚI)
+    if sheet_doi_raw:
+        for r in sheet_doi_raw:
+            if len(r) > 1:
+                val = str(r[1]).strip()
+                if val and val.lower() not in ["tên đội", "ten doi", "stt", "none", "", "mã đội"]:
                     if val not in ds_doi:
                         ds_doi.append(val)
                         
-    # Bọc lót bổ sung nếu sheet QUAN_LY_DOI trống
     if not ds_doi and rows_kho:
         for r in rows_kho:
             if len(r) > 6:
@@ -122,13 +116,16 @@ if st.session_state.nav_tab == "Bao_cao":
     # 3. LỌC ĐỊA ĐIỂM TỪ KHO PHÂN BỔ THEO DỰ ÁN
     idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
     if rows_kho and p_code:
-        headers = [str(x).strip().lower() for x in data_kho[0]]
-        for i, h in enumerate(headers):
-            if "địa điểm" in h or "đơn vị" in h: idx_diem = i
-            elif "mã tb" in h or "sku" in h: idx_matb = i
-            elif "thiết bị" in h or "tên tb" in h: idx_tentb = i
-            elif "số lượng" in h or "sl" in h: idx_sl = i
-            elif "đvt" in h or "đơn vị tính" in h: idx_dvt = i
+        header_kho = data_kho[0] if len(data_kho) > 0 else []
+        header_kho_2 = data_kho[1] if len(data_kho) > 1 else []
+        combined_headers = [str(x).strip().lower() for x in header_kho] + [str(x).strip().lower() for x in header_kho_2]
+        
+        for i, h in enumerate(combined_headers):
+            if "địa điểm" in h or "đơn vị" in h: idx_diem = i % len(header_kho) if len(header_kho) > 0 else 7
+            elif "mã tb" in h or "sku" in h: idx_matb = i % len(header_kho) if len(header_kho) > 0 else 1
+            elif "thiết bị" in h or "tên tb" in h: idx_tentb = i % len(header_kho) if len(header_kho) > 0 else 3
+            elif "số lượng" in h or "sl" in h: idx_sl = i % len(header_kho) if len(header_kho) > 0 else 4
+            elif "đvt" in h or "đơn vị tính" in h: idx_dvt = i % len(header_kho) if len(header_kho) > 0 else 5
 
         for r in rows_kho:
             r_proj = str(r[0]).strip().lower() if len(r) > 0 else ""
