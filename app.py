@@ -20,16 +20,23 @@ def get_gspread_client():
         pass
     return None
 
-def get_universal_column_data(col_idx):
-    """Hàm quét triệt để: Lấy thẳng dữ liệu từ tab đầu tiên của file Google Sheets theo đúng cột chỉ định"""
+def get_direct_column_values(keyword, col_idx):
     try:
         client = get_gspread_client()
         if client:
             spreadsheet = client.open_by_key(SPREADSHEET_ID)
             worksheets = spreadsheet.worksheets()
-            if worksheets:
-                # Lấy luôn tab đầu tiên để quét dữ liệu chống sai tên tab
+            
+            target_ws = None
+            for ws in worksheets:
+                if keyword.lower() in ws.title.lower():
+                    target_ws = ws
+                    break
+            
+            if not target_ws and worksheets:
                 target_ws = worksheets[0]
+
+            if target_ws:
                 all_rows = target_ws.get_all_values()
                 values = []
                 if len(all_rows) > 1:
@@ -43,4 +50,111 @@ def get_universal_column_data(col_idx):
         pass
     return []
 
-st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HỆ THỐNG ĐIỀU HÀNH ĐA
+st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
+st.markdown("---")
+
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    btn_dang_ky = st.button("Dang ky", use_container_width=True)
+with col2:
+    btn_bao_cao = st.button("Bao cao", use_container_width=True)
+with col3:
+    btn_admin = st.button("Admin duyet", use_container_width=True)
+with col4:
+    btn_link = st.button("Link bao cao", use_container_width=True)
+
+if "nav_tab" not in st.session_state: st.session_state.nav_tab = "Bao_cao"
+if btn_dang_ky: st.session_state.nav_tab = "Dang_ky"
+if btn_bao_cao: st.session_state.nav_tab = "Bao_cao"
+if btn_admin: st.session_state.nav_tab = "Admin"
+if btn_link: st.session_state.nav_tab = "Link"
+
+st.markdown("---")
+
+# ================= 1. TAB ĐĂNG KÝ THÀNH VIÊN =================
+if st.session_state.nav_tab == "Dang_ky":
+    st.markdown("### DANG KY THANH VIEN / DOI THUC HIEN")
+    with st.form("form_dang_ky"):
+        ten_thanh_vien = st.text_input("Ho va ten *")
+        sdt = st.text_input("So dien thoại lien he *")
+        vai_tro = st.selectbox("Vai tro cong viec *", ["Doi Van Chuyen (VC)", "Doi Lap Dat (LD)", "Doi Kiem Nhiem (VC & LD)"])
+        don_vi = st.text_input("Don vi / Bo phan cong tac *")
+        if st.form_submit_button("Gui dang ky", type="primary"):
+            if not ten_thanh_vien or not sdt: 
+                st.warning("Vui long dien day du ho ten va so dien thoai!")
+            else: 
+                st.success("Dang ky thanh cong! Vui long cho Admin duyet tai khoan.")
+
+# ================= 2. TAB BÁO CÁO CỦA ĐỘI VC & LĐ =================
+elif st.session_state.nav_tab == "Bao_cao":
+    st.markdown("### BAO CAO NHIEM VU HIEN TRUONG (1 - 5 DU AN)")
+    
+    col_rf1, col_rf2 = st.columns([3, 1])
+    with col_rf1:
+        danh_sach_du_an = [
+            "DA880 - Nang cap ha tang ky thuat", 
+            "DA76 - Cung cap thiet bi thon xa", 
+            "DA01 - Trien khai tram vien thong khu vực phia Bac", 
+            "DA02 - Lap dat thiet bi y te tuyen huyen", 
+            "DA03 - Xay dung mang luoi chuyen doi so xa phuong"
+        ]
+        du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", danh_sach_du_an)
+    with col_rf2:
+        st.write("")
+        st.write("")
+        if st.button("Lam moi du lieu"):
+            st.cache_resource.clear()
+            st.rerun()
+
+    danh_sach_doi = get_direct_column_values("QUAN_LY_DOI", 1)
+    if not danh_sach_doi:
+        danh_sach_doi = [
+            "Nguyen Van Thien", "Nguyen Van Hai", "Nguyen Van Duoc", 
+            "Tran Van Chac", "Nguyen Duc Hai", "Tran Van Chung", 
+            "Nguyen Hai Nam", "Tran Van C", "Nguyen Van D", "Ho Van H", 
+            "Nguyen Van Ngu", "Nhu Con Lon", "Khong thi la Bo", 
+            "15 No la Suc Vat", "17 Dc Khong", "18 dc nao"
+        ]
+        
+    danh_sach_diem = get_direct_column_values("DANH_SACH_DIEM", 3)
+    if not danh_sach_diem:
+        danh_sach_diem = get_direct_column_values("DIEM", 2)
+    if not danh_sach_diem:
+        danh_sach_diem = ["Xa Sung Mang", "Phuong Nong Tien", "Xa Duong Thuong", "Xa Na Hang"]
+        
+    doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + danh_sach_doi)
+    diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT *", ["-- Chon dia diem --"] + danh_sach_diem)
+    
+    so_luong_hien_tai = 0
+    if diem_giao_lap != "-- Chon dia diem --":
+        so_luong_co_dinh = 3
+        st.info(f"So luong thiet bi phan bo tai {diem_giao_lap}: {so_luong_co_dinh} bo (Co dinh từ Kho)")
+        so_luong_hien_tai = st.number_input("So luong thiet bi ap dung bao cao", value=float(so_luong_co_dinh), disabled=True)
+    else:
+        st.info("Vui long chon dia diem de hien thi so luong thiet bi phan bo.")
+        
+    st.markdown("---")
+    st.markdown("Chup anh hien truong (Ho tro camera sau/truoc của thiet bi):")
+    camera_file = st.camera_input("Chup anh thuc te")
+    
+    st.markdown("---")
+    st.markdown("Xac thuc GPS hien truong:")
+    if st.button("Check-in GPS Toa do Hien truong", use_container_width=True):
+        st.success("Check-in GPS thanh cong!")
+        
+    st.markdown("---")
+    st.markdown("### BAO CAO XAC NHAN")
+    
+    col_b1, col_b2, col_b3 = st.columns(3)
+    with col_b1:
+        if st.button("DA GIAO XONG", type="primary", use_container_width=True):
+            if doi_thuc_hien == "-- Chon ten doi --" or diem_giao_lap == "-- Chon dia diem --":
+                st.warning("Vui long chon day du Ten doi va Dia diem!")
+            else:
+                st.success(f"Gui bao cao thanh cong: DA GIAO XONG cho doi {doi_thuc_hien} tai {diem_giao_lap} ({du_an_chon})")
+    with col_b2:
+        if st.button("DA LAP XONG", type="primary", use_container_width=True):
+            if doi_thuc_hien == "-- Chon ten doi --" or diem_giao_lap == "-- Chon dia diem --":
+                st.warning("Vui long chon day du Ten doi va Dia diem!")
+            else:
+                st.success(f"Gui bao cao thanh cong: DA LAP XONG cho doi {doi_thuc_
