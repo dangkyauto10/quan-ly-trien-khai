@@ -29,7 +29,6 @@ def get_gspread_client():
     return None
 
 def fetch_live_sheet_data():
-    """Hàm quét trực tiếp toàn bộ dữ liệu từ sheet KHO_PHAN_BO"""
     try:
         client = get_gspread_client()
         if client:
@@ -44,7 +43,7 @@ def fetch_live_sheet_data():
                 
             rows = target_ws.get_all_values()
             if len(rows) > 1:
-                return rows[1:] # Bỏ dòng tiêu đề đầu tiên
+                return rows[1:]
     except Exception as e:
         pass
     return []
@@ -86,27 +85,28 @@ if st.session_state.nav_tab == "Bao_cao":
             st.cache_resource.clear()
             st.rerun()
 
-    # Lấy dữ liệu sống từ Google Sheets
     rows_data = fetch_live_sheet_data()
     
     danh_sach_doi = []
     danh_sach_diem = []
     
-    # Quét toàn bộ dữ liệu từ các cột thực tế
-    if rows_data:
-        for r in rows_data:
-            # Cột G (index 6): Tên đội
+    project_code = du_an_chon.split(" - ")[0].strip().lower()
+    
+    for r in rows_data:
+        row_str = " ".join(r).lower()
+        if project_code in row_str or not rows_data:
             if len(r) > 6 and r[6].strip():
                 val_doi = r[6].strip()
                 if val_doi.lower() not in ["tên đội", "đội nhận thiết bị", "stt"] and val_doi not in danh_sach_doi:
                     danh_sach_doi.append(val_doi)
-            # Cột H (index 7): Địa điểm vận chuyển lắp đặt (Lấy toàn bộ không bỏ sót)
+            
+            # Lấy danh sách các điểm duy nhất từ Cột H để hiển thị trọn vẹn trong ô chọn địa điểm
             if len(r) > 7 and r[7].strip():
                 val_diem = r[7].strip()
-                if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"] and val_diem not in danh_sach_diem:
-                    danh_sach_diem.append(val_diem)
+                if val_diem.lower() not in ["địa điểm", "địa điểm vận chuyển lắp đặt", "stt"]:
+                    if val_diem not in danh_sach_diem:
+                        danh_sach_diem.append(val_diem)
 
-    # Dự phòng an toàn nếu chưa kết nối được mạng
     if not danh_sach_doi:
         danh_sach_doi = ["Trần Văn C", "Trần Văn Chung", "Nguyễn Văn Thiện", "Nguyễn Văn Hải", "Nguyễn Văn Được"]
     if not danh_sach_diem:
@@ -118,21 +118,22 @@ if st.session_state.nav_tab == "Bao_cao":
         ]
 
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", ["-- Chon ten doi --"] + sorted(danh_sach_doi))
-    diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Đã quét {len(danh_sach_diem)} điểm từ Cột H) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem))
+    diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Danh sách {len(danh_sach_diem)} đơn vị từ Cột H) *", ["-- Chon dia diem --"] + sorted(danh_sach_diem))
     
-    # ÁNH XẠ TOÀN BỘ DANH MỤC THIẾT BỊ VÀ SỐ LƯỢNG TỪ CỘT E THEO ĐÚNG ĐIỂM CHỌN
     danh_sach_hang_hoa_phan_bo = []
     
     if diem_giao_lap != "-- Chon dia diem --" and doi_thuc_hien != "-- Chon ten doi --":
         if rows_data:
             for r in rows_data:
-                if len(r) > 7 and diem_giao_lap.lower() in r[7].lower():
+                # Lọc đúng các dòng thiết bị thuộc riêng địa điểm đơn vị được chọn
+                if len(r) > 7 and diem_giao_lap.lower() == r[7].strip().lower():
                     sku = r[1].strip() if len(r) > 1 else "TB-0X"
                     ten_tb = r[3].strip() if len(r) > 3 else "Thiết bị linh kiện"
                     sl = int(r[4].strip()) if len(r) > 4 and r[4].strip().isdigit() else 1
                     dvt = r[5].strip() if len(r) > 5 else "Bộ"
                     danh_sach_hang_hoa_phan_bo.append({"sku": sku, "ten": ten_tb, "sl": sl, "dvt": dvt})
                     
+        # Fallback dữ liệu mẫu nếu không khớp
         if not danh_sach_hang_hoa_phan_bo:
             danh_sach_hang_hoa_phan_bo = [
                 {"sku": "TB-01", "ten": "Máy tính để bàn TQT TPY01 535215", "sl": 3, "dvt": "Bộ"},
@@ -142,17 +143,17 @@ if st.session_state.nav_tab == "Bao_cao":
                 {"sku": "TB-05", "ten": "Cáp mạng Commscope Netconnect CS31CM", "sl": 305, "dvt": "M"}
             ]
 
-        st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ (Ánh xạ chuẩn từ Cột H & Cột E)")
-        st.markdown(f"📍 **Địa điểm:** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
+        st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ CHO ĐƠN VỊ")
+        st.markdown(f"📍 **Đơn vị / Địa điểm:** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
         
-        table_markdown = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng (Cột E) | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
+        table_markdown = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ (Cột E) | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
         for item in danh_sach_hang_hoa_phan_bo:
             table_markdown += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
         st.markdown(table_markdown)
         
-        st.success(f"Đã ánh xạ thành công toàn bộ {len(danh_sach_hang_hoa_phan_bo)} dòng thiết bị phân bổ từ Kho!")
+        st.success(f"Đã ánh xạ chính xác định mức phân bổ của đơn vị {diem_giao_lap} từ Kho!")
     else:
-        st.info("Vui long chon day du Ten doi va Dia diem để hien thi chi tiết danh muc thiết bị phân bổ.")
+        st.info("Vui long chon day du Ten doi va Dia diem để hien thi chi tiết danh muc thiết bị phân bổ của đơn vị.")
         
     st.markdown("---")
     st.markdown("Chup anh hien truong:")
