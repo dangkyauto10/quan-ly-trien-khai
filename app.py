@@ -7,7 +7,21 @@ st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_ic
 SECURE_PASS = "880880"
 # Đảm bảo URL này là bản Deploy mới nhất của Apps Script
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanFGwYnCu56rCOhY9q5emNGasXqwZRJlySd0CaysgNbb8BkjmNA/exec"
+# --- BẮT ĐẦU CHÈN THÊM ---
+@st.cache_data(ttl=300)
+def tai_danh_sach_diem():
+    try:
+        req = urllib.request.Request(APPS_SCRIPT_URL)
+        with urllib.request.urlopen(req, timeout=10) as response:
+            ket_qua = json.loads(response.read().decode('utf-8'))
+            if ket_qua.get("trang_thai") == "thanh_cong":
+                return ket_qua.get("danh_sach_diem", [])
+    except:
+        pass
+    return ["-- Lỗi mạng: Không tải được danh sách --"]
 
+DANH_SACH_DIEM = tai_danh_sach_diem()
+# --- KẾT THÚC CHÈN THÊM ---
 def submit_registration(ho_ten, sdt, dia_ban, chuyen_mon, phuong_tien):
     payload = {
         "action": "dang_ky",
