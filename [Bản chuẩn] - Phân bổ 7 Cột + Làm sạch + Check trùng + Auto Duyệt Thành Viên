@@ -1,0 +1,145 @@
+// ==========================================
+// HÀM PHÂN BỔ ALLOCATION SYNC (CHUẨN 10 CỘT - ĐVT TRƯỚC, SỐ LƯỢNG SAU)
+// ==========================================
+// ==========================================
+// 1. HÀM PHÂN BỔ ALLOCATION SYNC (CHUẨN 7 CỘT TỐI ƯU)
+// ==========================================
+// ==========================================
+// 1. HÀM PHÂN BỔ ALLOCATION SYNC (CHUẨN 7 CỘT TỐI ƯU)
+// ==========================================
+function thucHienPhanBoTuDMChuan() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetDM = ss.getSheetByName("DM_CHUAN");
+  var sheetKho = ss.getSheetByName("KHO_PHAN_BO");
+  var sheetVC = ss.getSheetByName("VAN_CHUYEN");
+  var sheetLD = ss.getSheetByName("LAP_DAT");
+  var sheetDA = ss.getSheetByName("DANH_SACH_DU_AN");
+  if (!sheetDM) return;
+  var lastRow = sheetDM.getLastRow();
+  if (lastRow < 3) return;
+  
+  var dmData = sheetDM.getRange(3, 1, lastRow - 2, 6).getValues();
+  var daData = sheetDA ? sheetDA.getDataRange().getValues() : [];
+  var danhSachThietBi = [];
+  var danhSachXa = [];
+  
+  for (var i = 0; i < dmData.length; i++) {
+    var maDuAn = String(dmData[i][0]).trim(); 
+    var maTB   = String(dmData[i][1]).trim(); 
+    var tenTB  = String(dmData[i][2]).trim(); 
+    var dvt    = String(dmData[i][3]).trim(); 
+    var sl     = String(dmData[i][4]).trim(); 
+    var xa     = String(dmData[i][5]).trim(); 
+    if (maDuAn !== "" && maTB !== "") danhSachThietBi.push({maDuAn: maDuAn, maTB: maTB, tenTB: tenTB, dvt: dvt, sl: sl});
+    if (xa !== "") {
+      var xaArr = xa.split(/[\n,]+/);
+      for (var j = 0; j < xaArr.length; j++) {
+        var tenXa = xaArr[j].trim();
+        if (tenXa !== "" && danhSachXa.indexOf(tenXa) === -1) danhSachXa.push(tenXa);
+      }
+    }
+  }
+  if (danhSachThietBi.length === 0 || danhSachXa.length === 0) {
+    SpreadsheetApp.getUi().alert("LỖI: Trống Thiết bị (Cột A) hoặc Danh sách Xã (Cột F)!");
+    return;
+  }
+  var khoRows = [], vcRows = [], ldRows = [];
+  for (var x = 0; x < danhSachXa.length; x++) {
+    var tenXaHienTai = danhSachXa[x];
+    for (var t = 0; t < danhSachThietBi.length; t++) {
+      var tb = danhSachThietBi[t];
+      var rc = Math.floor(100000 + Math.random() * 900000);
+      var tenDAThucTe = "Dự án " + tb.maDuAn;
+      for (var d = 0; d < daData.length; d++) {
+        if (String(daData[d][0]).trim() === tb.maDuAn) { tenDAThucTe = String(daData[d][1]).trim(); break; }
+      }
+      khoRows.push([tb.maDuAn, tb.maTB, tenDAThucTe, tb.tenTB, tb.dvt, tb.sl, tenXaHienTai]);
+      vcRows.push([tb.maDuAn, "VC-" + rc, "", tb.tenTB + " (" + tb.dvt + ")", tb.sl, tenXaHienTai, "", ""]);
+      ldRows.push(["LD-" + rc, tb.maDuAn, "", tb.tenTB, tb.sl, tb.dvt, tenXaHienTai, "", "", ""]);
+    }
+  }
+  function writeDataAppend(sheet, data, numCols) {
+    if (!sheet || data.length === 0) return;
+    var currentLastRow = sheet.getLastRow();
+    var startRow = currentLastRow < 2 ? 3 : currentLastRow + 1; 
+    var requiredRows = startRow + data.length - 1;
+    if (sheet.getMaxRows() < requiredRows) sheet.insertRowsAfter(sheet.getMaxRows(), requiredRows - sheet.getMaxRows() + 50);
+    sheet.getRange(startRow, 1, data.length, numCols).setValues(data);
+  }
+  var msg = "ALLOCATION SYNC (7 CỘT) ĐÃ THÀNH CÔNG:\n👉 Phân bổ thêm: " + danhSachThietBi.length + " thiết bị x " + danhSachXa.length + " đơn vị.\n";
+  try { writeDataAppend(sheetKho, khoRows, 7); msg += "✅ KHO_PHAN_BO: OK\n"; } catch(e) { msg += "❌ Lỗi KHO: " + e.message + "\n"; }
+  try { writeDataAppend(sheetVC, vcRows, 8); msg += "✅ VAN_CHUYEN: OK\n"; } catch(e) { msg += "❌ Lỗi VC: " + e.message + "\n"; }
+  try { writeDataAppend(sheetLD, ldRows, 10); msg += "✅ LAP_DAT: OK\n"; } catch(e) { msg += "❌ Lỗi LĐ: " + e.message + "\n"; }
+  SpreadsheetApp.getUi().alert(msg);
+}
+
+// ==========================================
+// 2. HÀM LÀM SẠCH HỆ THỐNG
+// ==========================================
+function resetHeThong() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ui = SpreadsheetApp.getUi();
+  var xacNhan = ui.alert('XÁC NHẬN LÀM SẠCH', 'Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu phân bổ hiện tại (từ dòng 3 trở xuống) không?', ui.ButtonSet.YES_NO);
+  if (xacNhan == ui.Button.YES) {
+    var danhSachSheet = ["KHO_PHAN_BO", "VAN_CHUYEN", "LAP_DAT"];
+    for (var i = 0; i < danhSachSheet.length; i++) {
+      var sheet = ss.getSheetByName(danhSachSheet[i]);
+      if (sheet && sheet.getMaxRows() >= 3) sheet.getRange(3, 1, sheet.getMaxRows() - 2, sheet.getMaxColumns()).clearContent();
+    }
+    ui.alert("✅ HOÀN TẤT", "Hệ thống đã được làm sạch!", ui.ButtonSet.OK);
+  }
+}
+
+// ==========================================
+// 3. HÀM KIỂM TRA TRÙNG LẶP (7 CỘT)
+// ==========================================
+function checkTrungLapPhanBo() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetKho = ss.getSheetByName("KHO_PHAN_BO");
+  if (!sheetKho) return;
+  var lastRow = sheetKho.getLastRow();
+  if (lastRow < 3) return SpreadsheetApp.getUi().alert("Không có dữ liệu để kiểm tra!");
+  sheetKho.getRange(3, 1, lastRow - 2, 7).setBackground(null);
+  var data = sheetKho.getRange(3, 1, lastRow - 2, 7).getValues();
+  var tracker = {}, duplicateRows = [];
+  for (var i = 0; i < data.length; i++) {
+    var maDA = String(data[i][0]).trim(), maTB = String(data[i][1]).trim(), diaDiem = String(data[i][6]).trim();
+    if (maDA === "" || maTB === "" || diaDiem === "") continue;
+    var key = maDA + "_" + maTB + "_" + diaDiem;
+    if (tracker[key]) {
+      duplicateRows.push(i + 3); 
+      if (duplicateRows.indexOf(tracker[key]) === -1) duplicateRows.push(tracker[key]); 
+    } else tracker[key] = i + 3;
+  }
+  if (duplicateRows.length > 0) {
+    for (var d = 0; d < duplicateRows.length; d++) sheetKho.getRange(duplicateRows[d], 1, 1, 7).setBackground("#f4c7c3");
+    SpreadsheetApp.getUi().alert("⚠️ PHÁT HIỆN TRÙNG LẶP\n\nCó " + duplicateRows.length + " dòng dữ liệu bị phân bổ trùng.");
+  } else SpreadsheetApp.getUi().alert("✅ HOÀN TẤT\n\nHệ thống sạch sẽ!");
+}
+
+// ==========================================
+// 4. TRIGGER TỰ ĐỘNG CHUYỂN DỮ LIỆU KHI DUYỆT THÀNH VIÊN
+// ==========================================
+function onEdit(e) {
+  if (!e || !e.range) return;
+  var sheet = e.range.getSheet();
+  if (sheet.getName() === "DANG_KY_THANH_VIEN" && e.range.getColumn() === 7) {
+    var row = e.range.getRow();
+    if (row < 3 || e.value !== "Đã duyệt") return; 
+    var sheetQuanLy = e.source.getSheetByName("QUAN_LY_DOI");
+    if (!sheetQuanLy) return;
+    var hoTen = sheet.getRange(row, 2).getValue(), chuyenMon = sheet.getRange(row, 5).getValue();
+    if (hoTen === "") return;
+    var qlData = sheetQuanLy.getDataRange().getValues(), isExist = false;
+    for (var i = 2; i < qlData.length; i++) {
+      if (String(qlData[i][1]).trim() === String(hoTen).trim()) { isExist = true; break; }
+    }
+    if (!isExist) {
+      var maDoi = "KTV-" + Math.floor(1000 + Math.random() * 9000);
+      var lastRowQL = sheetQuanLy.getLastRow();
+      var nextRow = lastRowQL < 2 ? 3 : lastRowQL + 1; 
+      sheetQuanLy.getRange(nextRow, 1, 1, 3).setValues([[maDoi, hoTen, chuyenMon]]);
+      sheet.getRange(row, 8).setValue(hoTen);
+    }
+  }
+}
