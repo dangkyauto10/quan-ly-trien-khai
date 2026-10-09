@@ -28,7 +28,6 @@ def submit_to_google(ma_da, ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_tra
     except:
         return False
 
-# HỦY BỎ HOÀN TOÀN CACHE ĐỂ ÉP STREAMLIT LẤY DỮ LIỆU LIVE 100% TỪ GOOGLE SHEETS
 def load_live_data():
     try:
         url = f"{APPS_SCRIPT_URL}?t={int(time.time())}"
@@ -103,4 +102,97 @@ elif st.session_state.nav_tab == "Bao_cao":
             if val and val.upper() not in ["TÊN ĐỘI", "TEN DOI", "ĐỘI NHẬN THIẾT BỊ", "STT", "NONE", "", "MÃ ĐỘI"] and val not in ds_doi:
                 ds_doi.append(val)
 
-    doi_thuc_hien = st.selectbox(f"TEN DOI
+    doi_label = "TEN DOI VAN CHUYEN / LAP DAT (Đồng bộ " + str(len(ds_doi)) + " nhân sự) *"
+    doi_thuc_hien = st.selectbox(doi_label, options=ds_doi, index=None, placeholder="-- Gõ để tìm hoặc chọn tên đội --")
+
+    idx_diem, idx_matb, idx_tentb, idx_sl, idx_dvt = 7, 1, 3, 4, 5
+    ds_diem = []
+    
+    if data_kho:
+        for r in data_kho:
+            if len(r) > idx_diem:
+                v_diem = str(r[idx_diem]).strip()
+                if v_diem and v_diem.upper() not in ["ĐỊA ĐIỂM VẬN CHUYỂN LẮP ĐẶT", "ĐỊA ĐIỂM", "ĐƠN VỊ", "STT", "NONE", ""]:
+                    r_proj = str(r[0]).strip().upper()
+                    if not p_code or p_code in r_proj:
+                        if v_diem not in ds_diem: ds_diem.append(v_diem)
+
+    diem_label = "DIEM GIAO HANG & LAP DAT (Đồng bộ " + str(len(ds_diem)) + " đơn vị) *"
+    diem_giao_lap = st.selectbox(diem_label, options=sorted(ds_diem), index=None, placeholder="-- Gõ để tìm hoặc chọn địa điểm --")
+    
+    ds_hang = []
+    if diem_giao_lap and doi_thuc_hien and p_code:
+        for r in data_kho:
+            r_proj = str(r[0]).strip().upper() if len(r) > 0 else ""
+            c_diem = str(r[idx_diem]).strip().upper() if len(r) > idx_diem else ""
+            
+            if p_code in r_proj and diem_giao_lap.upper() == c_diem:
+                sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
+                ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
+                sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
+                dvt = str(r[idx_dvt]).strip() if len(r) > idx_dvt else "Bộ"
+                if ten and ten.upper() not in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN TB", "THIẾT BỊ", "NONE", ""]:
+                    ds_hang.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
+
+        st.markdown("### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ CHO ĐƠN VỊ")
+        st.markdown(f"📍 **Đơn vị:** {diem_giao_lap} | 👥 **Đội:** {doi_thuc_hien}")
+        
+        if ds_hang:
+            tb_md = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
+            for item in ds_hang: tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
+            st.markdown(tb_md)
+            st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị thực tế!")
+        else:
+            st.warning("Không tìm thấy thiết bị khớp. Hãy thử bấm nút 'Làm mới dữ liệu'.")
+    else:
+        st.info("Vui lòng chọn Dự án, Tên đội và Địa điểm để xem thiết bị.")
+        
+    st.markdown("---")
+    st.markdown("Chup anh hien truong:")
+    st.camera_input("Chup anh thuc te")
+    
+    st.markdown("---")
+    st.markdown("### 📍 CHECK-IN TỌA ĐỘ GPS (CHÍNH XÁC CAO)")
+    loc = streamlit_geolocation()
+    gps_link = ""
+    if loc and loc.get('latitude'):
+        lat, lon = loc['latitude'], loc['longitude']
+        gps_link = f"https://www.google.com/maps?q={lat},{lon}"
+        st.success(f"✅ Đã chốt tọa độ thành công! (Lat: {lat}, Lon: {lon})")
+        
+    st.markdown("---")
+    
+    col_b1, col_b2, col_b3 = st.columns(3)
+    with col_b1:
+        if st.button("ĐÃ GIAO XONG (VC)", type="primary", use_container_width=True):
+            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("Chọn đủ thông tin!")
+            elif not gps_link: st.warning("Check-in GPS trước!")
+            else:
+                if submit_to_google(p_code, doi_thuc_hien, "", diem_giao_lap, ds_hang, gps_link, "Đã giao hàng"): st.success("Gửi báo cáo VC thành công!")
+                else: st.error("Gửi thất bại!")
+    with col_b2:
+        if st.button("ĐÃ LẮP XONG (LĐ)", type="primary", use_container_width=True):
+            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("Chọn đủ thông tin!")
+            elif not gps_link: st.warning("Check-in GPS trước!")
+            else:
+                if submit_to_google(p_code, doi_thuc_hien, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt"): st.success("Gửi báo cáo LĐ thành công!")
+                else: st.error("Gửi thất bại!")
+    with col_b3:
+        if st.button("ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
+            if not p_code or not doi_thuc_hien or not diem_giao_lap: st.warning("Chọn đủ thông tin!")
+            elif not gps_link: st.warning("Check-in GPS trước!")
+            else:
+                if submit_to_google(p_code, doi_thuc_hien, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong"): st.success("Gửi báo cáo trọn gói thành công!")
+                else: st.error("Gửi thất bại!")
+
+elif st.session_state.nav_tab == "Admin":
+    st.markdown("### KHU VỰC QUẢN TRỊ - ADMIN DUYỆT")
+    pass_input = st.text_input("Nhập mật khẩu (Mã PIN):", type="password")
+    if pass_input == SECURE_PASS: st.success("Thành công!")
+    elif pass_input != "": st.error("Sai mật khẩu!")
+
+elif st.session_state.nav_tab == "Link":
+    st.markdown("### TRANG THEO DÕI TIẾN ĐỘ")
+    pass_link = st.text_input("Nhập mật khẩu (Mã PIN):", type="password")
+    if pass_link == SECURE_PASS: st.success("Xác thực thành công!")
+    elif pass_link != "": st.error("Sai mật khẩu!")
