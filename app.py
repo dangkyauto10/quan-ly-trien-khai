@@ -5,6 +5,8 @@ from streamlit_geolocation import streamlit_geolocation
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
+
+# !!! ANH VỸ KIỂM TRA LẠI LINK VÀ DÁN LINK MỚI VÀO ĐÂY NẾU CẦN !!!
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanFGwYnCu56rCOhY9q5emNGasXqwZRJlySd0CaysgNbb8BkjmNA/exec"
 
 @st.cache_data(ttl=300)
@@ -44,6 +46,37 @@ def load_live_data():
         with urllib.request.urlopen(req, timeout=15) as response:
             return json.loads(response.read().decode('utf-8')), None
     except Exception as e: return None, f"🚨 LỖI KẾT NỐI API: {e}"
+
+# ĐÂY LÀ "MẮT THẦN" MỚI - Quét chuẩn chữ "Điểm Giao"
+def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
+    ds_kq = []
+    if not data_sheet: return ds_kq
+    idx_proj = 1; idx_diem = 6; idx_matb = 0; idx_tentb = 3; idx_sl = 4; idx_dvt = 5; idx_doi = 2
+    
+    for r in data_sheet[:5]:
+        for i, h in enumerate(r):
+            h_str = str(h).replace('\xa0', ' ').strip().upper()
+            if "MÃ DỰ ÁN" in h_str or "MÃ DA" in h_str: idx_proj = i
+            elif "ĐỊA ĐIỂM" in h_str or "ĐƠN VỊ" in h_str or "ĐIỂM GIAO" in h_str: idx_diem = i
+            elif "MÃ CÔNG VIỆC" in h_str or "SKU" in h_str: idx_matb = i
+            elif "TÊN THIẾT BỊ" in h_str or "HÀNG HÓA" in h_str: idx_tentb = i
+            elif "SỐ LƯỢNG" in h_str or "SL" in h_str: idx_sl = i
+            elif "ĐƠN VỊ TÍNH" in h_str or "ĐVT" in h_str: idx_dvt = i
+            elif "ĐỘI" in h_str or "NHÂN SỰ" in h_str: idx_doi = i
+
+    for r in data_sheet:
+        c_proj = str(r[idx_proj]).replace('\xa0', ' ').strip().upper() if len(r) > idx_proj else ""
+        c_diem = str(r[idx_diem]).replace('\xa0', ' ').strip().upper() if len(r) > idx_diem else ""
+        c_doi = str(r[idx_doi]).replace('\xa0', ' ').strip().upper() if len(r) > idx_doi else ""
+        
+        if p_code in c_proj and d_diem == c_diem and d_doi == c_doi:
+            sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
+            ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
+            sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
+            dvt = str(r[idx_dvt]).strip() if len(r) > idx_dvt else "Bộ"
+            if ten and ten.upper() not in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN THIẾT BỊ", "NONE", ""]:
+                ds_kq.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
+    return ds_kq
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
 st.markdown("---")
@@ -92,40 +125,25 @@ elif st.session_state.nav_tab == "Bao_cao":
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", options=(raw_data.get("doi", []) if isinstance(raw_data, dict) else []), index=None)
     diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT *", options=(raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []), index=None)
     
-    data_kho = raw_data.get("KHO_PHAN_BO", []) if isinstance(raw_data, dict) else []
-    
     if du_an_chon and doi_thuc_hien and diem_giao_lap:
         p_code = str(du_an_chon).replace('\xa0', ' ').strip().upper()
         d_doi = str(doi_thuc_hien).replace('\xa0', ' ').strip().upper()
         d_diem = str(diem_giao_lap).replace('\xa0', ' ').strip().upper()
         
-        ds_hang = []
-        idx_proj = 1; idx_diem = 6; idx_matb = 0; idx_tentb = 3; idx_sl = 4; idx_dvt = 5; idx_doi = 2
+        # Hút dữ liệu từ cả 2 kho Lắp Đặt và Vận Chuyển
+        data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
+        data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
         
-        if data_kho:
-            for r in data_kho[:5]:
-                for i, h in enumerate(r):
-                    h_str = str(h).replace('\xa0', ' ').strip().upper()
-                    if "MÃ DỰ ÁN" in h_str or "MÃ DA" in h_str: idx_proj = i
-                    elif "ĐỊA ĐIỂM" in h_str or "ĐƠN VỊ" in h_str: idx_diem = i
-                    elif "MÃ CÔNG VIỆC" in h_str or "SKU" in h_str: idx_matb = i
-                    elif "TÊN THIẾT BỊ" in h_str or "HÀNG HÓA" in h_str: idx_tentb = i
-                    elif "SỐ LƯỢNG" in h_str or "SL" in h_str: idx_sl = i
-                    elif "ĐƠN VỊ TÍNH" in h_str or "ĐVT" in h_str: idx_dvt = i
-                    elif "ĐỘI" in h_str or "NHÂN SỰ" in h_str: idx_doi = i
-
-            for r in data_kho:
-                c_proj = str(r[idx_proj]).replace('\xa0', ' ').strip().upper() if len(r) > idx_proj else ""
-                c_diem = str(r[idx_diem]).replace('\xa0', ' ').strip().upper() if len(r) > idx_diem else ""
-                c_doi = str(r[idx_doi]).replace('\xa0', ' ').strip().upper() if len(r) > idx_doi else ""
-                
-                if p_code in c_proj and d_diem == c_diem and d_doi == c_doi:
-                    sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
-                    ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
-                    sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
-                    dvt = str(r[idx_dvt]).strip() if len(r) > idx_dvt else "Bộ"
-                    if ten and ten.upper() not in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN THIẾT BỊ", "NONE", ""]:
-                        ds_hang.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
+        ds_hang_raw = quet_mat_than(data_ld, p_code, d_doi, d_diem) + quet_mat_than(data_vc, p_code, d_doi, d_diem)
+        
+        # Lọc trùng lặp để phòng hờ anh nhập trùng bên 2 sheet
+        ds_hang = []
+        seen = set()
+        for item in ds_hang_raw:
+            key = f"{item['sku']}_{item['ten']}_{item['sl']}"
+            if key not in seen:
+                seen.add(key)
+                ds_hang.append(item)
 
         st.markdown("### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ")
         if ds_hang:
@@ -134,7 +152,7 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.markdown(tb_md)
             st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị!")
         else:
-            st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này. Vui lòng bấm 'Làm mới dữ liệu' hoặc kiểm tra lại file gốc.")
+            st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này.")
 
     else: st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm.")
         
