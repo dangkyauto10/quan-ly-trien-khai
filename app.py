@@ -138,25 +138,28 @@ elif st.session_state.nav_tab == "Bao_cao":
     
     p_code = du_an_chon.strip().upper() if du_an_chon else ""
     
-    # --- LỌC VÀ HIỂN THỊ HÀNG HÓA TỪ KHO PHÂN BỔ ---
+    # --- LỌC VÀ HIỂN THỊ HÀNG HÓA TỪ KHO PHÂN BỔ (MẮT THẦN ĐÃ ĐƯỢC TÍCH HỢP) ---
     ds_hang = []
     if p_code and doi_thuc_hien and diem_giao_lap:
         if data_kho:
-            idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
+            idx_proj = 1; idx_diem = 6; idx_matb = 0; idx_tentb = 3; idx_sl = 4; idx_dvt = 5; idx_doi = 2
             for r in data_kho[:3]:
                 for i, h in enumerate(r):
                     h_str = str(h).strip().upper()
-                    if h_str in ["ĐỊA ĐIỂM VẬN CHUYỂN LẮP ĐẶT", "ĐỊA ĐIỂM", "ĐƠN VỊ"]: idx_diem = i
-                    elif h_str in ["MÃ THIẾT BỊ / SKU", "MÃ TB", "SKU"]: idx_matb = i
-                    elif h_str in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN TB", "THIẾT BỊ", "HÀNG HÓA"]: idx_tentb = i
-                    elif h_str in ["SỐ LƯỢNG", "SL"]: idx_sl = i
-                    elif h_str in ["ĐƠN VỊ TÍNH", "ĐVT"]: idx_dvt = i
+                    if "MÃ DỰ ÁN" in h_str or "MÃ DA" in h_str: idx_proj = i
+                    elif "ĐỊA ĐIỂM" in h_str or "ĐƠN VỊ" in h_str: idx_diem = i
+                    elif "MÃ CÔNG VIỆC" in h_str or "SKU" in h_str or "MÃ THIẾT BỊ" in h_str: idx_matb = i
+                    elif "TÊN THIẾT BỊ" in h_str or "HÀNG HÓA" in h_str: idx_tentb = i
+                    elif "SỐ LƯỢNG" in h_str or "SL" in h_str: idx_sl = i
+                    elif "ĐƠN VỊ TÍNH" in h_str or "ĐVT" in h_str: idx_dvt = i
+                    elif "ĐỘI" in h_str or "NHÂN SỰ" in h_str: idx_doi = i
 
             for r in data_kho:
-                r_proj = str(r[0]).strip().upper() if len(r) > 0 else ""
+                r_proj = str(r[idx_proj]).strip().upper() if len(r) > idx_proj else ""
                 c_diem = str(r[idx_diem]).strip().upper() if len(r) > idx_diem else ""
+                c_doi = str(r[idx_doi]).strip().upper() if len(r) > idx_doi else ""
                 
-                if p_code in r_proj and diem_giao_lap.upper() == c_diem:
+                if p_code in r_proj and diem_giao_lap.upper() == c_diem and doi_thuc_hien.upper() == c_doi:
                     sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
                     ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
                     sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
@@ -168,12 +171,12 @@ elif st.session_state.nav_tab == "Bao_cao":
         st.markdown(f"📍 **Đơn vị / Địa điểm:** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
         
         if ds_hang:
-            tb_md = "| SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
+            tb_md = "| Mã CV / SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
             for item in ds_hang: tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
             st.markdown(tb_md)
             st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị thực tế!")
         else:
-            st.warning("Không tìm thấy hàng hóa phân bổ cho dự án và địa điểm này!")
+            st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này!")
     else:
         st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm để hiển thị thiết bị phân bổ.")
         
