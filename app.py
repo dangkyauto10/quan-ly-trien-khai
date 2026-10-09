@@ -8,7 +8,7 @@ st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_ic
 SECURE_PASS = "880880"
 
 # Đảm bảo đường link API của anh Vỹ đã đúng
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanFGwYnCu56rCOhY9q5emNGasXqwZRJlySd0CaysgNbb8BkjmNA/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby1mgQkwR0_7ck1yIJoPflgL5lvfgzL8xr7U8xPIK3b1GIvk6NA8zxgssHvjza9ZjJhvA/exec"
 
 # ================= HÀM LÀM SẠCH KÝ TỰ TIẾNG VIỆT TÀNG HÌNH =================
 def clean_text(s):
