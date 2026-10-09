@@ -105,7 +105,7 @@ if st.session_state.nav_tab == "Dang_ky":
             "Chuyên môn / Nhiệm vụ",
             options=["1. Vận chuyển / Giao nhận", "2. KTV Lắp đặt thiết bị", "3. Giám sát / Điều phối chung", "4. Kho vận / Hậu cứ"]
         )
-        reg_phuongtien = st.selectbox("Phương tiện di chuyển", options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
+        reg_phuongtien = st.selectbox(
             "Phương tiện di chuyển",
             options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"]
         )
