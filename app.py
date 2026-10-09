@@ -43,26 +43,26 @@ def load_live_data():
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=15) as response:
             return json.loads(response.read().decode('utf-8')), None
-    except Exception as e: return None, f"LỖI KẾT NỐI API: {e}"
+    except Exception as e: return None, f"🚨 LỖI KẾT NỐI API: {e}"
 
-# ĐÂY LÀ MẮT THẦN ĐƯỢC CẬP NHẬT FULL TỪ VỰNG TIÊU ĐỀ
 def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
     ds_kq = []
     if not data_sheet: return ds_kq
     
-    # Đặt sẵn tọa độ mặc định lỡ quét xịt (chuẩn theo sheet VAN_CHUYEN của anh)
-    idx_proj = 0; idx_matb = 1; idx_doi = 2; idx_tentb = 3; idx_sl = 4; idx_diem = 5; idx_dvt = -1
+    idx_proj = 1; idx_diem = 6; idx_matb = 0; idx_tentb = 3; idx_sl = 4; idx_dvt = 5; idx_doi = 2
     
     for r in data_sheet[:5]:
         for i, h in enumerate(r):
             h_str = str(h).replace('\xa0', ' ').strip().upper() 
             if "MÃ DỰ ÁN" in h_str or "MÃ DA" in h_str: idx_proj = i
-            elif "ĐỊA ĐIỂM" in h_str or "ĐƠN VỊ" in h_str or "ĐIỂM GIAO" in h_str or "ĐỊA ĐIỂM LẮP" in h_str: idx_diem = i
-            elif "MÃ CÔNG VIỆC" in h_str or "SKU" in h_str: idx_matb = i
-            elif "TÊN THIẾT BỊ" in h_str or "HÀNG HÓA" in h_str: idx_tentb = i
-            elif "SỐ LƯỢNG" in h_str or "SL" in h_str: idx_sl = i
+            # Bổ sung đúng tiêu đề "ĐỊA ĐIỂM LẮP", "ĐIỂM GIAO", "ĐỊA ĐIỂM VẬN CHUYỂN LẮP ĐẶT"
+            elif "ĐỊA ĐIỂM" in h_str or "ĐƠN VỊ" in h_str or "ĐIỂM GIAO" in h_str or "ĐỊA ĐIỂM LẮP" in h_str or "ĐỊA ĐIỂM VẬN CHUYỂN LẮP ĐẶT" in h_str: idx_diem = i
+            elif "MÃ CÔNG VIỆC" in h_str or "SKU" in h_str or "MÃ THIẾT BỊ / SKU" in h_str: idx_matb = i
+            elif "TÊN THIẾT BỊ" in h_str or "HÀNG HÓA" in h_str or "TÊN THIẾT BỊ / HÀNG HÓA" in h_str: idx_tentb = i
+            elif "SỐ LƯỢNG" in h_str or "SL" in h_str or "SỐ LƯỢNG THIẾT BỊ LẮP" in h_str or "SL VẬN CHUYỂN" in h_str: idx_sl = i
             elif "ĐƠN VỊ TÍNH" in h_str or "ĐVT" in h_str: idx_dvt = i
-            elif "ĐỘI" in h_str or "NHÂN SỰ" in h_str or "GIAO THIẾT BỊ" in h_str: idx_doi = i
+            # Bổ sung đúng tiêu đề "ĐỘI GIAO THIẾT BỊ", "ĐỘI NHẬN THIẾT BỊ"
+            elif "ĐỘI" in h_str or "NHÂN SỰ" in h_str or "ĐỘI GIAO THIẾT BỊ" in h_str or "ĐỘI NHẬN THIẾT BỊ" in h_str: idx_doi = i
 
     p_c = str(p_code).replace('\xa0', ' ').strip().upper()
     d_d = str(d_diem).replace('\xa0', ' ').strip().upper()
@@ -73,7 +73,6 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
         c_diem = str(r[idx_diem]).replace('\xa0', ' ').strip().upper() if len(r) > idx_diem else ""
         c_doi = str(r[idx_doi]).replace('\xa0', ' ').strip().upper() if len(r) > idx_doi else ""
         
-        # Bắt đúng 100% dữ liệu
         if p_c in c_proj and (d_d in c_diem or c_diem in d_d) and (d_o in c_doi or c_doi in d_o):
             sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
             ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
@@ -101,7 +100,7 @@ if btn_link: st.session_state.nav_tab = "Link"
 st.markdown("---")
 
 if st.session_state.nav_tab == "Dang_ky":
-    st.markdown("### ĐĂNG KÝ THÔNG TIN NHÂN SỰ / THÀNH VIÊN ĐỘI THI CÔNG")
+    st.markdown("### 📝 ĐĂNG KÝ THÔNG TIN NHÂN SỰ / THÀNH VIÊN ĐỘI THI CÔNG")
     with st.form("form_dang_ky_thanh_vien"):
         reg_hoten = st.text_input("Họ và tên *", placeholder="Nhập đầy đủ họ và tên...")
         reg_sdt = st.text_input("Số điện thoại liên hệ *", placeholder="Nhập số điện thoại (Zalo)...")
@@ -111,7 +110,7 @@ if st.session_state.nav_tab == "Dang_ky":
         if st.form_submit_button("Gửi Đăng Ký Thành Viên", type="primary", use_container_width=True):
             if not reg_hoten.strip() or not reg_sdt.strip(): st.warning("Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
             else:
-                if submit_registration(reg_hoten, reg_sdt, ", ".join(reg_diaban_list), reg_chuyenmon, reg_phuongtien): st.success(f"Đăng ký thành công {reg_hoten}!")
+                if submit_registration(reg_hoten, reg_sdt, ", ".join(reg_diaban_list), reg_chuyenmon, reg_phuongtien): st.success(f"🎉 Đăng ký thành công {reg_hoten}!")
                 else: st.error("Gửi đăng ký thất bại!")
 
 elif st.session_state.nav_tab == "Bao_cao":
@@ -151,7 +150,7 @@ elif st.session_state.nav_tab == "Bao_cao":
                 seen.add(key)
                 ds_hang.append(item)
 
-        st.markdown("### DANH MỤC THIẾT BỊ PHÂN BỔ")
+        st.markdown("### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ")
         if ds_hang:
             tb_md = "| Mã CV / SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
             for item in ds_hang: tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
@@ -167,14 +166,14 @@ elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("Chup anh hien truong:")
     st.camera_input("Chup anh thuc te")
     st.markdown("---")
-    st.markdown("### CHECK-IN TỌA ĐỘ GPS (CHÍNH XÁC CAO)")
+    st.markdown("### 📍 CHECK-IN TỌA ĐỘ GPS (CHÍNH XÁC CAO)")
     loc = streamlit_geolocation()
     gps_link = ""
     if loc and loc.get('latitude'):
         lat = loc['latitude']; lon = loc['longitude']
         gps_link = f"https://www.google.com/maps?q={lat},{lon}"
-        st.success("Đã chốt tọa độ thành công!")
-        st.markdown(f"[Mở kiểm tra vị trí vừa lấy trên bản đồ]({gps_link})")
+        st.success("✅ Đã chốt tọa độ thành công!")
+        st.markdown(f"[📍 Mở kiểm tra vị trí vừa lấy trên bản đồ]({gps_link})")
         
     st.markdown("---")
     col_b1, col_b2, col_b3 = st.columns(3)
