@@ -5,6 +5,10 @@ from streamlit_geolocation import streamlit_geolocation
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
+
+# =========================================================================
+# ANH VỸ XÓA LINK CŨ BÊN DƯỚI, DÁN LINK MỚI COPY TỪ GOOGLE VÀO GIỮA 2 DẤU ""
+# =========================================================================
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanFGwYnCu56rCOhY9q5emNGasXqwZRJlySd0CaysgNbb8BkjmNA/exec"
 
 @st.cache_data(ttl=300)
@@ -71,10 +75,7 @@ if st.session_state.nav_tab == "Dang_ky":
         reg_chuyenmon = st.selectbox("Chuyên môn / Nhiệm vụ", options=["1. Vận chuyển / Giao nhận", "2. KTV Lắp đặt thiết bị", "3. Giám sát / Điều phối chung", "4. Kho vận / Hậu cứ"])
         reg_phuongtien = st.selectbox("Phương tiện di chuyển", options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
         if st.form_submit_button("Gửi Đăng Ký Thành Viên", type="primary", use_container_width=True):
-            if not reg_hoten.strip() or not reg_sdt.strip(): st.warning("Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
-            else:
-                if submit_registration(reg_hoten, reg_sdt, ", ".join(reg_diaban_list), reg_chuyenmon, reg_phuongtien): st.success(f"🎉 Đăng ký thành công {reg_hoten}!")
-                else: st.error("Gửi đăng ký thất bại!")
+            if submit_registration(reg_hoten, reg_sdt, ", ".join(reg_diaban_list), reg_chuyenmon, reg_phuongtien): st.success("Đăng ký thành công!")
 
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### BAO CAO NHIEM VU HIEN TRUONG (ALLOCATION SYNC)")
@@ -82,6 +83,11 @@ elif st.session_state.nav_tab == "Bao_cao":
     raw_data, err_msg = load_live_data()
     if err_msg: st.error(err_msg)
     
+    if raw_data and raw_data.get("api_version") != "v_final_999":
+        st.error("🚨 CẢNH BÁO: CHƯA ĐỔI LINK API TRONG CODE PYTHON!")
+        st.warning("👉 Anh Vỹ đang dán code mới nhưng QUÊN CHƯA DÁN ĐƯỜNG LINK MỚI vào dòng số 13 của app.py. GitHub vẫn đang chạy link cũ. Anh quay lại dán link và Commit lại nhé!")
+        st.stop()
+
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1: du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", options=(raw_data.get("du_an", []) if isinstance(raw_data, dict) else []), index=None)
     with col_rf2:
@@ -89,8 +95,8 @@ elif st.session_state.nav_tab == "Bao_cao":
         if st.button("Lam moi du lieu"):
             st.cache_data.clear(); st.rerun()
 
-    doi_thuc_hien = st.selectbox(f"TEN DOI VAN CHUYEN / LAP DAT *", options=(raw_data.get("doi", []) if isinstance(raw_data, dict) else []), index=None)
-    diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT *", options=(raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []), index=None)
+    doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", options=(raw_data.get("doi", []) if isinstance(raw_data, dict) else []), index=None)
+    diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT *", options=(raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []), index=None)
     
     data_kho = raw_data.get("KHO_PHAN_BO", []) if isinstance(raw_data, dict) else []
     
@@ -127,7 +133,7 @@ elif st.session_state.nav_tab == "Bao_cao":
                     if ten and ten.upper() not in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN THIẾT BỊ", "NONE", ""]:
                         ds_hang.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
 
-        st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ")
+        st.markdown("### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ")
         if ds_hang:
             tb_md = "| Mã CV / SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
             for item in ds_hang: tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
@@ -135,36 +141,12 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị!")
         else:
             st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này!")
-            
-            # === BẮT ĐẦU MÁY X-QUANG HIỂN THỊ TRỰC TIẾP ===
-            st.error("🚨 HỆ THỐNG X-QUANG CHẨN ĐOÁN LỖI (VUI LÒNG CHỤP ẢNH GỬI LẠI ĐỂ TRỢ LÝ ĐỌC BỆNH)")
-            st.write("**1. Thông tin App đang đi tìm:**")
-            st.code(f"Mã Dự Án: [{p_code}]\nTên Đội: [{d_doi}]\nĐịa Điểm: [{d_diem}]")
-            
-            if not data_kho:
-                st.error("❌ LỖI CHÍ MẠNG: API trả về 0 dòng dữ liệu. Vui lòng kiểm tra file Mã.gs đã chọn 'Phiên bản mới' (New version) chưa!")
-            else:
-                st.success(f"✅ Đã tải thành công {len(data_kho)} dòng từ Google Sheets.")
-                st.write("**2. Cột mắt thần tìm được (Dựa vào tiêu đề):**")
-                st.code(f"Dự án: Cột {idx_proj} | Đội: Cột {idx_doi} | Địa điểm: Cột {idx_diem}")
-                
-                st.write("**3. Dữ liệu thực tế 2 dòng đầu tiên đọc được từ Sheet:**")
-                for idx_debug, row_debug in enumerate(data_kho[:2]):
-                    st.text(f"Dòng {idx_debug + 1}: {row_debug}")
-                    
-                st.write("**4. So sánh Dòng chứa DA880 đầu tiên trong Sheet với dữ liệu App:**")
-                found_any = False
-                for r in data_kho:
-                    if p_code in str(r).upper():
-                        c_p = str(r[idx_proj]).replace('\xa0', ' ').strip().upper() if len(r) > idx_proj else ""
-                        c_d = str(r[idx_doi]).replace('\xa0', ' ').strip().upper() if len(r) > idx_doi else ""
-                        c_l = str(r[idx_diem]).replace('\xa0', ' ').strip().upper() if len(r) > idx_diem else ""
-                        st.code(f"TRONG SHEET : Dự án=[{c_p}], Đội=[{c_d}], Địa điểm=[{c_l}]\nSO VỚI APP  : Dự án=[{p_code}], Đội=[{d_doi}], Địa điểm=[{d_diem}]")
-                        found_any = True
-                        break
-                if not found_any:
-                    st.error(f"Hoàn toàn không tìm thấy chữ {p_code} nào trong toàn bộ bảng!")
-            # === KẾT THÚC MÁY X-QUANG ===
+            st.error("🚨 KẾT QUẢ ĐỌC NÃO GOOGLE SHEETS TỪ TRỢ LÝ AI:")
+            dbg = raw_data.get("debug_info", {})
+            st.write(f"1. **Tất cả các Sheet đang tồn tại:** {dbg.get('tat_ca_cac_sheet', [])}")
+            st.write(f"2. **Sheet kho phân bổ bắt được:** {dbg.get('sheet_tim_thay', 'LỖI')}")
+            st.write(f"3. **Tổng số dòng có chứa dữ liệu:** {dbg.get('so_dong', 0)} dòng.")
+            st.info("Nếu anh Vỹ thấy bảng báo cáo này hiện lên, hãy chụp ảnh lại gửi cho em!")
 
     else: st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm.")
         
