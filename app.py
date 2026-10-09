@@ -45,39 +45,31 @@ def load_live_data():
             return json.loads(response.read().decode('utf-8')), None
     except Exception as e: return None, f"LỖI KẾT NỐI API: {e}"
 
+# Mắt thần đã được thiết kế lại, chỉ làm 1 việc: Đọc mảng 7 phần tử đã được chuẩn hóa
 def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
     ds_kq = []
     if not data_sheet: return ds_kq
     
-    idx_proj = 0; idx_matb = 1; idx_doi = 2; idx_tentb = 3; idx_sl = 4; idx_diem = 5; idx_dvt = -1
+    # Do Mã.gs đã đẩy ra đúng chuẩn: [Dự Án, Mã TB, Đội, Tên TB, Số Lượng, Địa Điểm, ĐVT]
+    idx_proj = 0; idx_matb = 1; idx_doi = 2; idx_tentb = 3; idx_sl = 4; idx_diem = 5; idx_dvt = 6
     
-    for r in data_sheet[:5]:
-        for i, h in enumerate(r):
-            h_str = str(h).replace('\xa0', ' ').strip().upper() 
-            if "MÃ DỰ ÁN" in h_str or "MÃ DA" in h_str: idx_proj = i
-            elif "ĐỊA ĐIỂM" in h_str or "ĐƠN VỊ" in h_str or "ĐIỂM GIAO" in h_str or "ĐỊA ĐIỂM LẮP" in h_str: idx_diem = i
-            elif "MÃ CÔNG VIỆC" in h_str or "SKU" in h_str: idx_matb = i
-            elif "TÊN THIẾT BỊ" in h_str or "HÀNG HÓA" in h_str: idx_tentb = i
-            elif "SỐ LƯỢNG" in h_str or "SL" in h_str: idx_sl = i
-            elif "ĐƠN VỊ TÍNH" in h_str or "ĐVT" in h_str: idx_dvt = i
-            elif "ĐỘI" in h_str or "NHÂN SỰ" in h_str or "GIAO THIẾT BỊ" in h_str or "NHẬN THIẾT BỊ" in h_str: idx_doi = i
-
     p_c = str(p_code).replace('\xa0', ' ').strip().upper()
     d_d = str(d_diem).replace('\xa0', ' ').strip().upper()
     d_o = str(d_doi).replace('\xa0', ' ').strip().upper()
 
     for r in data_sheet:
-        c_proj = str(r[idx_proj]).replace('\xa0', ' ').strip().upper() if len(r) > idx_proj else ""
-        c_diem = str(r[idx_diem]).replace('\xa0', ' ').strip().upper() if len(r) > idx_diem else ""
-        c_doi = str(r[idx_doi]).replace('\xa0', ' ').strip().upper() if len(r) > idx_doi else ""
-        
-        if p_c in c_proj and (d_d in c_diem or c_diem in d_d) and (d_o in c_doi or c_doi in d_o):
-            sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
-            ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
-            sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
-            dvt = str(r[idx_dvt]).strip() if idx_dvt > -1 and len(r) > idx_dvt else "Bộ"
-            if ten and str(ten).upper() not in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN THIẾT BỊ", "NONE", ""]:
-                ds_kq.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
+        if len(r) > idx_diem: # Bỏ qua header
+            c_proj = str(r[idx_proj]).replace('\xa0', ' ').strip().upper()
+            c_diem = str(r[idx_diem]).replace('\xa0', ' ').strip().upper()
+            c_doi = str(r[idx_doi]).replace('\xa0', ' ').strip().upper()
+            
+            if p_c in c_proj and (d_d in c_diem or c_diem in d_d) and (d_o in c_doi or c_doi in d_o):
+                sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
+                ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
+                sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
+                dvt = str(r[idx_dvt]).strip() if len(r) > idx_dvt else "Bộ"
+                if ten and str(ten).upper() not in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN THIẾT BỊ", "NONE", ""]:
+                    ds_kq.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
     return ds_kq
 
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>HE THONG DIEU HANH DA DU AN HIEN TRUONG</h2>", unsafe_allow_html=True)
@@ -134,11 +126,9 @@ elif st.session_state.nav_tab == "Bao_cao":
         
         data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
         data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
-        data_pb = raw_data.get("KHO_PHAN_BO", []) if isinstance(raw_data, dict) else []
         
         ds_hang_raw = quet_mat_than(data_ld, p_code, d_doi, d_diem) + \
-                      quet_mat_than(data_vc, p_code, d_doi, d_diem) + \
-                      quet_mat_than(data_pb, p_code, d_doi, d_diem)
+                      quet_mat_than(data_vc, p_code, d_doi, d_diem)
         
         ds_hang = []
         seen = set()
@@ -156,10 +146,6 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị!")
         else:
             st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này.")
-            # X-Quang siêu nhỏ để anh bấm vào tự xem lỗi (không làm hỏng giao diện)
-            with st.expander("Kiểm tra đường truyền"):
-                st.write(f"Tìm: [{p_code}], [{d_doi}], [{d_diem}]")
-                st.write(f"Data LD: {len(data_ld)}, VC: {len(data_vc)}, PB: {len(data_pb)}")
 
     else: 
         st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm.")
