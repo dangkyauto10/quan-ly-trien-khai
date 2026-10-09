@@ -122,31 +122,16 @@ if st.session_state.nav_tab == "Dang_ky":
                     st.error("Gửi đăng ký thất bại, vui lòng thử lại kết nối!")
 
 # ================= TAB BÁO CÁO HIỆN TRƯỜNG =================
+# ================= TAB BÁO CÁO HIỆN TRƯỜNG =================
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### BAO CAO NHIEM VU HIEN TRUONG (ALLOCATION SYNC)")
     
     raw_data, err_msg = load_live_data()
     if err_msg: st.error(err_msg)
         
-    data_kho, data_du_an, sheet_doi_raw = [], [], []
-    if isinstance(raw_data, dict):
-        data_kho = raw_data.get("KHO_PHAN_BO", [])
-        data_du_an = raw_data.get("DANH_SACH_DU_AN", [])
-        sheet_doi_raw = raw_data.get("QUAN_LY_DOI", [])
-
-    danh_sach_du_an = []
-    if data_du_an:
-        for r in data_du_an:
-            if len(r) > 0:
-                val = str(r[0]).strip()
-                if val and val.upper() not in ["MÃ DỰ ÁN", "MÃ DA", "STT", "NONE", "", "DỰ ÁN", "TÊN DỰ ÁN"]:
-                    if val not in danh_sach_du_an: danh_sach_du_an.append(val)
-    if not danh_sach_du_an and data_kho:
-        for r in data_kho:
-            if len(r) > 0:
-                val = str(r[0]).strip()
-                if val and val.upper() not in ["MÃ DỰ ÁN", "STT", "NONE", "", "DỰ ÁN"]:
-                    if val not in danh_sach_du_an: danh_sach_du_an.append(val)
+    danh_sach_du_an = raw_data.get("du_an", []) if isinstance(raw_data, dict) else []
+    ds_doi = raw_data.get("doi", []) if isinstance(raw_data, dict) else []
+    ds_diem = raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []
 
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1:
@@ -156,27 +141,12 @@ elif st.session_state.nav_tab == "Bao_cao":
         if st.button("Lam moi du lieu"):
             st.cache_data.clear(); st.rerun()
 
-    ds_doi = []
-    p_code = du_an_chon.strip().upper() if du_an_chon else ""
-    
-    if sheet_doi_raw:
-        col_idx_ten_doi = 1
-        for r in sheet_doi_raw[:3]:
-            for idx, h in enumerate(r):
-                if "TÊN ĐỘI" in str(h).strip().upper() or "TEN DOI" in str(h).strip().upper(): col_idx_ten_doi = idx
-        for r in sheet_doi_raw:
-            if len(r) > col_idx_ten_doi:
-                val = str(r[col_idx_ten_doi]).strip()
-                if val and val.upper() not in ["TÊN ĐỘI", "TEN DOI", "STT", "NONE", "", "MÃ ĐỘI"]:
-                    if val not in ds_doi: ds_doi.append(val)
-    if not ds_doi and data_kho:
-        for r in data_kho:
-            if len(r) > 6:
-                val = str(r[6]).strip()
-                if val and val.upper() not in ["ĐỘI NHẬN THIẾT BỊ", "TÊN ĐỘI", "STT", "NONE", ""] and val not in ds_doi:
-                    ds_doi.append(val)
-
     doi_thuc_hien = st.selectbox(f"TEN DOI VAN CHUYEN / LAP DAT (Đồng bộ {len(ds_doi)} nhân sự) *", options=ds_doi, index=None, placeholder="-- Gõ để tìm hoặc chọn tên đội --")
+
+    diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Đồng bộ {len(ds_diem)} đơn vị) *", options=ds_diem, index=None, placeholder="-- Gõ để tìm hoặc chọn địa điểm --")
+    
+    p_code = du_an_chon.strip().upper() if du_an_chon else ""
+    data_kho = raw_data.get("KHO_PHAN_BO", []) if isinstance(raw_data, dict) else []
 
     # --- BỘ LỌC CỘT ĐỘNG UPPERCASE THÔNG MINH (ÉP CHUẨN KÝ TỰ VIẾT HOA) ---
     idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
