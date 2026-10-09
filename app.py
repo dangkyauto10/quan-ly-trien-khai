@@ -7,21 +7,21 @@ st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_ic
 SECURE_PASS = "880880"
 # Đảm bảo URL này là bản Deploy mới nhất của Apps Script
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanFGwYnCu56rCOhY9q5emNGasXqwZRJlySd0CaysgNbb8BkjmNA/exec"
-# --- BẮT ĐẦU CHÈN THÊM ---
+
 @st.cache_data(ttl=300)
 def tai_danh_sach_diem():
     try:
-        req = urllib.request.Request(APPS_SCRIPT_URL)
+        req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=10) as response:
             ket_qua = json.loads(response.read().decode('utf-8'))
-            if ket_qua.get("trang_thai") == "thanh_cong":
+            if ket_qua.get("status") == "success":
                 return ket_qua.get("danh_sach_diem", [])
     except:
         pass
     return ["-- Lỗi mạng: Không tải được danh sách --"]
 
 DANH_SACH_DIEM = tai_danh_sach_diem()
-# --- KẾT THÚC CHÈN THÊM ---
+
 def submit_registration(ho_ten, sdt, dia_ban, chuyen_mon, phuong_tien):
     payload = {
         "action": "dang_ky",
@@ -97,18 +97,10 @@ if st.session_state.nav_tab == "Dang_ky":
     with st.form("form_dang_ky_thanh_vien"):
         reg_hoten = st.text_input("Họ và tên *", placeholder="Nhập đầy đủ họ và tên...")
         reg_sdt = st.text_input("Số điện thoại liên hệ *", placeholder="Nhập số điện thoại (Zalo)...")
-        # Cho phép chọn nhiều địa điểm cùng lúc, tự động nối chuỗi bằng dấu phẩy
-      # Cho phép chọn nhiều địa điểm cùng lúc, tự động nối chuỗi bằng dấu phẩy
         reg_diaban_list = st.multiselect("Địa bàn phụ trách (Có thể chọn nhiều)", options=DANH_SACH_DIEM, placeholder="-- Gõ hoặc chọn các địa điểm phụ trách --")
         reg_diaban = ", ".join(reg_diaban_list)
-        reg_chuyenmon = st.selectbox(
-            "Chuyên môn / Nhiệm vụ",
-            options=["1. Vận chuyển / Giao nhận", "2. KTV Lắp đặt thiết bị", "3. Giám sát / Điều phối chung", "4. Kho vận / Hậu cứ"]
-        )
+        reg_chuyenmon = st.selectbox("Chuyên môn / Nhiệm vụ", options=["1. Vận chuyển / Giao nhận", "2. KTV Lắp đặt thiết bị", "3. Giám sát / Điều phối chung", "4. Kho vận / Hậu cứ"])
         reg_phuongtien = st.selectbox("Phương tiện di chuyển", options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
-            "Phương tiện di chuyển",
-            options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"]
-        )
         
         submitted = st.form_submit_button("Gửi Đăng Ký Thành Viên", type="primary", use_container_width=True)
         if submitted:
@@ -121,7 +113,6 @@ if st.session_state.nav_tab == "Dang_ky":
                 else:
                     st.error("Gửi đăng ký thất bại, vui lòng thử lại kết nối!")
 
-# ================= TAB BÁO CÁO HIỆN TRƯỜNG =================
 # ================= TAB BÁO CÁO HIỆN TRƯỜNG =================
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### BAO CAO NHIEM VU HIEN TRUONG (ALLOCATION SYNC)")
@@ -148,8 +139,8 @@ elif st.session_state.nav_tab == "Bao_cao":
     p_code = du_an_chon.strip().upper() if du_an_chon else ""
     
     # --- LỌC VÀ HIỂN THỊ HÀNG HÓA TỪ KHO PHÂN BỔ ---
+    ds_hang = []
     if p_code and doi_thuc_hien and diem_giao_lap:
-        ds_hang = []
         if data_kho:
             idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
             for r in data_kho[:3]:
