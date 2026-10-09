@@ -5,10 +5,6 @@ from streamlit_geolocation import streamlit_geolocation
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
-
-# =========================================================================
-# ANH VỸ XÓA LINK CŨ BÊN DƯỚI, DÁN LINK MỚI COPY TỪ GOOGLE VÀO GIỮA 2 DẤU ""
-# =========================================================================
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanFGwYnCu56rCOhY9q5emNGasXqwZRJlySd0CaysgNbb8BkjmNA/exec"
 
 @st.cache_data(ttl=300)
@@ -75,7 +71,10 @@ if st.session_state.nav_tab == "Dang_ky":
         reg_chuyenmon = st.selectbox("Chuyên môn / Nhiệm vụ", options=["1. Vận chuyển / Giao nhận", "2. KTV Lắp đặt thiết bị", "3. Giám sát / Điều phối chung", "4. Kho vận / Hậu cứ"])
         reg_phuongtien = st.selectbox("Phương tiện di chuyển", options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
         if st.form_submit_button("Gửi Đăng Ký Thành Viên", type="primary", use_container_width=True):
-            if submit_registration(reg_hoten, reg_sdt, ", ".join(reg_diaban_list), reg_chuyenmon, reg_phuongtien): st.success("Đăng ký thành công!")
+            if not reg_hoten.strip() or not reg_sdt.strip(): st.warning("Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
+            else:
+                if submit_registration(reg_hoten, reg_sdt, ", ".join(reg_diaban_list), reg_chuyenmon, reg_phuongtien): st.success(f"🎉 Đăng ký thành công {reg_hoten}!")
+                else: st.error("Gửi đăng ký thất bại!")
 
 elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("### BAO CAO NHIEM VU HIEN TRUONG (ALLOCATION SYNC)")
@@ -83,11 +82,6 @@ elif st.session_state.nav_tab == "Bao_cao":
     raw_data, err_msg = load_live_data()
     if err_msg: st.error(err_msg)
     
-    if raw_data and raw_data.get("api_version") != "v_final_999":
-        st.error("🚨 CẢNH BÁO: CHƯA ĐỔI LINK API TRONG CODE PYTHON!")
-        st.warning("👉 Anh Vỹ đang dán code mới nhưng QUÊN CHƯA DÁN ĐƯỜNG LINK MỚI vào dòng số 13 của app.py. GitHub vẫn đang chạy link cũ. Anh quay lại dán link và Commit lại nhé!")
-        st.stop()
-
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1: du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", options=(raw_data.get("du_an", []) if isinstance(raw_data, dict) else []), index=None)
     with col_rf2:
@@ -140,13 +134,7 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.markdown(tb_md)
             st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị!")
         else:
-            st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này!")
-            st.error("🚨 KẾT QUẢ ĐỌC NÃO GOOGLE SHEETS TỪ TRỢ LÝ AI:")
-            dbg = raw_data.get("debug_info", {})
-            st.write(f"1. **Tất cả các Sheet đang tồn tại:** {dbg.get('tat_ca_cac_sheet', [])}")
-            st.write(f"2. **Sheet kho phân bổ bắt được:** {dbg.get('sheet_tim_thay', 'LỖI')}")
-            st.write(f"3. **Tổng số dòng có chứa dữ liệu:** {dbg.get('so_dong', 0)} dòng.")
-            st.info("Nếu anh Vỹ thấy bảng báo cáo này hiện lên, hãy chụp ảnh lại gửi cho em!")
+            st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này. Vui lòng bấm 'Làm mới dữ liệu' hoặc kiểm tra lại file gốc.")
 
     else: st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm.")
         
@@ -178,4 +166,7 @@ elif st.session_state.nav_tab == "Bao_cao":
 elif st.session_state.nav_tab in ["Admin", "Link"]:
     st.markdown("### KHU VỰC QUẢN TRỊ & LINK BÁO CÁO")
     pass_input = st.text_input("Nhập mật khẩu (Mã PIN):", type="password")
-    if pass_input == SECURE_PASS: st.success("Xác thực thành công!")
+    if pass_input == SECURE_PASS:
+        st.success("Xác thực thành công!")
+        if st.session_state.nav_tab == "Link":
+            st.markdown("- [Mở trực tiếp Google Sheets Tổng hợp](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
