@@ -98,12 +98,15 @@ if st.session_state.nav_tab == "Dang_ky":
         reg_hoten = st.text_input("Họ và tên *", placeholder="Nhập đầy đủ họ và tên...")
         reg_sdt = st.text_input("Số điện thoại liên hệ *", placeholder="Nhập số điện thoại (Zalo)...")
         # Cho phép chọn nhiều địa điểm cùng lúc, tự động nối chuỗi bằng dấu phẩy
+      # Cho phép chọn nhiều địa điểm cùng lúc, tự động nối chuỗi bằng dấu phẩy
         reg_diaban_list = st.multiselect("Địa bàn phụ trách (Có thể chọn nhiều)", options=DANH_SACH_DIEM, placeholder="-- Gõ hoặc chọn các địa điểm phụ trách --")
         reg_diaban = ", ".join(reg_diaban_list)
+        
+        reg_chuyenmon = st.selectbox(
             "Chuyên môn / Nhiệm vụ",
             options=["1. Vận chuyển / Giao nhận", "2. KTV Lắp đặt thiết bị", "3. Giám sát / Điều phối chung", "4. Kho vận / Hậu cứ"]
         )
-        reg_phuongtien = st.selectbox(
+        reg_phuongtien = st.selectbox("Phương tiện di chuyển", options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
             "Phương tiện di chuyển",
             options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"]
         )
