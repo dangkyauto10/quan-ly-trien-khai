@@ -11,15 +11,14 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanF
 @st.cache_data(ttl=300)
 def tai_danh_sach_diem():
     try:
-        req = urllib.request.Request(APPS_SCRIPT_URL)
+        req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=10) as response:
             ket_qua = json.loads(response.read().decode('utf-8'))
-            if ket_qua.get("trang_thai") == "thanh_cong":
+            if ket_qua.get("status") == "success":
                 return ket_qua.get("danh_sach_diem", [])
     except:
         pass
     return ["-- Lỗi mạng: Không tải được danh sách --"]
-
 DANH_SACH_DIEM = tai_danh_sach_diem()
 # --- KẾT THÚC CHÈN THÊM ---
 def submit_registration(ho_ten, sdt, dia_ban, chuyen_mon, phuong_tien):
