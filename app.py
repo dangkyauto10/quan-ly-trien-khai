@@ -1,11 +1,22 @@
 import streamlit as st
 import urllib.request
 import json
+import unicodedata
 from streamlit_geolocation import streamlit_geolocation
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
+
+# Đảm bảo đường link API của anh Vỹ đã đúng
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanFGwYnCu56rCOhY9q5emNGasXqwZRJlySd0CaysgNbb8BkjmNA/exec"
+
+# ================= HÀM LÀM SẠCH KÝ TỰ TIẾNG VIỆT TÀNG HÌNH =================
+def clean_text(s):
+    if s is None: return ""
+    # Chuyển về chuẩn Unicode, xóa khoảng trắng thừa, in hoa
+    s = str(s).replace('\xa0', ' ').strip().upper()
+    s = unicodedata.normalize('NFC', s)
+    return " ".join(s.split())
 
 @st.cache_data(ttl=300)
 def tai_danh_sach_diem():
@@ -45,33 +56,40 @@ def load_live_data():
             return json.loads(response.read().decode('utf-8')), None
     except Exception as e: return None, f"🚨 LỖI KẾT NỐI API: {e}"
 
+# ================= MẮT THẦN QUÉT DỮ LIỆU CHỐNG LỖI KÝ TỰ =================
 def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
     ds_kq = []
     if not data_sheet: return ds_kq
+    
     idx_proj = 1; idx_diem = 6; idx_matb = 0; idx_tentb = 3; idx_sl = 4; idx_dvt = 5; idx_doi = 2
     
     for r in data_sheet[:5]:
         for i, h in enumerate(r):
-            h_str = str(h).replace('\xa0', ' ').strip().upper()
+            h_str = clean_text(h)
             if "MÃ DỰ ÁN" in h_str or "MÃ DA" in h_str: idx_proj = i
-            elif "ĐỊA ĐIỂM" in h_str or "ĐƠN VỊ" in h_str or "ĐIỂM GIAO" in h_str or "ĐỊA ĐIỂM LẮP" in h_str: idx_diem = i
+            elif "ĐỊA ĐIỂM" in h_str or "ĐƠN VỊ" in h_str or "ĐIỂM GIAO" in h_str: idx_diem = i
             elif "MÃ CÔNG VIỆC" in h_str or "SKU" in h_str: idx_matb = i
             elif "TÊN THIẾT BỊ" in h_str or "HÀNG HÓA" in h_str: idx_tentb = i
             elif "SỐ LƯỢNG" in h_str or "SL" in h_str: idx_sl = i
             elif "ĐƠN VỊ TÍNH" in h_str or "ĐVT" in h_str: idx_dvt = i
             elif "ĐỘI" in h_str or "NHÂN SỰ" in h_str: idx_doi = i
 
+    p_c = clean_text(p_code)
+    d_d = clean_text(d_diem)
+    d_o = clean_text(d_doi)
+
     for r in data_sheet:
-        c_proj = str(r[idx_proj]).replace('\xa0', ' ').strip().upper() if len(r) > idx_proj else ""
-        c_diem = str(r[idx_diem]).replace('\xa0', ' ').strip().upper() if len(r) > idx_diem else ""
-        c_doi = str(r[idx_doi]).replace('\xa0', ' ').strip().upper() if len(r) > idx_doi else ""
+        c_proj = clean_text(r[idx_proj]) if len(r) > idx_proj else ""
+        c_diem = clean_text(r[idx_diem]) if len(r) > idx_diem else ""
+        c_doi = clean_text(r[idx_doi]) if len(r) > idx_doi else ""
         
-        if p_code in c_proj and (d_diem in c_diem or c_diem in d_diem) and (d_doi in c_doi or c_doi in d_doi):
+        # Kiểm tra chứa lẫn nhau để chống sai sót 1 chữ cái
+        if p_c in c_proj and (d_d in c_diem or c_diem in d_d) and (d_o in c_doi or c_doi in d_o):
             sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
             ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
             sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
             dvt = str(r[idx_dvt]).strip() if len(r) > idx_dvt else "Bộ"
-            if ten and ten.upper() not in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN THIẾT BỊ", "NONE", ""]:
+            if ten and clean_text(ten) not in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN THIẾT BỊ", "NONE", ""]:
                 ds_kq.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
     return ds_kq
 
@@ -123,14 +141,18 @@ elif st.session_state.nav_tab == "Bao_cao":
     diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT *", options=(raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []), index=None)
     
     if du_an_chon and doi_thuc_hien and diem_giao_lap:
-        p_code = str(du_an_chon).replace('\xa0', ' ').strip().upper()
-        d_doi = str(doi_thuc_hien).replace('\xa0', ' ').strip().upper()
-        d_diem = str(diem_giao_lap).replace('\xa0', ' ').strip().upper()
+        p_code = du_an_chon
+        d_doi = doi_thuc_hien
+        d_diem = diem_giao_lap
         
-        data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
-        data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
+        # Tự động hút sạch sành sanh mọi phiên bản kho hàng
+        data_ld = raw_data.get("KHO_LAP_DAT") or []
+        data_vc = raw_data.get("KHO_VAN_CHUYEN") or []
+        data_pb = raw_data.get("KHO_PHAN_BO") or [] # Bản dự phòng nếu Google Sheets chưa Deploy
         
-        ds_hang_raw = quet_mat_than(data_ld, p_code, d_doi, d_diem) + quet_mat_than(data_vc, p_code, d_doi, d_diem)
+        ds_hang_raw = quet_mat_than(data_ld, p_code, d_doi, d_diem) + \
+                      quet_mat_than(data_vc, p_code, d_doi, d_diem) + \
+                      quet_mat_than(data_pb, p_code, d_doi, d_diem)
         
         ds_hang = []
         seen = set()
@@ -148,6 +170,17 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị!")
         else:
             st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này.")
+            # Bảng báo cáo kỹ thuật ẩn - Nếu không hiện hàng, mở bảng này chụp cho em
+            with st.expander("🛠 Bấm vào đây kiểm tra đường truyền dữ liệu (Dành cho Admin)"):
+                st.write(f"- Đang quét: Dự án=[{clean_text(p_code)}] | Đội=[{clean_text(d_doi)}] | Điểm=[{clean_text(d_diem)}]")
+                st.write(f"- Số dòng nhận từ Sheet Lắp Đặt: {len(data_ld)}")
+                st.write(f"- Số dòng nhận từ Sheet Vận Chuyển: {len(data_vc)}")
+                st.write(f"- Số dòng nhận từ Sheet Kho cũ: {len(data_pb)}")
+                if len(data_ld) == 0 and len(data_vc) == 0 and len(data_pb) == 0:
+                    st.error("❌ Google Sheets đang KHÔNG TRẢ VỀ BẤT KỲ DÒNG HÀNG HÓA NÀO. Vui lòng vào file Excel (Mã.gs) -> Bấm Triển khai -> Quản lý bản triển khai -> Chọn Cây Bút -> Phiên bản Mới -> Triển khai.")
+                elif data_ld or data_pb:
+                    st.write("Dữ liệu thô dòng đầu tiên đọc được:")
+                    st.json((data_ld or data_pb)[:2])
 
     else: st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm.")
         
