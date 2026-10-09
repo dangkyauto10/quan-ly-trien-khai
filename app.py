@@ -101,7 +101,6 @@ if st.session_state.nav_tab == "Dang_ky":
       # Cho phép chọn nhiều địa điểm cùng lúc, tự động nối chuỗi bằng dấu phẩy
         reg_diaban_list = st.multiselect("Địa bàn phụ trách (Có thể chọn nhiều)", options=DANH_SACH_DIEM, placeholder="-- Gõ hoặc chọn các địa điểm phụ trách --")
         reg_diaban = ", ".join(reg_diaban_list)
-        
         reg_chuyenmon = st.selectbox(
             "Chuyên môn / Nhiệm vụ",
             options=["1. Vận chuyển / Giao nhận", "2. KTV Lắp đặt thiết bị", "3. Giám sát / Điều phối chung", "4. Kho vận / Hậu cứ"]
