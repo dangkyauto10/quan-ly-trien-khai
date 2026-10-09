@@ -11,14 +11,15 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanF
 @st.cache_data(ttl=300)
 def tai_danh_sach_diem():
     try:
-        req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
+        req = urllib.request.Request(APPS_SCRIPT_URL)
         with urllib.request.urlopen(req, timeout=10) as response:
             ket_qua = json.loads(response.read().decode('utf-8'))
-            if ket_qua.get("status") == "success":
+            if ket_qua.get("trang_thai") == "thanh_cong":
                 return ket_qua.get("danh_sach_diem", [])
     except:
         pass
     return ["-- Lỗi mạng: Không tải được danh sách --"]
+
 DANH_SACH_DIEM = tai_danh_sach_diem()
 # --- KẾT THÚC CHÈN THÊM ---
 def submit_registration(ho_ten, sdt, dia_ban, chuyen_mon, phuong_tien):
@@ -104,7 +105,7 @@ if st.session_state.nav_tab == "Dang_ky":
             "Chuyên môn / Nhiệm vụ",
             options=["1. Vận chuyển / Giao nhận", "2. KTV Lắp đặt thiết bị", "3. Giám sát / Điều phối chung", "4. Kho vận / Hậu cứ"]
         )
-        reg_phuongtien = st.selectbox(
+        reg_phuongtien = st.selectbox("Phương tiện di chuyển", options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
             "Phương tiện di chuyển",
             options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"]
         )
@@ -131,6 +132,7 @@ elif st.session_state.nav_tab == "Bao_cao":
     danh_sach_du_an = raw_data.get("du_an", []) if isinstance(raw_data, dict) else []
     ds_doi = raw_data.get("doi", []) if isinstance(raw_data, dict) else []
     ds_diem = raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []
+    data_kho = raw_data.get("KHO_PHAN_BO", []) if isinstance(raw_data, dict) else []
 
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1:
@@ -141,50 +143,35 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.cache_data.clear(); st.rerun()
 
     doi_thuc_hien = st.selectbox(f"TEN DOI VAN CHUYEN / LAP DAT (Đồng bộ {len(ds_doi)} nhân sự) *", options=ds_doi, index=None, placeholder="-- Gõ để tìm hoặc chọn tên đội --")
-
     diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Đồng bộ {len(ds_diem)} đơn vị) *", options=ds_diem, index=None, placeholder="-- Gõ để tìm hoặc chọn địa điểm --")
     
     p_code = du_an_chon.strip().upper() if du_an_chon else ""
-    data_kho = raw_data.get("KHO_PHAN_BO", []) if isinstance(raw_data, dict) else []
-
-    # --- BỘ LỌC CỘT ĐỘNG UPPERCASE THÔNG MINH (ÉP CHUẨN KÝ TỰ VIẾT HOA) ---
-    idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
-    if data_kho:
-        for r in data_kho[:3]:
-            for i, h in enumerate(r):
-                h_str = str(h).strip().upper()
-                # Khóa chính xác các cụm từ để không bị chéo cột (ví dụ: Đơn vị tính không được đè lên Địa điểm)
-                if h_str in ["ĐỊA ĐIỂM VẬN CHUYỂN LẮP ĐẶT", "ĐỊA ĐIỂM", "ĐƠN VỊ"]: idx_diem = i
-                elif h_str in ["MÃ THIẾT BỊ / SKU", "MÃ TB", "SKU"]: idx_matb = i
-                elif h_str in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN TB", "THIẾT BỊ", "HÀNG HÓA"]: idx_tentb = i
-                elif h_str in ["SỐ LƯỢNG", "SL"]: idx_sl = i
-                elif h_str in ["ĐƠN VỊ TÍNH", "ĐVT"]: idx_dvt = i
-
-    ds_diem = []
-    if data_kho and p_code:
-        for r in data_kho:
-            r_proj = str(r[0]).strip().upper() if len(r) > 0 else ""
-            if p_code in r_proj:
-                if len(r) > idx_diem:
-                    v_diem = str(r[idx_diem]).strip()
-                    if v_diem and v_diem.upper() not in ["ĐỊA ĐIỂM VẬN CHUYỂN LẮP ĐẶT", "ĐỊA ĐIỂM", "ĐƠN VỊ", "STT", "NONE", ""]:
-                        if v_diem not in ds_diem: ds_diem.append(v_diem)
-
-    diem_giao_lap = st.selectbox(f"DIEM GIAO HANG & LAP DAT (Đồng bộ {len(ds_diem)} đơn vị) *", options=sorted(ds_diem), index=None, placeholder="-- Gõ để tìm hoặc chọn địa điểm --")
     
-    ds_hang = []
-    if diem_giao_lap and doi_thuc_hien and p_code:
-        for r in data_kho:
-            r_proj = str(r[0]).strip().upper() if len(r) > 0 else ""
-            c_diem = str(r[idx_diem]).strip().upper() if len(r) > idx_diem else ""
-            
-            if p_code in r_proj and diem_giao_lap.upper() == c_diem:
-                sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
-                ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
-                sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
-                dvt = str(r[idx_dvt]).strip() if len(r) > idx_dvt else "Bộ"
-                if ten and ten.upper() not in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN TB", "THIẾT BỊ", "NONE", ""]:
-                    ds_hang.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
+    # --- LỌC VÀ HIỂN THỊ HÀNG HÓA TỪ KHO PHÂN BỔ ---
+    if p_code and doi_thuc_hien and diem_giao_lap:
+        ds_hang = []
+        if data_kho:
+            idx_diem = 7; idx_matb = 1; idx_tentb = 3; idx_sl = 4; idx_dvt = 5
+            for r in data_kho[:3]:
+                for i, h in enumerate(r):
+                    h_str = str(h).strip().upper()
+                    if h_str in ["ĐỊA ĐIỂM VẬN CHUYỂN LẮP ĐẶT", "ĐỊA ĐIỂM", "ĐƠN VỊ"]: idx_diem = i
+                    elif h_str in ["MÃ THIẾT BỊ / SKU", "MÃ TB", "SKU"]: idx_matb = i
+                    elif h_str in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN TB", "THIẾT BỊ", "HÀNG HÓA"]: idx_tentb = i
+                    elif h_str in ["SỐ LƯỢNG", "SL"]: idx_sl = i
+                    elif h_str in ["ĐƠN VỊ TÍNH", "ĐVT"]: idx_dvt = i
+
+            for r in data_kho:
+                r_proj = str(r[0]).strip().upper() if len(r) > 0 else ""
+                c_diem = str(r[idx_diem]).strip().upper() if len(r) > idx_diem else ""
+                
+                if p_code in r_proj and diem_giao_lap.upper() == c_diem:
+                    sku = str(r[idx_matb]).strip() if len(r) > idx_matb else "TB-0X"
+                    ten = str(r[idx_tentb]).strip() if len(r) > idx_tentb else "Thiết bị"
+                    sl = str(r[idx_sl]).strip() if len(r) > idx_sl else "1"
+                    dvt = str(r[idx_dvt]).strip() if len(r) > idx_dvt else "Bộ"
+                    if ten and ten.upper() not in ["TÊN THIẾT BỊ / HÀNG HÓA", "TÊN TB", "THIẾT BỊ", "NONE", ""]:
+                        ds_hang.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
 
         st.markdown(f"### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ CHO ĐƠN VỊ")
         st.markdown(f"📍 **Đơn vị / Địa điểm:** {diem_giao_lap} | 👥 **Đội thực hiện:** {doi_thuc_hien}")
@@ -195,7 +182,7 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.markdown(tb_md)
             st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị thực tế!")
         else:
-            st.warning("Không tìm thấy dữ liệu thiết bị khớp với đơn vị này.")
+            st.warning("Không tìm thấy hàng hóa phân bổ cho dự án và địa điểm này!")
     else:
         st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm để hiển thị thiết bị phân bổ.")
         
