@@ -45,6 +45,7 @@ def load_live_data():
             return json.loads(response.read().decode('utf-8')), None
     except Exception as e: return None, f"LỖI KẾT NỐI API: {e}"
 
+# Hàm Mắt thần CHUẨN XÁC - Tự dò Header ở 10 dòng đầu
 def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
     ds_kq = []
     if not data_sheet: return ds_kq
@@ -52,12 +53,13 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
     idx_proj = -1; idx_matb = -1; idx_doi = -1; idx_tentb = -1; idx_sl = -1; idx_diem = -1; idx_dvt = -1
     header_row_index = -1
     
-    # 1. Tìm chính xác dòng chứa Tên Cột (Header Row) - Quét 10 dòng đầu
+    # 1. Tìm chính xác dòng chứa Tên Cột (Quét 10 dòng đầu)
     for r_idx, r in enumerate(data_sheet[:10]):
         row_str = " ".join([str(x).upper() for x in r])
-        if "MÃ CÔNG VIỆC" in row_str or "SKU" in row_str or "TÊN THIẾT BỊ" in row_str:
+        # Bắt từ khóa đặc trưng của dòng tiêu đề
+        if "MÃ CÔNG VIỆC" in row_str or "MÃ DA" in row_str or "TÊN THIẾT BỊ" in row_str:
             header_row_index = r_idx
-            # 2. Bắt tọa độ cột từ dòng Header vừa tìm được
+            # 2. Bắt tọa độ cột
             for i, h in enumerate(r):
                 h_str = str(h).replace('\xa0', ' ').strip().upper() 
                 if "MÃ DỰ ÁN" in h_str or "MÃ DA" in h_str: idx_proj = i
@@ -67,21 +69,23 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
                 elif "SỐ LƯỢNG" in h_str or "SL" in h_str: idx_sl = i
                 elif "ĐƠN VỊ TÍNH" in h_str or "ĐVT" in h_str: idx_dvt = i
                 elif "ĐỘI GIAO THIẾT BỊ" in h_str or "ĐỘI NHẬN THIẾT BỊ" in h_str or "ĐỘI" in h_str or "NHÂN SỰ" in h_str: idx_doi = i
-            break # Tìm thấy dòng Header rồi thì dừng quét
+            break 
 
+    # Nếu không tìm thấy cột thiết yếu, ngừng quét
     if idx_proj == -1 or idx_diem == -1 or idx_doi == -1 or header_row_index == -1: return ds_kq
 
     p_c = str(p_code).replace('\xa0', ' ').strip().upper()
     d_d = str(d_diem).replace('\xa0', ' ').strip().upper()
     d_o = str(d_doi).replace('\xa0', ' ').strip().upper()
 
-    # 3. Duyệt dữ liệu (Bắt đầu từ dòng DƯỚI dòng Header)
+    # 3. Duyệt dữ liệu từ dòng dưới Header
     for r in data_sheet[header_row_index + 1:]:
         if len(r) > max(idx_proj, idx_diem, idx_doi):
             c_proj = str(r[idx_proj]).replace('\xa0', ' ').strip().upper()
             c_diem = str(r[idx_diem]).replace('\xa0', ' ').strip().upper()
             c_doi = str(r[idx_doi]).replace('\xa0', ' ').strip().upper()
             
+            # Lọc so khớp tuyệt đối
             if p_c in c_proj and (d_d in c_diem or c_diem in d_d) and (d_o in c_doi or c_doi in d_o):
                 sku = str(r[idx_matb]).strip() if (idx_matb > -1 and len(r) > idx_matb) else "TB-0X"
                 ten = str(r[idx_tentb]).strip() if (idx_tentb > -1 and len(r) > idx_tentb) else "Thiết bị"
@@ -164,6 +168,10 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị!")
         else:
             st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này.")
+            # Bảng X-Quang nhỏ để kiểm tra xem đã bắt đúng dòng Header chưa (ẩn dưới menu con)
+            with st.expander("🛠 Kiểm tra nhận diện Mắt Thần (Admin)"):
+                st.write(f"Tìm: [{p_code}], [{d_doi}], [{d_diem}]")
+                st.write(f"Data tải về -> LD: {len(data_ld)} dòng, VC: {len(data_vc)} dòng")
 
     else: 
         st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm.")
