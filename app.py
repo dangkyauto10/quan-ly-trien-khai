@@ -43,7 +43,7 @@ def load_live_data():
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=15) as response:
             return json.loads(response.read().decode('utf-8')), None
-    except Exception as e: return None, f"🚨 LỖI KẾT NỐI API: {e}"
+    except Exception as e: return None, f"LỖI KẾT NỐI API: {e}"
 
 def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
     ds_kq = []
@@ -98,7 +98,7 @@ if btn_link: st.session_state.nav_tab = "Link"
 st.markdown("---")
 
 if st.session_state.nav_tab == "Dang_ky":
-    st.markdown("### 📝 ĐĂNG KÝ THÔNG TIN NHÂN SỰ / THÀNH VIÊN ĐỘI THI CÔNG")
+    st.markdown("### ĐĂNG KÝ THÔNG TIN NHÂN SỰ / THÀNH VIÊN ĐỘI THI CÔNG")
     with st.form("form_dang_ky_thanh_vien"):
         reg_hoten = st.text_input("Họ và tên *", placeholder="Nhập đầy đủ họ và tên...")
         reg_sdt = st.text_input("Số điện thoại liên hệ *", placeholder="Nhập số điện thoại (Zalo)...")
@@ -108,7 +108,7 @@ if st.session_state.nav_tab == "Dang_ky":
         if st.form_submit_button("Gửi Đăng Ký Thành Viên", type="primary", use_container_width=True):
             if not reg_hoten.strip() or not reg_sdt.strip(): st.warning("Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
             else:
-                if submit_registration(reg_hoten, reg_sdt, ", ".join(reg_diaban_list), reg_chuyenmon, reg_phuongtien): st.success(f"🎉 Đăng ký thành công {reg_hoten}!")
+                if submit_registration(reg_hoten, reg_sdt, ", ".join(reg_diaban_list), reg_chuyenmon, reg_phuongtien): st.success(f"Đăng ký thành công {reg_hoten}!")
                 else: st.error("Gửi đăng ký thất bại!")
 
 elif st.session_state.nav_tab == "Bao_cao":
@@ -148,7 +148,7 @@ elif st.session_state.nav_tab == "Bao_cao":
                 seen.add(key)
                 ds_hang.append(item)
 
-        st.markdown("### 📦 DANH MỤC THIẾT BỊ PHÂN BỔ")
+        st.markdown("### DANH MỤC THIẾT BỊ PHÂN BỔ")
         if ds_hang:
             tb_md = "| Mã CV / SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
             for item in ds_hang: tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
@@ -156,4 +156,39 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị!")
         else:
             st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này.")
-            with st.expander("🛠
+
+    else: 
+        st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm.")
+        
+    st.markdown("---")
+    st.markdown("Chup anh hien truong:")
+    st.camera_input("Chup anh thuc te")
+    st.markdown("---")
+    st.markdown("### CHECK-IN TỌA ĐỘ GPS (CHÍNH XÁC CAO)")
+    loc = streamlit_geolocation()
+    gps_link = ""
+    if loc and loc.get('latitude'):
+        lat = loc['latitude']; lon = loc['longitude']
+        gps_link = f"https://www.google.com/maps?q={lat},{lon}"
+        st.success("Đã chốt tọa độ thành công!")
+        st.markdown(f"[Mở kiểm tra vị trí vừa lấy trên bản đồ]({gps_link})")
+        
+    st.markdown("---")
+    col_b1, col_b2, col_b3 = st.columns(3)
+    with col_b1:
+        if st.button("ĐÃ GIAO XONG (VC)", type="primary", use_container_width=True):
+            if submit_to_google(p_code if du_an_chon else "", doi_thuc_hien, "", diem_giao_lap, ds_hang, gps_link, "Đã giao hàng"): st.success("Gửi báo cáo thành công!")
+    with col_b2:
+        if st.button("ĐÃ LẮP XONG (LĐ)", type="primary", use_container_width=True):
+            if submit_to_google(p_code if du_an_chon else "", doi_thuc_hien, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt"): st.success("Gửi báo cáo thành công!")
+    with col_b3:
+        if st.button("ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
+            if submit_to_google(p_code if du_an_chon else "", doi_thuc_hien, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong"): st.success("Gửi báo cáo thành công!")
+
+elif st.session_state.nav_tab in ["Admin", "Link"]:
+    st.markdown("### KHU VỰC QUẢN TRỊ & LINK BÁO CÁO")
+    pass_input = st.text_input("Nhập mật khẩu (Mã PIN):", type="password")
+    if pass_input == SECURE_PASS:
+        st.success("Xác thực thành công!")
+        if st.session_state.nav_tab == "Link":
+            st.markdown("- [Mở trực tiếp Google Sheets Tổng hợp](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
