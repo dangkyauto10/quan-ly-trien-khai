@@ -100,11 +100,9 @@ elif st.session_state.nav_tab == "Bao_cao":
         d_diem = str(diem_giao_lap).replace('\xa0', ' ').strip().upper()
         
         ds_hang = []
-        # Chốt vị trí cột dự phòng
         idx_proj = 1; idx_diem = 6; idx_matb = 0; idx_tentb = 3; idx_sl = 4; idx_dvt = 5; idx_doi = 2
         
         if data_kho:
-            # SỬA LỖI TRÍ TỬ: Quét từ dòng 0 đến dòng 5 để đảm bảo dính luôn dòng tiêu đề thực sự (Dòng 2 trong Sheets)
             for r in data_kho[:5]:
                 for i, h in enumerate(r):
                     h_str = str(h).replace('\xa0', ' ').strip().upper()
@@ -137,6 +135,37 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị!")
         else:
             st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này!")
+            
+            # === BẮT ĐẦU MÁY X-QUANG HIỂN THỊ TRỰC TIẾP ===
+            st.error("🚨 HỆ THỐNG X-QUANG CHẨN ĐOÁN LỖI (VUI LÒNG CHỤP ẢNH GỬI LẠI ĐỂ TRỢ LÝ ĐỌC BỆNH)")
+            st.write("**1. Thông tin App đang đi tìm:**")
+            st.code(f"Mã Dự Án: [{p_code}]\nTên Đội: [{d_doi}]\nĐịa Điểm: [{d_diem}]")
+            
+            if not data_kho:
+                st.error("❌ LỖI CHÍ MẠNG: API trả về 0 dòng dữ liệu. Vui lòng kiểm tra file Mã.gs đã chọn 'Phiên bản mới' (New version) chưa!")
+            else:
+                st.success(f"✅ Đã tải thành công {len(data_kho)} dòng từ Google Sheets.")
+                st.write("**2. Cột mắt thần tìm được (Dựa vào tiêu đề):**")
+                st.code(f"Dự án: Cột {idx_proj} | Đội: Cột {idx_doi} | Địa điểm: Cột {idx_diem}")
+                
+                st.write("**3. Dữ liệu thực tế 2 dòng đầu tiên đọc được từ Sheet:**")
+                for idx_debug, row_debug in enumerate(data_kho[:2]):
+                    st.text(f"Dòng {idx_debug + 1}: {row_debug}")
+                    
+                st.write("**4. So sánh Dòng chứa DA880 đầu tiên trong Sheet với dữ liệu App:**")
+                found_any = False
+                for r in data_kho:
+                    if p_code in str(r).upper():
+                        c_p = str(r[idx_proj]).replace('\xa0', ' ').strip().upper() if len(r) > idx_proj else ""
+                        c_d = str(r[idx_doi]).replace('\xa0', ' ').strip().upper() if len(r) > idx_doi else ""
+                        c_l = str(r[idx_diem]).replace('\xa0', ' ').strip().upper() if len(r) > idx_diem else ""
+                        st.code(f"TRONG SHEET : Dự án=[{c_p}], Đội=[{c_d}], Địa điểm=[{c_l}]\nSO VỚI APP  : Dự án=[{p_code}], Đội=[{d_doi}], Địa điểm=[{d_diem}]")
+                        found_any = True
+                        break
+                if not found_any:
+                    st.error(f"Hoàn toàn không tìm thấy chữ {p_code} nào trong toàn bộ bảng!")
+            # === KẾT THÚC MÁY X-QUANG ===
+
     else: st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm.")
         
     st.markdown("---")
