@@ -9,7 +9,7 @@ from streamlit_geolocation import streamlit_geolocation
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQV_VqmnnEU3Mu7CDanFGwYnCu56rCOhY9q5emNGasXqwZRJlySd0CaysgNbb8BkjmNA/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwaML_2GsADAwPMv282RHSnOi57ZxmQrKkV74NH1P7yiAy57WCQcrSoc4KXcfdnfhjALg/exec"
 
 @st.cache_data(ttl=300)
 def tai_danh_sach_diem():
