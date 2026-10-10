@@ -282,4 +282,4 @@ elif nav_tab in ["Admin", "Link"]:
                     
         elif nav_tab == "Link":
             st.info("💡 Dữ liệu báo cáo tổng hợp dành cho Lãnh đạo.")
-            st.markdown("- [🔗 Mở Data Google Sheets (Báo cáo tiến độ)](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
+            st.markdown("- [🔗 Mở Data Google Sheets (Báo cáo tiến độ)](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit?gid=1131654776#gid=1131654776)")
