@@ -198,4 +198,5 @@ elif nav_tab == "Bao_cao":
         
     if err_msg: st.error(err_msg)
     else:
-        data_ld = raw_data.get("KHO_LAP_DAT
+      data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
+        data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
