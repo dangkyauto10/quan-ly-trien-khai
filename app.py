@@ -32,7 +32,7 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwp2Pq3-PYNvHOWe4IQVm
 # ==========================================
 # HÀM TẢI VÀ XỬ LÝ DỮ LIỆU
 # ==========================================
-@st.cache_data(ttl=120) 
+@st.cache_data(ttl=1) # Đã nhổ bộ nhớ tạm, Load phát ăn ngay số mới nhất!
 def fetch_api_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -288,6 +288,7 @@ elif nav_tab in ["Admin", "Link"]:
             
             st.markdown("### 📈 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN")
             
+            # --- 4 THẺ THỐNG KÊ GỌN GÀNG ---
             col_d1, col_d2 = st.columns(2)
             with col_d1:
                 st.markdown(f"""
@@ -312,7 +313,3 @@ elif nav_tab in ["Admin", "Link"]:
                 """, unsafe_allow_html=True)
                 st.markdown(f"""
                 <div style="background-color: #F8D7DA; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #F5C6CB; margin-bottom: 10px;">
-                    <h5 style="color: #721C24; margin: 0; font-size: 14px;">📍 TỔNG ĐIỂM</h5>
-                    <h2 style="color: #DC3545; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('tong_diem', '0')}</h2>
-                </div>
-                """, unsafe_allow_html=True)
