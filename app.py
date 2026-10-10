@@ -268,9 +268,19 @@ elif nav_tab == "Bao_cao":
                         if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong", img_captured): st.success("🎉 Xong!")
 
 elif nav_tab in ["Admin", "Link"]:
-    st.markdown("##### 🔒 QUẢN TRỊ HỆ THỐNG")
+    if nav_tab == "Admin":
+        st.markdown("##### 🔒 ADMIN DUYỆT ĐK THÀNH VIÊN")
+    else:
+        st.markdown("##### 🔒 TRUY CẬP DỮ LIỆU")
+        
     pass_input = st.text_input("Nhập mã PIN:", type="password")
     if pass_input == SECURE_PASS:
         st.success("Xác thực thành công!")
-        if nav_tab == "Link" or "tiến độ" in selected_menu:
-            st.markdown("- [🔗 Mở Data Google Sheets](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
+        
+        if nav_tab == "Admin":
+            st.info("💡 Vui lòng truy cập trang tính hệ thống để xem và duyệt danh sách thành viên mới đăng ký.")
+            st.markdown("- [👉 Mở Google Sheets (Trang Duyệt Thành Viên)](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
+            
+        elif nav_tab == "Link":
+            st.info("💡 Dữ liệu báo cáo tổng hợp dành cho Lãnh đạo.")
+            st.markdown("- [🔗 Mở Data Google Sheets (Báo cáo tiến độ)](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
