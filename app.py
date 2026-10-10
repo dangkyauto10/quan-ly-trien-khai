@@ -150,15 +150,18 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
 # ==========================================
 # KHU VỰC HIỂN THỊ CHÍNH
 # ==========================================
+# ==========================================
+# KHU VỰC HIỂN THỊ CHÍNH
+# ==========================================
 st.markdown("<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>🚀 QUẢN LÝ DỰ ÁN</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #64748B; font-size: 14px; margin-top: -10px; margin-bottom: 20px;'>Hệ thống Điều hành Hiện trường</p>", unsafe_allow_html=True)
 
-menu_options = ["📊 Báo cáo nhiệm vụ", "📝 Đăng ký thành viên", "🔒 Quản trị hệ thống", "🔗 Mở Google Sheets"]
+menu_options = ["📊 Báo cáo nhiệm vụ", "📝 Đăng ký thành viên", "🔒 ADMIN DUYỆT ĐK THÀNH VIÊN", "🔗 Báo cáo tiến độ (để lãnh đạo xem)"]
 selected_menu = st.selectbox("CHỌN CHỨC NĂNG", options=menu_options, label_visibility="collapsed")
 
-if "Báo cáo" in selected_menu: nav_tab = "Bao_cao"
+if "Báo cáo" in selected_menu and "tiến độ" not in selected_menu: nav_tab = "Bao_cao"
 elif "Đăng ký" in selected_menu: nav_tab = "Dang_ky"
-elif "Quản trị" in selected_menu: nav_tab = "Admin"
+elif "ADMIN" in selected_menu: nav_tab = "Admin"
 else: nav_tab = "Link"
 
 st.divider()
@@ -269,7 +272,5 @@ elif nav_tab in ["Admin", "Link"]:
     pass_input = st.text_input("Nhập mã PIN:", type="password")
     if pass_input == SECURE_PASS:
         st.success("Xác thực thành công!")
-        if nav_tab == "Link" or selected_menu == "🔗 Mở Google Sheets":
+        if nav_tab == "Link" or "tiến độ" in selected_menu:
             st.markdown("- [🔗 Mở Data Google Sheets](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
-
-
