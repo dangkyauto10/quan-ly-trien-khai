@@ -51,6 +51,13 @@ st.markdown("""
         margin-bottom: 15px;
         font-size: 16px;
     }
+    /* Ẩn chữ 'Location' của nút GPS mặc định để thay bằng Icon xịn hơn */
+    div.st-key-location_button button {
+        height: 60px !important;
+        border-radius: 12px !important;
+        background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%) !important;
+        box-shadow: 0 4px 6px rgba(220, 38, 38, 0.3) !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -153,10 +160,11 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
 st.markdown("<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>🚀 QUẢN LÝ DỰ ÁN</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #64748B; font-size: 14px; margin-top: -10px; margin-bottom: 20px;'>Hệ thống Điều hành Hiện trường</p>", unsafe_allow_html=True)
 
-menu_options = ["📊 Báo cáo nhiệm vụ", "📝 Đăng ký thành viên", "🔒 Quản trị hệ thống", "🔗 Mở Google Sheets"]
+# YÊU CẦU 1: Đổi tên Mở Google Sheets thành Báo cáo Lãnh đạo
+menu_options = ["📊 Báo cáo nhiệm vụ", "📝 Đăng ký thành viên", "🔒 Quản trị hệ thống", "📈 Báo cáo Lãnh đạo"]
 selected_menu = st.selectbox("CHỌN CHỨC NĂNG", options=menu_options, label_visibility="collapsed")
 
-if "Báo cáo" in selected_menu: nav_tab = "Bao_cao"
+if "Báo cáo nhiệm vụ" in selected_menu: nav_tab = "Bao_cao"
 elif "Đăng ký" in selected_menu: nav_tab = "Dang_ky"
 elif "Quản trị" in selected_menu: nav_tab = "Admin"
 else: nav_tab = "Link"
@@ -190,84 +198,4 @@ elif nav_tab == "Bao_cao":
         
     if err_msg: st.error(err_msg)
     else:
-        data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
-        data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
-        
-        st.info(f"✅ Đã kết nối Mắt Thần: {len(data_ld)} dòng LĐ | {len(data_vc)} dòng VC")
-        
-        st.markdown("##### 1️⃣ CHỌN THÔNG TIN NHIỆM VỤ")
-        du_an_chon = st.selectbox("DỰ ÁN TRIỂN KHAI *", options=(raw_data.get("du_an", []) if isinstance(raw_data, dict) else []), index=None)
-        doi_thuc_hiện = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=(raw_data.get("doi", []) if isinstance(raw_data, dict) else []), index=None)
-        diem_giao_lap = st.selectbox("ĐỊA ĐIỂM GIAO & LẮP *", options=(raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []), index=None)
-        
-        if du_an_chon and doi_thuc_hiện and diem_giao_lap:
-            p_code = du_an_chon
-            d_doi = doi_thuc_hiện
-            d_diem = diem_giao_lap
-            
-            ds_hang_raw = quet_mat_than(data_ld, p_code, d_doi, d_diem) + quet_mat_than(data_vc, p_code, d_doi, d_diem)
-            
-            ds_hang = []
-            seen = set()
-            for item in ds_hang_raw:
-                key = f"{item['sku']}_{item['ten']}_{item['sl']}"
-                if key not in seen:
-                    seen.add(key)
-                    ds_hang.append(item)
-
-            st.markdown("##### 2️⃣ THIẾT BỊ CẦN BÁO CÁO")
-            if ds_hang:
-                tb_md = "| SKU | Thiết bị | SL | ĐVT |\n| :--- | :--- | :---: | :---: |\n"
-                for item in ds_hang: tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
-                st.markdown(tb_md)
-            else:
-                st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này.")
-        else: 
-            st.warning("💡 Chọn đầy đủ thông tin để hiển thị Mắt Thần.")
-            
-        st.markdown("##### 3️⃣ CHỤP ẢNH HIỆN TRƯỜNG")
-        img_captured = st.camera_input("Chụp ảnh thực tế công việc")
-        
-        loc = streamlit_geolocation()
-        gps_link = ""
-        
-        if loc and loc.get('latitude'):
-            lat = loc['latitude']
-            lon = loc['longitude']
-            gps_link = f"https://www.google.com/maps?q={lat},{lon}"
-            st.success("✅ Đã chốt tọa độ GPS an toàn!")
-        else:
-            st.error("⚠️ Bấm Định Vị (Location) để quét tọa độ GPS.")
-
-        st.markdown("##### 4️⃣ CHỐT BÁO CÁO NGHIỆM THU")
-        
-        col_b1, col_b2, col_b3 = st.columns(3)
-        with col_b1:
-            if st.button("🚚 ĐÃ GIAO", type="primary", use_container_width=True):
-                if not gps_link: st.error("❌ Thiếu GPS!")
-                elif not img_captured: st.error("❌ Thiếu Hình Ảnh!")
-                else:
-                    with st.spinner("Đang tải ảnh lên Drive..."):
-                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, "", diem_giao_lap, ds_hang, gps_link, "Đã giao hàng", img_captured): st.success("🎉 Xong!")
-        with col_b2:
-            if st.button("🔧 ĐÃ LẮP", type="primary", use_container_width=True):
-                if not gps_link: st.error("❌ Thiếu GPS!")
-                elif not img_captured: st.error("❌ Thiếu Hình Ảnh!")
-                else:
-                    with st.spinner("Đang tải ảnh lên Drive..."):
-                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt", img_captured): st.success("🎉 Xong!")
-        with col_b3:
-            if st.button("✅ HOÀN TẤT", type="primary", use_container_width=True):
-                if not gps_link: st.error("❌ Thiếu GPS!")
-                elif not img_captured: st.error("❌ Thiếu Hình Ảnh!")
-                else:
-                    with st.spinner("Đang tải ảnh lên Drive..."):
-                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong", img_captured): st.success("🎉 Xong!")
-
-elif nav_tab in ["Admin", "Link"]:
-    st.markdown("##### 🔒 QUẢN TRỊ HỆ THỐNG")
-    pass_input = st.text_input("Nhập mã PIN:", type="password")
-    if pass_input == SECURE_PASS:
-        st.success("Xác thực thành công!")
-        if nav_tab == "Link" or selected_menu == "🔗 Mở Google Sheets":
-            st.markdown("- [🔗 Mở Data Google Sheets](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
+        data_ld = raw_data.get("KHO_LAP_DAT
