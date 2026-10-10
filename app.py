@@ -257,7 +257,7 @@ elif nav_tab == "Bao_cao":
                     with st.spinner("Đang tải ảnh lên Drive..."):
                         if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt", img_captured): st.success("🎉 Xong!")
         with col_b3:
-            if st.button("✅ GIAO & LẮP ĐẶT XONG"", type="primary", use_container_width=True):
+            if st.button("✅ GIAO & LẮP ĐẶT XONG", type="primary", use_container_width=True):
                 if not gps_link: st.error("❌ Thiếu GPS!")
                 elif not img_captured: st.error("❌ Thiếu Hình Ảnh!")
                 else:
