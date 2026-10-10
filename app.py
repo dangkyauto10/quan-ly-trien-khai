@@ -199,9 +199,9 @@ elif nav_tab == "Bao_cao":
     if err_msg:
         st.error(err_msg)
     else:
-        # ĐÃ SỬA LẠI ĐÚNG TÊN SHEET THỰC TẾ LÀ LAP_DAT VÀ VAN_CHUYEN
-        data_ld = raw_data.get("LAP_DAT", []) if isinstance(raw_data, dict) else []
-        data_vc = raw_data.get("VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
+        # BẮT BUỘC DÙNG NHÃN API GỐC MÀ HỆ THỐNG ĐÃ ĐÓNG GÓI
+        data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
+        data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
         
         st.info(f"✅ Đã kết nối Mắt Thần: {len(data_ld)} dòng LĐ | {len(data_vc)} dòng VC")
         
