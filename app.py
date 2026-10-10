@@ -273,8 +273,12 @@ elif nav_tab in ["Admin", "Link"]:
     else:
         st.markdown("##### 🔒 TRUY CẬP DỮ LIỆU")
         
-    pass_input = st.text_input("Nhập mã PIN:", type="password")
+    # Tạo một khung chứa ảo để có thể xóa sổ nó sau khi nhập đúng
+    khung_nhap_pin = st.empty()
+    pass_input = khung_nhap_pin.text_input("Nhập mã PIN:", type="password")
+    
     if pass_input == SECURE_PASS:
+        khung_nhap_pin.empty() # Xóa ngay ô nhập mã PIN khỏi màn hình!
         st.success("Xác thực thành công!")
         
         if nav_tab == "Admin":
