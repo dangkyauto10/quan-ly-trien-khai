@@ -268,23 +268,49 @@ elif nav_tab == "Bao_cao":
                         if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong", img_captured): st.success("🎉 Xong!")
 
 elif nav_tab in ["Admin", "Link"]:
-    if nav_tab == "Admin":
-        st.markdown("##### 🔒 ADMIN DUYỆT ĐK THÀNH VIÊN")
-    else:
-        st.markdown("##### 🔒 TRUY CẬP DỮ LIỆU")
+    if nav_tab == "Admin": st.markdown("##### 🔒 ADMIN DUYỆT ĐK THÀNH VIÊN")
+    else: st.markdown("##### 🔒 TRUY CẬP DỮ LIỆU")
         
-    # Tạo một khung chứa ảo để có thể xóa sổ nó sau khi nhập đúng
     khung_nhap_pin = st.empty()
     pass_input = khung_nhap_pin.text_input("Nhập mã PIN:", type="password")
     
     if pass_input == SECURE_PASS:
-        khung_nhap_pin.empty() # Xóa ngay ô nhập mã PIN khỏi màn hình!
+        khung_nhap_pin.empty() # Xóa sổ ô nhập PIN
         st.success("Xác thực thành công!")
         
         if nav_tab == "Admin":
-            st.info("💡 Vui lòng truy cập trang tính hệ thống để xem và duyệt danh sách thành viên mới đăng ký.")
-            st.markdown("- [👉 Mở Google Sheets (Trang Duyệt Thành Viên)](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
+            st.info("💡 Danh sách thành viên đang chờ duyệt:")
+            raw_data, _ = fetch_api_data()
+            ds_doi = raw_data.get("doi", []) if isinstance(raw_data, dict) else []
             
+            with st.spinner("Đang quét thành viên mới..."):
+                pending = get_pending_members()
+                
+            if not pending:
+                st.success("🎉 Hiện không có thành viên nào cần duyệt!")
+            else:
+                for tv in pending:
+                    st.markdown(f"""
+                    <div class="pending-card">
+                        <h4 style="color:#1E3A8A; margin-top:0px; margin-bottom:5px;">👤 {tv['ho_ten']}</h4>
+                        <b>📞 SĐT:</b> {tv['sdt']} <br>
+                        <b>📍 Địa bàn:</b> {tv['dia_ban']} <br>
+                        <b>🛠 Chuyên môn:</b> {tv['chuyen_mon']} <br>
+                        <b>🛵 Phương tiện:</b> {tv['phuong_tien']}
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    doi_chon = st.selectbox(f"Gán Đội cho {tv['ho_ten']}:", options=["-- Chưa gán đội --"] + ds_doi, key=f"doi_{tv['row']}")
+                    
+                    if st.button(f"✅ BẤM ĐỂ DUYỆT {tv['ho_ten'].upper()}", type="primary", key=f"btn_{tv['row']}", use_container_width=True):
+                        voi_doi = "" if doi_chon == "-- Chưa gán đội --" else doi_chon
+                        with st.spinner("Đang truyền lệnh về Google Sheets..."):
+                            if approve_member(tv['row'], voi_doi):
+                                st.success("Đã duyệt thành công! Vui lòng làm mới (F5) ứng dụng.")
+                            else:
+                                st.error("Lỗi mạng, vui lòng thử lại.")
+                    st.divider()
+                    
         elif nav_tab == "Link":
             st.info("💡 Dữ liệu báo cáo tổng hợp dành cho Lãnh đạo.")
             st.markdown("- [🔗 Mở Data Google Sheets (Báo cáo tiến độ)](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXKf3euh7KGleGwzREBFiboOc4/edit)")
