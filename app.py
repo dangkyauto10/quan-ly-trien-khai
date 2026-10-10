@@ -32,7 +32,7 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwp2Pq3-PYNvHOWe4IQVm
 # ==========================================
 # HÀM TẢI VÀ XỬ LÝ DỮ LIỆU
 # ==========================================
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=120) 
 def fetch_api_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -238,13 +238,13 @@ elif nav_tab == "Bao_cao":
 
 elif nav_tab in ["Admin", "Link"]:
     if nav_tab == "Admin": st.markdown("##### 🔒 ADMIN DUYỆT ĐK THÀNH VIÊN")
-    else: st.markdown("##### 🔒 TRUY CẬP DỮ LIỆU")
+    else: st.markdown("##### 🔒 DỮ LIỆU ĐIỀU HÀNH DÀNH CHO LÃNH ĐẠO")
         
     khung_nhap_pin = st.empty()
     pass_input = khung_nhap_pin.text_input("Nhập mã PIN:", type="password")
     
     if pass_input == SECURE_PASS:
-        khung_nhap_pin.empty() # Xóa sổ ô nhập PIN
+        khung_nhap_pin.empty() 
         st.success("Xác thực thành công!")
         
         if nav_tab == "Admin":
@@ -281,5 +281,38 @@ elif nav_tab in ["Admin", "Link"]:
                     st.divider()
                     
         elif nav_tab == "Link":
-            st.info("💡 Dữ liệu báo cáo tổng hợp dành cho Lãnh đạo.")
-            st.markdown("- [🔗 Mở Data Google Sheets (Báo cáo tiến độ)](https://docs.google.com/spreadsheets/d/129gDm3V1Gean0E9JvUXkf3euh7KGIeGwzREBFiboOc4/edit?gid=1131654776#gid=1131654776)")
+            with st.spinner("Đang đồng bộ số liệu từ Trung Tâm Điều Hành..."):
+                raw_data, _ = fetch_api_data()
+                
+            dash = raw_data.get("dashboard", {"giao_hang": "0", "lap_dat": "0", "nghiem_thu": "0", "tong_diem": "0"}) if isinstance(raw_data, dict) else {"giao_hang": "0", "lap_dat": "0", "nghiem_thu": "0", "tong_diem": "0"}
+            
+            st.markdown("### 📈 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN")
+            
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                st.markdown(f"""
+                <div style="background-color: #FFF3CD; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #FFEEBA; margin-bottom: 10px;">
+                    <h5 style="color: #856404; margin: 0; font-size: 14px;">🚚 GIAO HÀNG</h5>
+                    <h2 style="color: #D35400; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('giao_hang', '0')}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown(f"""
+                <div style="background-color: #D4EDDA; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #C3E6CB; margin-bottom: 10px;">
+                    <h5 style="color: #155724; margin: 0; font-size: 14px;">☑️ NGHIỆM THU</h5>
+                    <h2 style="color: #28A745; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('nghiem_thu', '0')}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            with col_d2:
+                st.markdown(f"""
+                <div style="background-color: #D1ECF1; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #BEE5EB; margin-bottom: 10px;">
+                    <h5 style="color: #0C5460; margin: 0; font-size: 14px;">🔧 LẮP ĐẶT</h5>
+                    <h2 style="color: #007BFF; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('lap_dat', '0')}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown(f"""
+                <div style="background-color: #F8D7DA; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #F5C6CB; margin-bottom: 10px;">
+                    <h5 style="color: #721C24; margin: 0; font-size: 14px;">📍 TỔNG ĐIỂM</h5>
+                    <h2 style="color: #DC3545; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('tong_diem', '0')}</h2>
+                </div>
+                """, unsafe_allow_html=True)
