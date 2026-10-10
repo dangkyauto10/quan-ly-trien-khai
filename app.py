@@ -1,11 +1,9 @@
 import streamlit as st
 import urllib.request
 import json
-from streamlit_geolocation import streamlit_geolocation
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
-# ĐÃ TÍCH HỢP ĐƯỜNG LINK MỚI NHẤT CỦA ANH
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwp2Pq3-PYNvHOWe4IQVm5PqeJd5TcIc_mPDtLm0BkDEGYUxq-C1cnV3rNS1X3xfI1p7w/exec"
 
 @st.cache_data(ttl=300)
@@ -38,7 +36,6 @@ def submit_to_google(ma_da, ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_tra
             return json.loads(response.read().decode('utf-8')).get("status") == "success"
     except: return False
 
-# ĐÃ XÓA CACHE ĐỂ LẤY DỮ LIỆU TƯƠI MỖI LẦN TRUY CẬP
 def load_live_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -80,7 +77,6 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
             c_diem = str(r[idx_diem]).replace('\xa0', ' ').strip().upper()
             c_doi = str(r[idx_doi]).replace('\xa0', ' ').strip().upper()
             
-            # Đã tối ưu hóa logic bắt chữ khắt khe nhất
             if p_c in c_proj and (d_d in c_diem or (c_diem != "" and c_diem in d_d)) and (d_o in c_doi or (c_doi != "" and c_doi in d_o)):
                 sku = str(r[idx_matb]).strip() if (idx_matb > -1 and len(r) > idx_matb) else "TB-0X"
                 ten = str(r[idx_tentb]).strip() if (idx_tentb > -1 and len(r) > idx_tentb) else "Thiết bị"
@@ -130,7 +126,6 @@ elif st.session_state.nav_tab == "Bao_cao":
     data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
     data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
     
-    # HIỂN THỊ TRỰC TIẾP TRẠNG THÁI TRẠM BƠM RA MÀN HÌNH
     st.success(f"✅ **KẾT NỐI API THÀNH CÔNG:** Đã lấy về **{len(data_ld)}** dòng dữ liệu Lắp Đặt và **{len(data_vc)}** dòng Vận Chuyển.")
     
     col_rf1, col_rf2 = st.columns([3, 1])
@@ -175,25 +170,64 @@ elif st.session_state.nav_tab == "Bao_cao":
     st.camera_input("Chup anh thuc te")
     st.markdown("---")
     st.markdown("### CHECK-IN TỌA ĐỘ GPS (CHÍNH XÁC CAO)")
-    loc = streamlit_geolocation()
+    
+    # ---------------- THÊM PHẦN CHECK-IN GPS AN TOÀN ----------------
+    loc_html = """
+    <div id="geo-status">Chưa lấy tọa độ. Vui lòng bấm nút bên dưới.</div>
+    <button onclick="getLocation()" style="margin-top:10px; padding:8px 15px; background-color:#1E3A8A; color:white; border:none; border-radius:5px; cursor:pointer;">📍 Bấm vào đây để lấy Tọa độ GPS</button>
+    <script>
+    function getLocation() {
+        var status = document.getElementById("geo-status");
+        status.innerHTML = "Đang lấy tọa độ...";
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    var lat = position.coords.latitude;
+                    var lon = position.coords.longitude;
+                    status.innerHTML = "✅ Tọa độ: " + lat + ", " + lon;
+                    window.parent.postMessage({type: 'streamlit:setComponentValue', value: {lat: lat, lon: lon}}, '*');
+                },
+                function(error) {
+                    status.innerHTML = "❌ Lỗi: Không thể lấy tọa độ. Vui lòng bật quyền truy cập vị trí trên trình duyệt.";
+                    window.parent.postMessage({type: 'streamlit:setComponentValue', value: null}, '*');
+                },
+                {enableHighAccuracy: true, timeout: 10000, maximumAge: 0}
+            );
+        } else {
+            status.innerHTML = "❌ Lỗi: Trình duyệt của bạn không hỗ trợ lấy tọa độ.";
+            window.parent.postMessage({type: 'streamlit:setComponentValue', value: null}, '*');
+        }
+    }
+    </script>
+    """
+    gps_data = st.components.v1.html(loc_html, height=100)
+    
     gps_link = ""
-    if loc and loc.get('latitude'):
-        lat = loc['latitude']; lon = loc['longitude']
+    if gps_data and isinstance(gps_data, dict) and 'lat' in gps_data:
+        lat = gps_data['lat']
+        lon = gps_data['lon']
         gps_link = f"https://www.google.com/maps?q={lat},{lon}"
         st.success("Đã chốt tọa độ thành công!")
         st.markdown(f"[Mở kiểm tra vị trí vừa lấy trên bản đồ]({gps_link})")
-        
+    else:
+        st.info("Vui lòng check-in tọa độ trước khi gửi báo cáo.")
+    # ---------------- KẾT THÚC PHẦN CHECK-IN GPS ----------------
+
     st.markdown("---")
     col_b1, col_b2, col_b3 = st.columns(3)
     with col_b1:
         if st.button("ĐÃ GIAO XONG (VC)", type="primary", use_container_width=True):
-            if submit_to_google(p_code if du_an_chon else "", doi_thuc_hien, "", diem_giao_lap, ds_hang, gps_link, "Đã giao hàng"): st.success("Gửi báo cáo thành công!")
+            # Bắt buộc check-in GPS mới cho gửi
+            if not gps_link: st.error("Vui lòng check-in tọa độ GPS trước!")
+            elif submit_to_google(p_code if du_an_chon else "", doi_thuc_hien, "", diem_giao_lap, ds_hang, gps_link, "Đã giao hàng"): st.success("Gửi báo cáo thành công!")
     with col_b2:
         if st.button("ĐÃ LẮP XONG (LĐ)", type="primary", use_container_width=True):
-            if submit_to_google(p_code if du_an_chon else "", doi_thuc_hien, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt"): st.success("Gửi báo cáo thành công!")
+            if not gps_link: st.error("Vui lòng check-in tọa độ GPS trước!")
+            elif submit_to_google(p_code if du_an_chon else "", doi_thuc_hien, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt"): st.success("Gửi báo cáo thành công!")
     with col_b3:
         if st.button("ĐÃ GIAO VÀ LẮP XONG", type="primary", use_container_width=True):
-            if submit_to_google(p_code if du_an_chon else "", doi_thuc_hien, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong"): st.success("Gửi báo cáo thành công!")
+            if not gps_link: st.error("Vui lòng check-in tọa độ GPS trước!")
+            elif submit_to_google(p_code if du_an_chon else "", doi_thuc_hien, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong"): st.success("Gửi báo cáo thành công!")
 
 elif st.session_state.nav_tab in ["Admin", "Link"]:
     st.markdown("### KHU VỰC QUẢN TRỊ & LINK BÁO CÁO")
