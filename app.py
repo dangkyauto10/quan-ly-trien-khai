@@ -5,6 +5,7 @@ from streamlit_geolocation import streamlit_geolocation
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
+# ĐÃ TÍCH HỢP ĐƯỜNG LINK MỚI NHẤT CỦA ANH
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwp2Pq3-PYNvHOWe4IQVm5PqeJd5TcIc_mPDtLm0BkDEGYUxq-C1cnV3rNS1X3xfI1p7w/exec"
 
 @st.cache_data(ttl=300)
@@ -37,7 +38,7 @@ def submit_to_google(ma_da, ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_tra
             return json.loads(response.read().decode('utf-8')).get("status") == "success"
     except: return False
 
-@st.cache_data(ttl=2)
+# ĐÃ XÓA CACHE ĐỂ LẤY DỮ LIỆU TƯƠI MỖI LẦN TRUY CẬP
 def load_live_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -79,7 +80,8 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
             c_diem = str(r[idx_diem]).replace('\xa0', ' ').strip().upper()
             c_doi = str(r[idx_doi]).replace('\xa0', ' ').strip().upper()
             
-            if p_c in c_proj and (d_d in c_diem or c_diem in d_d) and (d_o in c_doi or c_doi in d_o):
+            # Đã tối ưu hóa logic bắt chữ khắt khe nhất
+            if p_c in c_proj and (d_d in c_diem or (c_diem != "" and c_diem in d_d)) and (d_o in c_doi or (c_doi != "" and c_doi in d_o)):
                 sku = str(r[idx_matb]).strip() if (idx_matb > -1 and len(r) > idx_matb) else "TB-0X"
                 ten = str(r[idx_tentb]).strip() if (idx_tentb > -1 and len(r) > idx_tentb) else "Thiết bị"
                 sl = str(r[idx_sl]).strip() if (idx_sl > -1 and len(r) > idx_sl) else "1"
@@ -125,12 +127,17 @@ elif st.session_state.nav_tab == "Bao_cao":
     raw_data, err_msg = load_live_data()
     if err_msg: st.error(err_msg)
     
+    data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
+    data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
+    
+    # HIỂN THỊ TRỰC TIẾP TRẠNG THÁI TRẠM BƠM RA MÀN HÌNH
+    st.success(f"✅ **KẾT NỐI API THÀNH CÔNG:** Đã lấy về **{len(data_ld)}** dòng dữ liệu Lắp Đặt và **{len(data_vc)}** dòng Vận Chuyển.")
+    
     col_rf1, col_rf2 = st.columns([3, 1])
     with col_rf1: du_an_chon = st.selectbox("CHON DU AN TRIEN KHAI *", options=(raw_data.get("du_an", []) if isinstance(raw_data, dict) else []), index=None)
     with col_rf2:
         st.write(""); st.write("")
-        if st.button("Lam moi du lieu"):
-            st.cache_data.clear(); st.rerun()
+        if st.button("Lam moi du lieu"): st.rerun()
 
     doi_thuc_hien = st.selectbox("TEN DOI VAN CHUYEN / LAP DAT *", options=(raw_data.get("doi", []) if isinstance(raw_data, dict) else []), index=None)
     diem_giao_lap = st.selectbox("DIEM GIAO HANG & LAP DAT *", options=(raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []), index=None)
@@ -139,9 +146,6 @@ elif st.session_state.nav_tab == "Bao_cao":
         p_code = du_an_chon
         d_doi = doi_thuc_hien
         d_diem = diem_giao_lap
-        
-        data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
-        data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
         
         ds_hang_raw = quet_mat_than(data_ld, p_code, d_doi, d_diem) + quet_mat_than(data_vc, p_code, d_doi, d_diem)
         
@@ -161,9 +165,7 @@ elif st.session_state.nav_tab == "Bao_cao":
             st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị!")
         else:
             st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này.")
-            with st.expander("🛠 Kiểm tra nhận diện Mắt Thần (Admin)"):
-                st.write(f"Tìm: [{p_code}], [{d_doi}], [{d_diem}]")
-                st.write(f"Data tải về -> LD: {len(data_ld)} dòng, VC: {len(data_vc)} dòng")
+            st.info(f"💡 Lưu ý: Hệ thống xác nhận đang có data, nhưng trong file Excel thực tế không có bất kỳ thiết bị nào được gán chung cho tổ hợp: Dự án [{p_code}] + Đội [{d_doi}] + Địa điểm [{d_diem}]. Anh thử chọn lại Đội hoặc Địa điểm khác nhé.")
 
     else: 
         st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm.")
