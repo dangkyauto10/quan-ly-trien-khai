@@ -5,7 +5,6 @@ from streamlit_geolocation import streamlit_geolocation
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 
-# CSS TỐI ƯU HÓA KHÔNG GIAN DI ĐỘNG (GỌN GÀNG, TỐC ĐỘ CAO)
 st.markdown("""
     <style>
     .stButton>button {
@@ -15,7 +14,6 @@ st.markdown("""
         height: 45px !important;
         color: white !important;
     }
-    /* Thu gọn khoảng cách các thành phần */
     .block-container {
         padding-top: 1rem;
         padding-bottom: 1rem;
@@ -106,10 +104,8 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
                     ds_kq.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
     return ds_kq
 
-# TIÊU ĐỀ RẤT GỌN GÀNG
 st.markdown("<h4 style='text-align: center; color: #1E3A8A; margin-bottom: 0px;'>🚀 ĐIỀU HÀNH HIỆN TRƯỜNG</h4>", unsafe_allow_html=True)
 
-# THAY NÚT DỌC BẰNG SELECTBOX CHỌN CHỨC NĂNG (SIÊU GỌN)
 menu_options = ["📊 Báo cáo nhiệm vụ", "📝 Đăng ký thành viên", "🔒 Quản trị hệ thống", "🔗 Mở Google Sheets"]
 selected_menu = st.selectbox("CHỌN CHỨC NĂNG", options=menu_options, label_visibility="collapsed")
 
@@ -204,7 +200,8 @@ elif nav_tab == "Bao_cao":
     with col_b2:
         if st.button("🔧 ĐÃ LẮP", type="primary", use_container_width=True):
             if not gps_link: st.error("❌ Thiếu GPS!")
-            elif submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, diem_giao_lap, "", ds_hang, gps_link, "I", "Đã lắp đặt"): st.success("🎉 Thành công!") # corrected argument structure below
+            # ĐÃ SỬA LỖI Ở ĐÂY: Loại bỏ tham số thừa gây lỗi TypeError
+            elif submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt"): st.success("🎉 Thành công!")
     with col_b3:
         if st.button("✅ HOÀN TẤT", type="primary", use_container_width=True):
             if not gps_link: st.error("❌ Thiếu GPS!")
