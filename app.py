@@ -1,10 +1,67 @@
 import streamlit as st
 import urllib.request
 import json
+import streamlit.components.v1 as components
+import tempfile
+import os
 
 st.set_page_config(page_title="Hệ thống Điều hành Đa Dự án", page_icon="🚀", layout="centered")
 SECURE_PASS = "880880"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwp2Pq3-PYNvHOWe4IQVm5PqeJd5TcIc_mPDtLm0BkDEGYUxq-C1cnV3rNS1X3xfI1p7w/exec"
+
+# HỆ THỐNG GPS 2 CHIỀU (CUSTOM COMPONENT) - ĐẢM BẢO NHẬN DỮ LIỆU 100%
+@st.cache_resource
+def get_gps_component():
+    temp_dir = tempfile.mkdtemp()
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@1.3.0/dist/streamlit.js"></script>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; }
+        .btn { display: block; width: 100%; padding: 12px; font-size: 15px; font-weight: bold; color: white; background-color: #ff4b4b; border: none; border-radius: 8px; cursor: pointer; text-align: center; }
+        .btn:hover { background-color: #ff3333; }
+        #status { margin-bottom: 8px; font-size: 14px; color: #333; text-align: center; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div id="status">Chưa lấy tọa độ</div>
+      <button class="btn" onclick="getLocation()">📍 BẤM VÀO ĐÂY ĐỂ LẤY TỌA ĐỘ GPS</button>
+      <script>
+        function onRender(event) { Streamlit.setFrameHeight(); }
+        Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
+        Streamlit.setComponentReady();
+        Streamlit.setFrameHeight();
+
+        function getLocation() {
+            var status = document.getElementById("status");
+            status.innerHTML = "⏳ Đang quét vệ tinh, vui lòng đợi...";
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        var lat = position.coords.latitude;
+                        var lon = position.coords.longitude;
+                        status.innerHTML = "✅ ĐÃ LẤY TỌA ĐỘ THÀNH CÔNG!";
+                        Streamlit.setComponentValue({lat: lat, lon: lon});
+                    },
+                    function(error) {
+                        status.innerHTML = "❌ Lỗi: Bạn chưa cấp quyền truy cập Vị trí.";
+                        Streamlit.setComponentValue(null);
+                    },
+                    {enableHighAccuracy: true, timeout: 10000, maximumAge: 0}
+                );
+            } else {
+                status.innerHTML = "❌ Thiết bị không hỗ trợ GPS.";
+            }
+        }
+      </script>
+    </body>
+    </html>
+    """
+    with open(os.path.join(temp_dir, "index.html"), "w", encoding="utf-8") as f:
+        f.write(html_content)
+    return components.declare_component("gps_tracker", path=temp_dir)
 
 @st.cache_data(ttl=300)
 def tai_danh_sach_diem():
@@ -157,10 +214,8 @@ elif st.session_state.nav_tab == "Bao_cao":
             tb_md = "| Mã CV / SKU | Tên Thiết bị / Hàng hóa | Số lượng phân bổ | Đơn vị tính |\n| :--- | :--- | :---: | :---: |\n"
             for item in ds_hang: tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
             st.markdown(tb_md)
-            st.success(f"Đã ánh xạ thành công {len(ds_hang)} thiết bị!")
         else:
             st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này.")
-            st.info(f"💡 Lưu ý: Hệ thống xác nhận đang có data, nhưng trong file Excel thực tế không có bất kỳ thiết bị nào được gán chung cho tổ hợp: Dự án [{p_code}] + Đội [{d_doi}] + Địa điểm [{d_diem}]. Anh thử chọn lại Đội hoặc Địa điểm khác nhé.")
 
     else: 
         st.info("Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm.")
@@ -169,55 +224,26 @@ elif st.session_state.nav_tab == "Bao_cao":
     st.markdown("Chup anh hien truong:")
     st.camera_input("Chup anh thuc te")
     st.markdown("---")
-    st.markdown("### CHECK-IN TỌA ĐỘ GPS (CHÍNH XÁC CAO)")
     
-    # ---------------- THÊM PHẦN CHECK-IN GPS AN TOÀN ----------------
-    loc_html = """
-    <div id="geo-status">Chưa lấy tọa độ. Vui lòng bấm nút bên dưới.</div>
-    <button onclick="getLocation()" style="margin-top:10px; padding:8px 15px; background-color:#1E3A8A; color:white; border:none; border-radius:5px; cursor:pointer;">📍 Bấm vào đây để lấy Tọa độ GPS</button>
-    <script>
-    function getLocation() {
-        var status = document.getElementById("geo-status");
-        status.innerHTML = "Đang lấy tọa độ...";
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    var lat = position.coords.latitude;
-                    var lon = position.coords.longitude;
-                    status.innerHTML = "✅ Tọa độ: " + lat + ", " + lon;
-                    window.parent.postMessage({type: 'streamlit:setComponentValue', value: {lat: lat, lon: lon}}, '*');
-                },
-                function(error) {
-                    status.innerHTML = "❌ Lỗi: Không thể lấy tọa độ. Vui lòng bật quyền truy cập vị trí trên trình duyệt.";
-                    window.parent.postMessage({type: 'streamlit:setComponentValue', value: null}, '*');
-                },
-                {enableHighAccuracy: true, timeout: 10000, maximumAge: 0}
-            );
-        } else {
-            status.innerHTML = "❌ Lỗi: Trình duyệt của bạn không hỗ trợ lấy tọa độ.";
-            window.parent.postMessage({type: 'streamlit:setComponentValue', value: null}, '*');
-        }
-    }
-    </script>
-    """
-    gps_data = st.components.v1.html(loc_html, height=100)
+    st.markdown("### CHECK-IN TỌA ĐỘ GPS (CHÍNH XÁC CAO)")
+    # GỌI HỆ THỐNG GPS 2 CHIỀU ĐÃ XÂY DỰNG
+    gps_tracker = get_gps_component()
+    gps_data = gps_tracker(key="my_gps")
     
     gps_link = ""
     if gps_data and isinstance(gps_data, dict) and 'lat' in gps_data:
         lat = gps_data['lat']
         lon = gps_data['lon']
         gps_link = f"https://www.google.com/maps?q={lat},{lon}"
-        st.success("Đã chốt tọa độ thành công!")
-        st.markdown(f"[Mở kiểm tra vị trí vừa lấy trên bản đồ]({gps_link})")
+        st.success("✅ Hệ thống đã ghi nhận Tọa độ thành công!")
+        st.markdown(f"[📍 Bấm để xem định vị của bạn trên Google Maps]({gps_link})")
     else:
-        st.info("Vui lòng check-in tọa độ trước khi gửi báo cáo.")
-    # ---------------- KẾT THÚC PHẦN CHECK-IN GPS ----------------
+        st.info("⚠️ Vui lòng check-in tọa độ trước khi gửi báo cáo.")
 
     st.markdown("---")
     col_b1, col_b2, col_b3 = st.columns(3)
     with col_b1:
         if st.button("ĐÃ GIAO XONG (VC)", type="primary", use_container_width=True):
-            # Bắt buộc check-in GPS mới cho gửi
             if not gps_link: st.error("Vui lòng check-in tọa độ GPS trước!")
             elif submit_to_google(p_code if du_an_chon else "", doi_thuc_hien, "", diem_giao_lap, ds_hang, gps_link, "Đã giao hàng"): st.success("Gửi báo cáo thành công!")
     with col_b2:
