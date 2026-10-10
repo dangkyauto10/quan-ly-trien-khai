@@ -7,50 +7,22 @@ from streamlit_geolocation import streamlit_geolocation
 st.set_page_config(page_title="QUẢN LÝ DỰ ÁN", page_icon="🚀", layout="centered")
 
 # ==========================================
-# CSS GIAO DIỆN ĐIỆN THOẠI HIỆN ĐẠI (NATIVE APP UI)
+# CSS GIAO DIỆN ĐIỆN THOẠI HIỆN ĐẠI
 # ==========================================
 st.markdown("""
     <style>
-    /* Căn chỉnh lại lề cho gọn gàng */
-    .block-container {
-        padding-top: 1.5rem;
-        padding-bottom: 2rem;
-        max-width: 600px;
-    }
-    /* Bo góc và làm bóng các nút bấm (Hiệu ứng 3D như app thật) */
+    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 600px; }
     .stButton>button {
-        border-radius: 12px;
-        font-weight: 700 !important;
-        font-size: 15px !important;
-        height: 50px !important;
-        color: white !important;
+        border-radius: 12px; font-weight: 700 !important; font-size: 15px !important;
+        height: 50px !important; color: white !important;
         background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
-        border: none;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        transition: all 0.2s ease-in-out;
+        border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out;
     }
-    .stButton>button:active {
-        transform: scale(0.97);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    /* Riêng nút báo cáo Lắp đặt / Giao hàng sẽ dùng màu nổi bật */
-    div[data-testid="stButton"] button[kind="primary"] {
-        background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
-    }
-    /* Khung nhập liệu bo góc hiện đại */
-    div[data-baseweb="select"] > div, input {
-        border-radius: 10px !important;
-        border: 1px solid #CBD5E1 !important;
-        padding: 2px !important;
-    }
-    /* Tiêu đề các mục con chuyên nghiệp */
-    h5 {
-        color: #1E293B;
-        font-weight: 700;
-        margin-top: 20px;
-        margin-bottom: 15px;
-        font-size: 16px;
-    }
+    .stButton>button:active { transform: scale(0.97); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    div[data-testid="stButton"] button[kind="primary"] { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); }
+    div[data-baseweb="select"] > div, input { border-radius: 10px !important; border: 1px solid #CBD5E1 !important; padding: 2px !important; }
+    h5 { color: #1E293B; font-weight: 700; margin-top: 20px; margin-bottom: 15px; font-size: 16px; }
+    .pending-card { border: 1px solid #E2E8F0; padding: 15px; border-radius: 10px; margin-bottom: 15px; background-color: #F8FAFC; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     </style>
 """, unsafe_allow_html=True)
 
@@ -58,7 +30,7 @@ SECURE_PASS = "880880"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwp2Pq3-PYNvHOWe4IQVm5PqeJd5TcIc_mPDtLm0BkDEGYUxq-C1cnV3rNS1X3xfI1p7w/exec"
 
 # ==========================================
-# HÀM TẢI DỮ LIỆU TỐI ƯU SIÊU TỐC (CHỈ GỌI KHI CẦN)
+# HÀM TẢI VÀ XỬ LÝ DỮ LIỆU
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_api_data():
@@ -85,17 +57,10 @@ def submit_to_google(ma_da, ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_tra
             img_bytes = image_file.getvalue()
             img_base64 = base64.b64encode(img_bytes).decode('utf-8')
         except: pass
-
     payload = {
-        "action": "bao_cao", 
-        "ma_du_an": ma_da, 
-        "ten_doi": ten_doi, 
-        "diem_lap_dat": diem_lap, 
-        "diem_giao_hang": diem_giao, 
-        "ds_hang_hoa": ds_hang, 
-        "link_maps": gps, 
-        "tinh_trang": tinh_trang,
-        "image_base64": img_base64
+        "action": "bao_cao", "ma_du_an": ma_da, "ten_doi": ten_doi, 
+        "diem_lap_dat": diem_lap, "diem_giao_hang": diem_giao, 
+        "ds_hang_hoa": ds_hang, "link_maps": gps, "tinh_trang": tinh_trang, "image_base64": img_base64
     }
     try:
         data = json.dumps(payload).encode('utf-8')
@@ -104,13 +69,30 @@ def submit_to_google(ma_da, ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_tra
             return json.loads(response.read().decode('utf-8')).get("status") == "success"
     except: return False
 
+def get_pending_members():
+    payload = {"action": "get_pending"}
+    try:
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
+        with urllib.request.urlopen(req, timeout=15) as response:
+            res = json.loads(response.read().decode('utf-8'))
+            return res.get("data", [])
+    except: return []
+
+def approve_member(row_index, doi_gan):
+    payload = {"action": "duyet_thanh_vien", "row": row_index, "doi_gan": doi_gan}
+    try:
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
+        with urllib.request.urlopen(req, timeout=15) as response:
+            return json.loads(response.read().decode('utf-8')).get("status") == "success"
+    except: return False
+
 def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
     ds_kq = []
     if not data_sheet: return ds_kq
-    
     idx_proj = -1; idx_matb = -1; idx_doi = -1; idx_tentb = -1; idx_sl = -1; idx_diem = -1; idx_dvt = -1
     header_row_index = -1
-    
     for r_idx, r in enumerate(data_sheet[:10]):
         row_str = " ".join([str(x).upper() for x in r])
         if "MÃ CÔNG VIỆC" in row_str or "MÃ DA" in row_str or "TÊN THIẾT BỊ" in row_str:
@@ -125,19 +107,15 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
                 elif "ĐƠN VỊ TÍNH" in h_str or "ĐVT" in h_str: idx_dvt = i
                 elif "ĐỘI GIAO THIẾT BỊ" in h_str or "ĐỘI NHẬN THIẾT BỊ" in h_str or "ĐỘI" in h_str or "NHÂN SỰ" in h_str: idx_doi = i
             break 
-
     if idx_proj == -1 or idx_diem == -1 or idx_doi == -1 or header_row_index == -1: return ds_kq
-
     p_c = str(p_code).replace('\xa0', ' ').strip().upper()
     d_d = str(d_diem).replace('\xa0', ' ').strip().upper()
     d_o = str(d_doi).replace('\xa0', ' ').strip().upper()
-
     for r in data_sheet[header_row_index + 1:]:
         if len(r) > max(idx_proj, idx_diem, idx_doi):
             c_proj = str(r[idx_proj]).replace('\xa0', ' ').strip().upper()
             c_diem = str(r[idx_diem]).replace('\xa0', ' ').strip().upper()
             c_doi = str(r[idx_doi]).replace('\xa0', ' ').strip().upper()
-            
             if p_c in c_proj and (d_d in c_diem or (c_diem != "" and c_diem in d_d)) and (d_o in c_doi or (c_doi != "" and c_doi in d_o)):
                 sku = str(r[idx_matb]).strip() if (idx_matb > -1 and len(r) > idx_matb) else "TB-0X"
                 ten = str(r[idx_tentb]).strip() if (idx_tentb > -1 and len(r) > idx_tentb) else "Thiết bị"
@@ -147,9 +125,6 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
                     ds_kq.append({"sku": sku, "ten": ten, "sl": sl, "dvt": dvt})
     return ds_kq
 
-# ==========================================
-# KHU VỰC HIỂN THỊ CHÍNH
-# ==========================================
 # ==========================================
 # KHU VỰC HIỂN THỊ CHÍNH
 # ==========================================
@@ -168,7 +143,6 @@ st.divider()
 
 if nav_tab == "Dang_ky":
     st.markdown("##### 📝 ĐĂNG KÝ THÀNH VIÊN ĐỘI")
-    
     with st.spinner("Đang tải dữ liệu..."):
         raw_data, err_msg = fetch_api_data()
         ds_diem = raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []
@@ -190,12 +164,10 @@ if nav_tab == "Dang_ky":
 elif nav_tab == "Bao_cao":
     with st.spinner("Đang đồng bộ dữ liệu hệ thống..."):
         raw_data, err_msg = fetch_api_data()
-        
     if err_msg: st.error(err_msg)
     else:
         data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
         data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
-        
         st.info(f"✅ Đã kết nối Mắt Thần: {len(data_ld)} dòng LĐ | {len(data_vc)} dòng VC")
         
         st.markdown("##### 1️⃣ CHỌN THÔNG TIN NHIỆM VỤ")
@@ -207,7 +179,6 @@ elif nav_tab == "Bao_cao":
             p_code = du_an_chon
             d_doi = doi_thuc_hiện
             d_diem = diem_giao_lap
-            
             ds_hang_raw = quet_mat_than(data_ld, p_code, d_doi, d_diem) + quet_mat_than(data_vc, p_code, d_doi, d_diem)
             
             ds_hang = []
@@ -233,7 +204,6 @@ elif nav_tab == "Bao_cao":
         
         loc = streamlit_geolocation()
         gps_link = ""
-        
         if loc and loc.get('latitude'):
             lat = loc['latitude']
             lon = loc['longitude']
@@ -243,7 +213,6 @@ elif nav_tab == "Bao_cao":
             st.error("⚠️ Bấm Định Vị (Location) để quét tọa độ GPS.")
 
         st.markdown("##### 4️⃣ CHỐT BÁO CÁO NGHIỆM THU")
-        
         col_b1, col_b2, col_b3 = st.columns(3)
         with col_b1:
             if st.button("🚚 ĐÃ GIAO", type="primary", use_container_width=True):
