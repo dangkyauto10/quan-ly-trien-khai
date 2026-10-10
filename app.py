@@ -32,7 +32,7 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwp2Pq3-PYNvHOWe4IQVm
 # ==========================================
 # HÀM TẢI VÀ XỬ LÝ DỮ LIỆU
 # ==========================================
-@st.cache_data(ttl=1) # Đã nhổ bộ nhớ tạm, Load phát ăn ngay số mới nhất!
+@st.cache_data(ttl=1) 
 def fetch_api_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -288,7 +288,6 @@ elif nav_tab in ["Admin", "Link"]:
             
             st.markdown("### 📈 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN")
             
-            # --- 4 THẺ THỐNG KÊ GỌN GÀNG ---
             col_d1, col_d2 = st.columns(2)
             with col_d1:
                 st.markdown(f"""
@@ -313,3 +312,53 @@ elif nav_tab in ["Admin", "Link"]:
                 """, unsafe_allow_html=True)
                 st.markdown(f"""
                 <div style="background-color: #F8D7DA; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #F5C6CB; margin-bottom: 10px;">
+                    <h5 style="color: #721C24; margin: 0; font-size: 14px;">📍 TỔNG ĐIỂM</h5>
+                    <h2 style="color: #DC3545; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('tong_diem', '0')}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            val_giao = int(float(dash.get('giao_hang', '0')))
+            val_lap = int(float(dash.get('lap_dat', '0')))
+            val_nghiem = int(float(dash.get('nghiem_thu', '0')))
+            
+            max_val = max(val_giao, val_lap, val_nghiem)
+            if max_val == 0: 
+                max_val = 1
+            
+            pct_giao = int((val_giao / max_val) * 100)
+            pct_lap = int((val_lap / max_val) * 100)
+            pct_nghiem = int((val_nghiem / max_val) * 100)
+            
+            html_chart = (
+                '<div style="background-color: white; padding: 20px; border-radius: 10px; border: 1px solid #E2E8F0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 15px; margin-bottom: 20px;">'
+                '<h4 style="color: #1E293B; margin-top: 0; margin-bottom: 20px; font-size: 16px; text-align: center;">📊 TỶ TRỌNG SO SÁNH TIẾN ĐỘ</h4>'
+                '<div style="margin-bottom: 15px;">'
+                '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                f'<span style="font-weight: bold; color: #D35400; font-size: 14px;">🚚 Giao hàng</span>'
+                f'<span style="font-weight: bold; color: #D35400; font-size: 14px;">{val_giao}</span>'
+                '</div>'
+                '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                f'<div style="width: {pct_giao}%; background-color: #D35400; height: 100%; border-radius: 10px; transition: width 1s ease-in-out;"></div>'
+                '</div>'
+                '</div>'
+                '<div style="margin-bottom: 15px;">'
+                '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                f'<span style="font-weight: bold; color: #007BFF; font-size: 14px;">🔧 Lắp đặt</span>'
+                f'<span style="font-weight: bold; color: #007BFF; font-size: 14px;">{val_lap}</span>'
+                '</div>'
+                '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                f'<div style="width: {pct_lap}%; background-color: #007BFF; height: 100%; border-radius: 10px; transition: width 1s ease-in-out;"></div>'
+                '</div>'
+                '</div>'
+                '<div style="margin-bottom: 5px;">'
+                '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                f'<span style="font-weight: bold; color: #28A745; font-size: 14px;">☑️ Nghiệm thu</span>'
+                f'<span style="font-weight: bold; color: #28A745; font-size: 14px;">{val_nghiem}</span>'
+                '</div>'
+                '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                f'<div style="width: {pct_nghiem}%; background-color: #28A745; height: 100%; border-radius: 10px; transition: width 1s ease-in-out;"></div>'
+                '</div>'
+                '</div>'
+                '</div>'
+            )
+            st.markdown(html_chart, unsafe_allow_html=True)
