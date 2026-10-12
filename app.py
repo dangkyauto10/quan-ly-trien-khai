@@ -134,7 +134,9 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
 # ==========================================
 # KHU VỰC HIỂN THỊ CHÍNH
 # ==========================================
-st.markdown("<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>🚀 QUẢN LÝ DỰ ÁN</h2>", unsafe_allow_html=True)
+# 1. Bố trí Tiêu đề vào một "Khung rỗng" (Placeholder) để có thể đổi màu/chữ khi chọn Dự án
+title_placeholder = st.empty()
+title_placeholder.markdown("<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>🚀 QUẢN LÝ DỰ ÁN</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #64748B; font-size: 14px; margin-top: -10px; margin-bottom: 20px;'>Hệ thống Điều hành Hiện trường</p>", unsafe_allow_html=True)
 
 menu_options = ["📊 Báo cáo nhiệm vụ", "📝 Đăng ký thành viên", "🔒 ADMIN DUYỆT ĐK THÀNH VIÊN", "🔗 Báo cáo tiến độ (để lãnh đạo xem)"]
@@ -178,10 +180,14 @@ elif nav_tab == "Bao_cao":
         
         st.markdown("##### 1️⃣ CHỌN THÔNG TIN NHIỆM VỤ")
         du_an_chon = st.selectbox("DỰ ÁN TRIỂN KHAI *", options=(raw_data.get("du_an", []) if isinstance(raw_data, dict) else []), index=None)
+        
+        # 2. CẬP NHẬT GIAO DIỆN CHỐNG NHẦM LẪN
+        if du_an_chon:
+            title_placeholder.markdown(f"<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>🚀 QUẢN LÝ DỰ ÁN <br><span style='color: #DC2626; font-size: 22px;'>[ {du_an_chon} ]</span></h2>", unsafe_allow_html=True)
+            
         doi_thuc_hiện = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=(raw_data.get("doi", []) if isinstance(raw_data, dict) else []), index=None)
         diem_giao_lap = st.selectbox("ĐỊA ĐIỂM GIAO & LẮP *", options=(raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []), index=None)
         
-        # --- NÚT CHỈ ĐƯỜNG MAPS HIỆN RA KHI CHỌN ĐỊA ĐIỂM ---
         if diem_giao_lap:
             dict_maps = raw_data.get("link_maps", {}) if isinstance(raw_data, dict) else {}
             link_ban_do = dict_maps.get(diem_giao_lap, "")
