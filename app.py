@@ -186,6 +186,7 @@ elif nav_tab == "Bao_cao":
             
         doi_thuc_hiện = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=(raw_data.get("doi", []) if isinstance(raw_data, dict) else []), index=None)
         
+        # PHẦN 1: TÌM KIẾM ĐỊA ĐIỂM LINH HOẠT VÀ NÚT MAPS NGẦM ĐỊNH GPS
         ds_diem_hien_tai = raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []
         diem_giao_lap = st.selectbox(
             "📍 ĐỊA ĐIỂM GIAO & LẮP *", 
@@ -233,10 +234,7 @@ elif nav_tab == "Bao_cao":
             st.warning("💡 Chọn đầy đủ thông tin để hiển thị Mắt Thần.")
             
         st.markdown("##### 3️⃣ CHỤP ẢNH HIỆN TRƯỜNG")
-        # Dùng file_uploader thay thế camera_input để tương thích 100% với camera điện thoại Android/iOS
-        img_captured = st.file_uploader("📸 Chụp ảnh thực tế hoặc chọn từ thư viện", type=["jpg", "jpeg", "png"])
-        if img_captured is not None:
-            st.image(img_captured, caption="Ảnh hiện trường đã chọn", use_container_width=True)
+        img_captured = st.camera_input("Chụp ảnh thực tế công việc")
         
         loc = streamlit_geolocation()
         gps_link = ""
@@ -320,24 +318,16 @@ elif nav_tab in ["Admin", "Link"]:
             with st.spinner("Đang đồng bộ số liệu từ Trung Tâm Điều Hành..."):
                 raw_data, _ = fetch_api_data()
                 
-            dash = raw_data.get("dashboard", {}) if isinstance(raw_data, dict) else {}
+            dash = raw_data.get("dashboard", {"giao_hang": "0", "lap_dat": "0", "nghiem_thu": "0", "tong_diem": "0"}) if isinstance(raw_data, dict) else {"giao_hang": "0", "lap_dat": "0", "nghiem_thu": "0", "tong_diem": "0"}
             
+            # PHẦN 2: LỘT XÁC GIAO DIỆN BÁO CÁO LÃNH ĐẠO (CHỐNG LỖI SỐ ẢO 44256)
             try:
-                val_giao = int(float(str(dash.get('giao_hang', '0')).replace(',', '').strip()))
-            except: val_giao = 0
-
-            try:
-                val_lap = int(float(str(dash.get('lap_dat', '0')).replace(',', '').strip()))
-            except: val_lap = 0
-
-            try:
-                val_nghiem = int(float(str(dash.get('nghiem_thu', '0')).replace(',', '').strip()))
-            except: val_nghiem = 0
-
-            try:
-                val_tong = int(float(str(dash.get('tong_diem', '136')).replace(',', '').strip()))
-                if val_tong <= 0: val_tong = 136
-            except: val_tong = 136
+                val_giao = int(float(dash.get('giao_hang', '0')))
+                val_lap = int(float(dash.get('lap_dat', '0')))
+                val_nghiem = int(float(dash.get('nghiem_thu', '0')))
+                val_tong = int(float(dash.get('tong_diem', '0')))
+            except:
+                val_giao = val_lap = val_nghiem = val_tong = 0
 
             st.markdown("### 📊 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN")
             
