@@ -23,6 +23,12 @@ st.markdown("""
     div[data-baseweb="select"] > div, input { border-radius: 10px !important; border: 1px solid #CBD5E1 !important; padding: 2px !important; }
     h5 { color: #1E293B; font-weight: 700; margin-top: 20px; margin-bottom: 15px; font-size: 16px; }
     .pending-card { border: 1px solid #E2E8F0; padding: 15px; border-radius: 10px; margin-bottom: 15px; background-color: #F8FAFC; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .map-btn {
+        display: block; width: 100%; background-color: #10B981; color: white; text-align: center;
+        padding: 12px 0; border-radius: 10px; font-weight: bold; text-decoration: none; margin-top: 5px; margin-bottom: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-size: 15px;
+    }
+    .map-btn:active { background-color: #059669; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -175,6 +181,13 @@ elif nav_tab == "Bao_cao":
         doi_thuc_hiện = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=(raw_data.get("doi", []) if isinstance(raw_data, dict) else []), index=None)
         diem_giao_lap = st.selectbox("ĐỊA ĐIỂM GIAO & LẮP *", options=(raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []), index=None)
         
+        # --- NÚT CHỈ ĐƯỜNG MAPS HIỆN RA KHI CHỌN ĐỊA ĐIỂM ---
+        if diem_giao_lap:
+            dict_maps = raw_data.get("link_maps", {}) if isinstance(raw_data, dict) else {}
+            link_ban_do = dict_maps.get(diem_giao_lap, "")
+            if link_ban_do and "http" in link_ban_do:
+                st.markdown(f'<a href="{link_ban_do}" target="_blank" class="map-btn">📍 CHỈ ĐƯỜNG BẰNG GOOGLE MAPS</a>', unsafe_allow_html=True)
+        
         if du_an_chon and doi_thuc_hiện and diem_giao_lap:
             p_code = du_an_chon
             d_doi = doi_thuc_hiện
@@ -320,11 +333,8 @@ elif nav_tab in ["Admin", "Link"]:
             val_giao = int(float(dash.get('giao_hang', '0')))
             val_lap = int(float(dash.get('lap_dat', '0')))
             val_nghiem = int(float(dash.get('nghiem_thu', '0')))
-            
             max_val = max(val_giao, val_lap, val_nghiem)
-            if max_val == 0: 
-                max_val = 1
-            
+            if max_val == 0: max_val = 1
             pct_giao = int((val_giao / max_val) * 100)
             pct_lap = int((val_lap / max_val) * 100)
             pct_nghiem = int((val_nghiem / max_val) * 100)
