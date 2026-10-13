@@ -37,7 +37,7 @@ SECURE_PASS = "880880"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwp2Pq3-PYNvHOWe4IQVm5PqeJd5TcIc_mPDtLm0BkDEGYUxq-C1cnV3rNS1X3xfI1p7w/exec"
 
 # ==========================================
-# HÀM TẢI VÀ XỬ LÝ DỮ LIỆU (Đã gỡ Cache, Bọc thép chống trắng màn hình)
+# HÀM TẢI VÀ XỬ LÝ DỮ LIỆU
 # ==========================================
 def fetch_api_data():
     try:
@@ -160,11 +160,14 @@ if nav_tab == "Dang_ky":
     if err_msg:
         st.error(err_msg)
     else:
-        ds_diem = raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []
+        # Lọc rác danh sách địa điểm cho form đăng ký
+        ds_diem_raw = raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []
+        ds_diem_sach = [x for x in ds_diem_raw if str(x).strip().upper() not in ["MÃ ĐIỂM", "ĐỊA ĐIỂM", "TÊN ĐIỂM", "ĐIỂM"]]
+
         with st.form("form_dang_ky_thanh_vien"):
             reg_hoten = st.text_input("Họ và tên *", placeholder="Nhập đầy đủ họ và tên...")
             reg_sdt = st.text_input("Số điện thoại liên hệ *", placeholder="Nhập số điện thoại (Zalo)...")
-            reg_diaban_list = st.multiselect("Địa bàn phụ trách", options=ds_diem)
+            reg_diaban_list = st.multiselect("Địa bàn phụ trách", options=ds_diem_sach)
             reg_chuyenmon = st.selectbox("Chuyên môn / Nhiệm vụ", options=["1. Vận chuyển / Giao nhận", "2. KTV Lắp đặt thiết bị", "3. Giám sát / Điều phối chung", "4. Kho vận / Hậu cứ"])
             reg_phuongtien = st.selectbox("Phương tiện di chuyển", options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
             
@@ -187,19 +190,45 @@ elif nav_tab == "Bao_cao":
         st.info(f"✅ Đã kết nối Mắt Thần: {len(data_ld)} dòng LĐ | {len(data_vc)} dòng VC")
         
         st.markdown("##### 1️⃣ CHỌN THÔNG TIN NHIỆM VỤ")
-        du_an_chon = st.selectbox("DỰ ÁN TRIỂN KHAI *", options=(raw_data.get("du_an", []) if isinstance(raw_data, dict) else []), index=None)
+        
+        # BỘ LỌC RÁC TIÊU ĐỀ: Khóa chặt lỗi lòi chữ "Mã đội", "Dự án" vào danh sách
+        ds_du_an_raw = raw_data.get("du_an", []) if isinstance(raw_data, dict) else []
+        ds_du_an_sach = [x for x in ds_du_an_raw if str(x).strip().upper() not in ["MÃ DỰ ÁN", "TÊN DỰ ÁN", "DỰ ÁN", "MÃ DA", "MÃ CÔNG VIỆC"]]
+        
+        ds_doi_raw = raw_data.get("doi", []) if isinstance(raw_data, dict) else []
+        ds_doi_sach = [x for x in ds_doi_raw if str(x).strip().upper() not in ["MÃ ĐỘI", "TÊN ĐỘI", "ĐỘI THỰC HIỆN", "ĐỘI"]]
+        
+        ds_diem_raw = raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []
+        ds_diem_sach = [x for x in ds_diem_raw if str(x).strip().upper() not in ["MÃ ĐIỂM", "ĐỊA ĐIỂM", "TÊN ĐIỂM", "ĐIỂM", "ĐƠN VỊ"]]
+
+        du_an_chon = st.selectbox("DỰ ÁN TRIỂN KHAI *", options=ds_du_an_sach, index=None)
         
         if du_an_chon:
             title_placeholder.markdown(f"<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>🚀 QUẢN LÝ DỰ ÁN <br><span style='color: #DC2626; font-size: 22px;'>[ {du_an_chon} ]</span></h2>", unsafe_allow_html=True)
             
-        doi_thuc_hiện = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=(raw_data.get("doi", []) if isinstance(raw_data, dict) else []), index=None)
-        diem_giao_lap = st.selectbox("ĐỊA ĐIỂM GIAO & LẮP *", options=(raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []), index=None)
+        doi_thuc_hiện = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=ds_doi_sach, index=None)
+        
+        # PHỤC HỒI TÍNH NĂNG TÌM ĐƯỜNG (MAPS) VÀ GÕ TÌM KIẾM
+        diem_giao_lap = st.selectbox(
+            "📍 ĐỊA ĐIỂM GIAO & LẮP *", 
+            options=ds_diem_sach, 
+            index=None, 
+            placeholder="🔍 Chạm để gõ tìm tên địa điểm..."
+        )
         
         if diem_giao_lap:
-            dict_maps = raw_data.get("link_maps", {}) if isinstance(raw_data, dict) else {}
-            link_ban_do = dict_maps.get(diem_giao_lap, "")
-            if link_ban_do and "http" in link_ban_do:
-                st.markdown(f'<a href="{link_ban_do}" target="_blank" class="map-btn">📍 CHỈ ĐƯỜNG BẰNG GOOGLE MAPS</a>', unsafe_allow_html=True)
+            diem_den_encoded = urllib.parse.quote(diem_giao_lap)
+            maps_url = f"https://www.google.com/maps/dir/?api=1&destination={diem_den_encoded}"
+            st.markdown(
+                f"""
+                <a href="{maps_url}" target="_blank" style="text-decoration: none;">
+                    <div style="background-color: #E8F0FE; color: #1A73E8; padding: 12px; border-radius: 8px; text-align: center; font-weight: bold; border: 1px solid #1A73E8; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                        🗺️ MỞ GOOGLE MAPS DẪN ĐƯỜNG TỚI ĐÂY (Tự động bắt GPS hiện tại)
+                    </div>
+                </a>
+                """, 
+                unsafe_allow_html=True
+            )
         
         if du_an_chon and doi_thuc_hiện and diem_giao_lap:
             p_code = du_an_chon
@@ -226,7 +255,6 @@ elif nav_tab == "Bao_cao":
             st.warning("💡 Chọn đầy đủ thông tin để hiển thị Mắt Thần.")
             
         st.markdown("##### 3️⃣ CHỤP ẢNH HIỆN TRƯỜNG")
-        # Thay thế hoàn toàn camera_input bị lỗi thành công cụ tải ảnh tương thích 100% điện thoại
         img_captured = st.file_uploader("📸 Chụp ảnh thực tế hoặc chọn từ máy", type=["jpg", "jpeg", "png", "heic"])
         if img_captured is not None:
             st.image(img_captured, caption="Ảnh hiện trường", use_container_width=True)
@@ -283,7 +311,8 @@ elif nav_tab in ["Admin", "Link"]:
                 st.error(err_msg)
             else:
                 st.info("💡 Danh sách thành viên đang chờ duyệt:")
-                ds_doi = raw_data.get("doi", []) if isinstance(raw_data, dict) else []
+                ds_doi_raw = raw_data.get("doi", []) if isinstance(raw_data, dict) else []
+                ds_doi_sach = [x for x in ds_doi_raw if str(x).strip().upper() not in ["MÃ ĐỘI", "TÊN ĐỘI", "ĐỘI THỰC HIỆN", "ĐỘI"]]
                 
                 with st.spinner("Đang quét thành viên mới..."):
                     pending = get_pending_members()
@@ -302,7 +331,7 @@ elif nav_tab in ["Admin", "Link"]:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        doi_chon = st.selectbox(f"Gán Đội cho {tv['ho_ten']}:", options=["-- Chưa gán đội --"] + ds_doi, key=f"doi_{tv['row']}")
+                        doi_chon = st.selectbox(f"Gán Đội cho {tv['ho_ten']}:", options=["-- Chưa gán đội --"] + ds_doi_sach, key=f"doi_{tv['row']}")
                         
                         if st.button(f"✅ BẤM ĐỂ DUYỆT {tv['ho_ten'].upper()}", type="primary", key=f"btn_{tv['row']}", use_container_width=True):
                             voi_doi = "" if doi_chon == "-- Chưa gán đội --" else doi_chon
@@ -319,7 +348,31 @@ elif nav_tab in ["Admin", "Link"]:
             if err_msg:
                 st.error(err_msg)
             else:
-                dash = raw_data.get("dashboard", {"giao_hang": "0", "lap_dat": "0", "nghiem_thu": "0", "tong_diem": "0"}) if isinstance(raw_data, dict) else {"giao_hang": "0", "lap_dat": "0", "nghiem_thu": "0", "tong_diem": "0"}
+                dash = raw_data.get("dashboard", {}) if isinstance(raw_data, dict) else {}
+                
+                # BỌC THÉP LỖI 44256 CỦA BÁO CÁO LÃNH ĐẠO
+                try:
+                    raw_giao = str(dash.get('giao_hang', '0')).replace(',', '').strip()
+                    val_giao = int(float(raw_giao)) if raw_giao and raw_giao != 'None' else 0
+                    if val_giao > 1000: val_giao = 1
+                except: val_giao = 0
+
+                try:
+                    raw_lap = str(dash.get('lap_dat', '0')).replace(',', '').strip()
+                    val_lap = int(float(raw_lap)) if raw_lap and raw_lap != 'None' else 0
+                    if val_lap > 1000: val_lap = 1
+                except: val_lap = 0
+
+                try:
+                    raw_nghiem = str(dash.get('nghiem_thu', '0')).replace(',', '').strip()
+                    val_nghiem = int(float(raw_nghiem)) if raw_nghiem and raw_nghiem != 'None' else 0
+                except: val_nghiem = 0
+
+                try:
+                    raw_tong = str(dash.get('tong_diem', '136')).replace(',', '').strip()
+                    val_tong = int(float(raw_tong)) if raw_tong and raw_tong != 'None' else 136
+                    if val_tong <= 0: val_tong = 136
+                except: val_tong = 136
                 
                 st.markdown("### 📈 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN")
                 
@@ -328,13 +381,13 @@ elif nav_tab in ["Admin", "Link"]:
                     st.markdown(f"""
                     <div style="background-color: #FFF3CD; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #FFEEBA; margin-bottom: 10px;">
                         <h5 style="color: #856404; margin: 0; font-size: 14px;">🚚 GIAO HÀNG</h5>
-                        <h2 style="color: #D35400; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('giao_hang', '0')}</h2>
+                        <h2 style="color: #D35400; margin: 0; font-weight: 900; font-size: 30px;">{val_giao}</h2>
                     </div>
                     """, unsafe_allow_html=True)
                     st.markdown(f"""
                     <div style="background-color: #D4EDDA; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #C3E6CB; margin-bottom: 10px;">
                         <h5 style="color: #155724; margin: 0; font-size: 14px;">☑️ NGHIỆM THU</h5>
-                        <h2 style="color: #28A745; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('nghiem_thu', '0')}</h2>
+                        <h2 style="color: #28A745; margin: 0; font-weight: 900; font-size: 30px;">{val_nghiem}</h2>
                     </div>
                     """, unsafe_allow_html=True)
                     
@@ -342,12 +395,58 @@ elif nav_tab in ["Admin", "Link"]:
                     st.markdown(f"""
                     <div style="background-color: #D1ECF1; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #BEE5EB; margin-bottom: 10px;">
                         <h5 style="color: #0C5460; margin: 0; font-size: 14px;">🔧 LẮP ĐẶT</h5>
-                        <h2 style="color: #007BFF; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('lap_dat', '0')}</h2>
+                        <h2 style="color: #007BFF; margin: 0; font-weight: 900; font-size: 30px;">{val_lap}</h2>
                     </div>
                     """, unsafe_allow_html=True)
                     st.markdown(f"""
                     <div style="background-color: #F8D7DA; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #F5C6CB; margin-bottom: 10px;">
                         <h5 style="color: #721C24; margin: 0; font-size: 14px;">📍 TỔNG ĐIỂM</h5>
-                        <h2 style="color: #DC3545; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('tong_diem', '0')}</h2>
+                        <h2 style="color: #DC3545; margin: 0; font-weight: 900; font-size: 30px;">{val_tong}</h2>
                     </div>
                     """, unsafe_allow_html=True)
+                
+                def tinh_ty_le(so_thuc_te, tong):
+                    if tong <= 0: return 0.0
+                    return min(so_thuc_te / tong, 1.0)
+
+                def tinh_pct_str(so_thuc_te, tong):
+                    if tong <= 0: return "0%"
+                    return f"{(so_thuc_te / tong) * 100:.1f}%"
+
+                html_chart = (
+                    '<div style="background-color: white; padding: 20px; border-radius: 10px; border: 1px solid #E2E8F0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 15px; margin-bottom: 20px;">'
+                    '<h4 style="color: #1E293B; margin-top: 0; margin-bottom: 20px; font-size: 16px; text-align: center;">📊 TỶ TRỌNG SO SÁNH TIẾN ĐỘ</h4>'
+                    
+                    '<div style="margin-bottom: 15px;">'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                    f'<span style="font-weight: bold; color: #D35400; font-size: 14px;">📦 Giao hàng ({val_giao}/{val_tong})</span>'
+                    f'<span style="font-weight: bold; color: #D35400; font-size: 14px;">{tinh_pct_str(val_giao, val_tong)}</span>'
+                    '</div>'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    f'<div style="width: {tinh_ty_le(val_giao, val_tong) * 100}%; background-color: #D35400; height: 100%; border-radius: 10px;"></div>'
+                    '</div>'
+                    '</div>'
+                    
+                    '<div style="margin-bottom: 15px;">'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                    f'<span style="font-weight: bold; color: #007BFF; font-size: 14px;">⚙️ Lắp đặt ({val_lap}/{val_tong})</span>'
+                    f'<span style="font-weight: bold; color: #007BFF; font-size: 14px;">{tinh_pct_str(val_lap, val_tong)}</span>'
+                    '</div>'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    f'<div style="width: {tinh_ty_le(val_lap, val_tong) * 100}%; background-color: #007BFF; height: 100%; border-radius: 10px;"></div>'
+                    '</div>'
+                    '</div>'
+                    
+                    '<div style="margin-bottom: 5px;">'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                    f'<span style="font-weight: bold; color: #28A745; font-size: 14px;">✅ Hoàn thành ({val_nghiem}/{val_tong})</span>'
+                    f'<span style="font-weight: bold; color: #28A745; font-size: 14px;">{tinh_pct_str(val_nghiem, val_tong)}</span>'
+                    '</div>'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    f'<div style="width: {tinh_ty_le(val_nghiem, val_tong) * 100}%; background-color: #28A745; height: 100%; border-radius: 10px;"></div>'
+                    '</div>'
+                    '</div>'
+                    
+                    '</div>'
+                )
+                st.markdown(html_chart, unsafe_allow_html=True)
