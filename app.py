@@ -191,7 +191,7 @@ elif nav_tab == "Bao_cao":
         
         st.markdown("##### 1️⃣ CHỌN THÔNG TIN NHIỆM VỤ")
         
-        # LỌC RÁC TIÊU ĐỀ CHO TẤT CẢ CÁC DANH SÁCH
+        # LỌC SẠCH RÁC TIÊU ĐỀ
         ds_du_an_raw = raw_data.get("du_an", []) if isinstance(raw_data, dict) else []
         ds_du_an_sach = [x for x in ds_du_an_raw if str(x).strip().upper() not in ["MÃ DỰ ÁN", "TÊN DỰ ÁN", "DỰ ÁN", "MÃ DA", "MÃ CÔNG VIỆC"]]
         
@@ -208,7 +208,7 @@ elif nav_tab == "Bao_cao":
             
         doi_thuc_hiện = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=ds_doi_sach, index=None)
         
-        # PHỤC HỒI TÍNH NĂNG TÌM ĐƯỜNG (MAPS) VÀ GÕ TÌM KIẾM
+        # KHÔI PHỤC HOÀN TOÀN Ô ĐỊA ĐIỂM & GÕ TÌM KIẾM
         diem_giao_lap = st.selectbox(
             "📍 ĐỊA ĐIỂM GIAO & LẮP *", 
             options=ds_diem_sach, 
@@ -216,6 +216,7 @@ elif nav_tab == "Bao_cao":
             placeholder="🔍 Chạm để gõ tìm tên địa điểm..."
         )
         
+        # KHÔI PHỤC NÚT TÌM ĐƯỜNG BẰNG GOOGLE MAPS
         if diem_giao_lap:
             diem_den_encoded = urllib.parse.quote(diem_giao_lap)
             maps_url = f"https://www.google.com/maps/dir/?api=1&destination={diem_den_encoded}"
@@ -379,3 +380,75 @@ elif nav_tab in ["Admin", "Link"]:
                 
                 col_d1, col_d2 = st.columns(2)
                 with col_d1:
+                    st.markdown(f"""
+                    <div style="background-color: #FFF3CD; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #FFEEBA; margin-bottom: 10px;">
+                        <h5 style="color: #856404; margin: 0; font-size: 14px;">🚚 GIAO HÀNG</h5>
+                        <h2 style="color: #D35400; margin: 0; font-weight: 900; font-size: 30px;">{val_giao}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div style="background-color: #D4EDDA; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #C3E6CB; margin-bottom: 10px;">
+                        <h5 style="color: #155724; margin: 0; font-size: 14px;">☑️ NGHIỆM THU</h5>
+                        <h2 style="color: #28A745; margin: 0; font-weight: 900; font-size: 30px;">{val_nghiem}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                with col_d2:
+                    st.markdown(f"""
+                    <div style="background-color: #D1ECF1; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #BEE5EB; margin-bottom: 10px;">
+                        <h5 style="color: #0C5460; margin: 0; font-size: 14px;">🔧 LẮP ĐẶT</h5>
+                        <h2 style="color: #007BFF; margin: 0; font-weight: 900; font-size: 30px;">{val_lap}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div style="background-color: #F8D7DA; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #F5C6CB; margin-bottom: 10px;">
+                        <h5 style="color: #721C24; margin: 0; font-size: 14px;">📍 TỔNG ĐIỂM</h5>
+                        <h2 style="color: #DC3545; margin: 0; font-weight: 900; font-size: 30px;">{val_tong}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                def tinh_ty_le(so_thuc_te, tong):
+                    if tong <= 0: return 0.0
+                    return min(so_thuc_te / tong, 1.0)
+
+                def tinh_pct_str(so_thuc_te, tong):
+                    if tong <= 0: return "0%"
+                    return f"{(so_thuc_te / tong) * 100:.1f}%"
+
+                html_chart = (
+                    '<div style="background-color: white; padding: 20px; border-radius: 10px; border: 1px solid #E2E8F0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 15px; margin-bottom: 20px;">'
+                    '<h4 style="color: #1E293B; margin-top: 0; margin-bottom: 20px; font-size: 16px; text-align: center;">📊 TỶ TRỌNG SO SÁNH TIẾN ĐỘ</h4>'
+                    
+                    '<div style="margin-bottom: 15px;">'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                    f'<span style="font-weight: bold; color: #D35400; font-size: 14px;">📦 Giao hàng ({val_giao}/{val_tong})</span>'
+                    f'<span style="font-weight: bold; color: #D35400; font-size: 14px;">{tinh_pct_str(val_giao, val_tong)}</span>'
+                    '</div>'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    f'<div style="width: {tinh_ty_le(val_giao, val_tong) * 100}%; background-color: #D35400; height: 100%; border-radius: 10px;"></div>'
+                    '</div>'
+                    '</div>'
+                    
+                    '<div style="margin-bottom: 15px;">'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                    f'<span style="font-weight: bold; color: #007BFF; font-size: 14px;">⚙️ Lắp đặt ({val_lap}/{val_tong})</span>'
+                    f'<span style="font-weight: bold; color: #007BFF; font-size: 14px;">{tinh_pct_str(val_lap, val_tong)}</span>'
+                    '</div>'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    f'<div style="width: {tinh_ty_le(val_lap, val_tong) * 100}%; background-color: #007BFF; height: 100%; border-radius: 10px;"></div>'
+                    '</div>'
+                    '</div>'
+                    
+                    '<div style="margin-bottom: 5px;">'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                    f'<span style="font-weight: bold; color: #28A745; font-size: 14px;">✅ Hoàn thành ({val_nghiem}/{val_tong})</span>'
+                    f'<span style="font-weight: bold; color: #28A745; font-size: 14px;">{tinh_pct_str(val_nghiem, val_tong)}</span>'
+                    '</div>'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    f'<div style="width: {tinh_ty_le(val_nghiem, val_tong) * 100}%; background-color: #28A745; height: 100%; border-radius: 10px;"></div>'
+                    '</div>'
+                    '</div>'
+                    
+                    '</div>'
+                )
+                st.markdown(html_chart, unsafe_allow_html=True)
