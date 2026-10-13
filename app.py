@@ -1,5 +1,6 @@
 import streamlit as st
 import urllib.request
+import urllib.parse
 import json
 import base64
 from streamlit_geolocation import streamlit_geolocation
@@ -36,16 +37,19 @@ SECURE_PASS = "880880"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwp2Pq3-PYNvHOWe4IQVm5PqeJd5TcIc_mPDtLm0BkDEGYUxq-C1cnV3rNS1X3xfI1p7w/exec"
 
 # ==========================================
-# HÀM TẢI VÀ XỬ LÝ DỮ LIỆU
+# HÀM TẢI VÀ XỬ LÝ DỮ LIỆU (Đã gỡ Cache, Bọc thép chống trắng màn hình)
 # ==========================================
-@st.cache_data(ttl=1) 
 def fetch_api_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=15) as response:
-            return json.loads(response.read().decode('utf-8')), None
+            resp_text = response.read().decode('utf-8')
+            try:
+                return json.loads(resp_text), None
+            except json.JSONDecodeError:
+                return None, "❌ LỖI API KHÔNG TRẢ VỀ JSON: Vui lòng kiểm tra quyền Deploy Apps Script (Phải chọn 'Anyone')."
     except Exception as e: 
-        return None, f"LỖI KẾT NỐI API: {e}"
+        return None, f"❌ LỖI KẾT NỐI API: {str(e)}"
 
 def submit_registration(ho_ten, sdt, dia_ban, chuyen_mon, phuong_tien):
     payload = {"action": "dang_ky", "ho_ten": ho_ten, "sdt": sdt, "dia_ban": dia_ban, "chuyen_mon": chuyen_mon, "phuong_tien": phuong_tien}
@@ -134,7 +138,6 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
 # ==========================================
 # KHU VỰC HIỂN THỊ CHÍNH
 # ==========================================
-# 1. Bố trí Tiêu đề vào một "Khung rỗng" (Placeholder) để có thể đổi màu/chữ khi chọn Dự án
 title_placeholder = st.empty()
 title_placeholder.markdown("<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>🚀 QUẢN LÝ DỰ ÁN</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #64748B; font-size: 14px; margin-top: -10px; margin-bottom: 20px;'>Hệ thống Điều hành Hiện trường</p>", unsafe_allow_html=True)
@@ -146,3 +149,205 @@ if "Báo cáo" in selected_menu and "tiến độ" not in selected_menu: nav_tab
 elif "Đăng ký" in selected_menu: nav_tab = "Dang_ky"
 elif "ADMIN" in selected_menu: nav_tab = "Admin"
 else: nav_tab = "Link"
+
+st.divider()
+
+if nav_tab == "Dang_ky":
+    st.markdown("##### 📝 ĐĂNG KÝ THÀNH VIÊN ĐỘI")
+    with st.spinner("Đang tải dữ liệu..."):
+        raw_data, err_msg = fetch_api_data()
+    
+    if err_msg:
+        st.error(err_msg)
+    else:
+        ds_diem = raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []
+        with st.form("form_dang_ky_thanh_vien"):
+            reg_hoten = st.text_input("Họ và tên *", placeholder="Nhập đầy đủ họ và tên...")
+            reg_sdt = st.text_input("Số điện thoại liên hệ *", placeholder="Nhập số điện thoại (Zalo)...")
+            reg_diaban_list = st.multiselect("Địa bàn phụ trách", options=ds_diem)
+            reg_chuyenmon = st.selectbox("Chuyên môn / Nhiệm vụ", options=["1. Vận chuyển / Giao nhận", "2. KTV Lắp đặt thiết bị", "3. Giám sát / Điều phối chung", "4. Kho vận / Hậu cứ"])
+            reg_phuongtien = st.selectbox("Phương tiện di chuyển", options=["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.form_submit_button("GỬI ĐĂNG KÝ", use_container_width=True):
+                if not reg_hoten.strip() or not reg_sdt.strip(): st.warning("Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
+                else:
+                    if submit_registration(reg_hoten, reg_sdt, ", ".join(reg_diaban_list), reg_chuyenmon, reg_phuongtien): st.success(f"Đăng ký thành công {reg_hoten}!")
+                    else: st.error("Gửi đăng ký thất bại!")
+
+elif nav_tab == "Bao_cao":
+    with st.spinner("Đang đồng bộ dữ liệu hệ thống..."):
+        raw_data, err_msg = fetch_api_data()
+        
+    if err_msg: 
+        st.error(err_msg)
+    else:
+        data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
+        data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
+        st.info(f"✅ Đã kết nối Mắt Thần: {len(data_ld)} dòng LĐ | {len(data_vc)} dòng VC")
+        
+        st.markdown("##### 1️⃣ CHỌN THÔNG TIN NHIỆM VỤ")
+        du_an_chon = st.selectbox("DỰ ÁN TRIỂN KHAI *", options=(raw_data.get("du_an", []) if isinstance(raw_data, dict) else []), index=None)
+        
+        if du_an_chon:
+            title_placeholder.markdown(f"<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>🚀 QUẢN LÝ DỰ ÁN <br><span style='color: #DC2626; font-size: 22px;'>[ {du_an_chon} ]</span></h2>", unsafe_allow_html=True)
+            
+        doi_thuc_hiện = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=(raw_data.get("doi", []) if isinstance(raw_data, dict) else []), index=None)
+        diem_giao_lap = st.selectbox("ĐỊA ĐIỂM GIAO & LẮP *", options=(raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []), index=None)
+        
+        if diem_giao_lap:
+            dict_maps = raw_data.get("link_maps", {}) if isinstance(raw_data, dict) else {}
+            link_ban_do = dict_maps.get(diem_giao_lap, "")
+            if link_ban_do and "http" in link_ban_do:
+                st.markdown(f'<a href="{link_ban_do}" target="_blank" class="map-btn">📍 CHỈ ĐƯỜNG BẰNG GOOGLE MAPS</a>', unsafe_allow_html=True)
+        
+        if du_an_chon and doi_thuc_hiện and diem_giao_lap:
+            p_code = du_an_chon
+            d_doi = doi_thuc_hiện
+            d_diem = diem_giao_lap
+            ds_hang_raw = quet_mat_than(data_ld, p_code, d_doi, d_diem) + quet_mat_than(data_vc, p_code, d_doi, d_diem)
+            
+            ds_hang = []
+            seen = set()
+            for item in ds_hang_raw:
+                key = f"{item['sku']}_{item['ten']}_{item['sl']}"
+                if key not in seen:
+                    seen.add(key)
+                    ds_hang.append(item)
+
+            st.markdown("##### 2️⃣ THIẾT BỊ CẦN BÁO CÁO")
+            if ds_hang:
+                tb_md = "| SKU | Thiết bị | SL | ĐVT |\n| :--- | :--- | :---: | :---: |\n"
+                for item in ds_hang: tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
+                st.markdown(tb_md)
+            else:
+                st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này.")
+        else: 
+            st.warning("💡 Chọn đầy đủ thông tin để hiển thị Mắt Thần.")
+            
+        st.markdown("##### 3️⃣ CHỤP ẢNH HIỆN TRƯỜNG")
+        # Thay thế hoàn toàn camera_input bị lỗi thành công cụ tải ảnh tương thích 100% điện thoại
+        img_captured = st.file_uploader("📸 Chụp ảnh thực tế hoặc chọn từ máy", type=["jpg", "jpeg", "png", "heic"])
+        if img_captured is not None:
+            st.image(img_captured, caption="Ảnh hiện trường", use_container_width=True)
+        
+        loc = streamlit_geolocation()
+        gps_link = ""
+        if loc and loc.get('latitude'):
+            lat = loc['latitude']
+            lon = loc['longitude']
+            gps_link = f"https://www.google.com/maps?q={lat},{lon}"
+            st.success("✅ Đã chốt tọa độ GPS an toàn!")
+        else:
+            st.error("⚠️ Bấm Định Vị (Location) để quét tọa độ GPS.")
+
+        st.markdown("##### 4️⃣ CHỐT BÁO CÁO NGHIỆM THU")
+        col_b1, col_b2, col_b3 = st.columns(3)
+        with col_b1:
+            if st.button("🚚 ĐÃ GIAO", type="primary", use_container_width=True):
+                if not gps_link: st.error("❌ Thiếu GPS!")
+                elif not img_captured: st.error("❌ Thiếu Hình Ảnh!")
+                else:
+                    with st.spinner("Đang tải ảnh lên Drive..."):
+                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, "", diem_giao_lap, ds_hang, gps_link, "Đã giao hàng", img_captured): st.success("🎉 Xong!")
+        with col_b2:
+            if st.button("🔧 ĐÃ LẮP", type="primary", use_container_width=True):
+                if not gps_link: st.error("❌ Thiếu GPS!")
+                elif not img_captured: st.error("❌ Thiếu Hình Ảnh!")
+                else:
+                    with st.spinner("Đang tải ảnh lên Drive..."):
+                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt", img_captured): st.success("🎉 Xong!")
+        with col_b3:
+            if st.button("✅ GIAO & LẮP ĐẶT XONG", type="primary", use_container_width=True):
+                if not gps_link: st.error("❌ Thiếu GPS!")
+                elif not img_captured: st.error("❌ Thiếu Hình Ảnh!")
+                else:
+                    with st.spinner("Đang tải ảnh lên Drive..."):
+                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong", img_captured): st.success("🎉 Xong!")
+
+elif nav_tab in ["Admin", "Link"]:
+    if nav_tab == "Admin": st.markdown("##### 🔒 ADMIN DUYỆT ĐK THÀNH VIÊN")
+    else: st.markdown("##### 🔒 DỮ LIỆU ĐIỀU HÀNH DÀNH CHO LÃNH ĐẠO")
+        
+    khung_nhap_pin = st.empty()
+    pass_input = khung_nhap_pin.text_input("Nhập mã PIN:", type="password")
+    
+    if pass_input == SECURE_PASS:
+        khung_nhap_pin.empty() 
+        st.success("Xác thực thành công!")
+        
+        if nav_tab == "Admin":
+            with st.spinner("Đang tải dữ liệu..."):
+                raw_data, err_msg = fetch_api_data()
+            if err_msg:
+                st.error(err_msg)
+            else:
+                st.info("💡 Danh sách thành viên đang chờ duyệt:")
+                ds_doi = raw_data.get("doi", []) if isinstance(raw_data, dict) else []
+                
+                with st.spinner("Đang quét thành viên mới..."):
+                    pending = get_pending_members()
+                    
+                if not pending:
+                    st.success("🎉 Hiện không có thành viên nào cần duyệt!")
+                else:
+                    for tv in pending:
+                        st.markdown(f"""
+                        <div class="pending-card">
+                            <h4 style="color:#1E3A8A; margin-top:0px; margin-bottom:5px;">👤 {tv['ho_ten']}</h4>
+                            <b>📞 SĐT:</b> {tv['sdt']} <br>
+                            <b>📍 Địa bàn:</b> {tv['dia_ban']} <br>
+                            <b>🛠 Chuyên môn:</b> {tv['chuyen_mon']} <br>
+                            <b>🛵 Phương tiện:</b> {tv['phuong_tien']}
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        doi_chon = st.selectbox(f"Gán Đội cho {tv['ho_ten']}:", options=["-- Chưa gán đội --"] + ds_doi, key=f"doi_{tv['row']}")
+                        
+                        if st.button(f"✅ BẤM ĐỂ DUYỆT {tv['ho_ten'].upper()}", type="primary", key=f"btn_{tv['row']}", use_container_width=True):
+                            voi_doi = "" if doi_chon == "-- Chưa gán đội --" else doi_chon
+                            with st.spinner("Đang truyền lệnh về Google Sheets..."):
+                                if approve_member(tv['row'], voi_doi):
+                                    st.success("Đã duyệt thành công! Vui lòng làm mới (F5) ứng dụng.")
+                                else:
+                                    st.error("Lỗi mạng, vui lòng thử lại.")
+                        st.divider()
+                    
+        elif nav_tab == "Link":
+            with st.spinner("Đang đồng bộ số liệu từ Trung Tâm Điều Hành..."):
+                raw_data, err_msg = fetch_api_data()
+            if err_msg:
+                st.error(err_msg)
+            else:
+                dash = raw_data.get("dashboard", {"giao_hang": "0", "lap_dat": "0", "nghiem_thu": "0", "tong_diem": "0"}) if isinstance(raw_data, dict) else {"giao_hang": "0", "lap_dat": "0", "nghiem_thu": "0", "tong_diem": "0"}
+                
+                st.markdown("### 📈 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN")
+                
+                col_d1, col_d2 = st.columns(2)
+                with col_d1:
+                    st.markdown(f"""
+                    <div style="background-color: #FFF3CD; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #FFEEBA; margin-bottom: 10px;">
+                        <h5 style="color: #856404; margin: 0; font-size: 14px;">🚚 GIAO HÀNG</h5>
+                        <h2 style="color: #D35400; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('giao_hang', '0')}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div style="background-color: #D4EDDA; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #C3E6CB; margin-bottom: 10px;">
+                        <h5 style="color: #155724; margin: 0; font-size: 14px;">☑️ NGHIỆM THU</h5>
+                        <h2 style="color: #28A745; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('nghiem_thu', '0')}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                with col_d2:
+                    st.markdown(f"""
+                    <div style="background-color: #D1ECF1; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #BEE5EB; margin-bottom: 10px;">
+                        <h5 style="color: #0C5460; margin: 0; font-size: 14px;">🔧 LẮP ĐẶT</h5>
+                        <h2 style="color: #007BFF; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('lap_dat', '0')}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div style="background-color: #F8D7DA; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #F5C6CB; margin-bottom: 10px;">
+                        <h5 style="color: #721C24; margin: 0; font-size: 14px;">📍 TỔNG ĐIỂM</h5>
+                        <h2 style="color: #DC3545; margin: 0; font-weight: 900; font-size: 30px;">{dash.get('tong_diem', '0')}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
