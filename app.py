@@ -58,7 +58,8 @@ def submit_registration(ho_ten, sdt, dia_ban, chuyen_mon, phuong_tien):
         req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
         with urllib.request.urlopen(req, timeout=15) as response:
             return json.loads(response.read().decode('utf-8')).get("status") == "success"
-    except: return False
+    except Exception: 
+        return False
 
 def submit_to_google(ma_da, ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_trang, image_file):
     img_base64 = ""
@@ -66,7 +67,8 @@ def submit_to_google(ma_da, ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_tra
         try:
             img_bytes = image_file.getvalue()
             img_base64 = base64.b64encode(img_bytes).decode('utf-8')
-        except: pass
+        except Exception: 
+            pass
     payload = {
         "action": "bao_cao", "ma_du_an": ma_da, "ten_doi": ten_doi, 
         "diem_lap_dat": diem_lap, "diem_giao_hang": diem_giao, 
@@ -77,7 +79,8 @@ def submit_to_google(ma_da, ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_tra
         req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
         with urllib.request.urlopen(req, timeout=25) as response:
             return json.loads(response.read().decode('utf-8')).get("status") == "success"
-    except: return False
+    except Exception: 
+        return False
 
 def get_pending_members():
     payload = {"action": "get_pending"}
@@ -87,7 +90,8 @@ def get_pending_members():
         with urllib.request.urlopen(req, timeout=15) as response:
             res = json.loads(response.read().decode('utf-8'))
             return res.get("data", [])
-    except: return []
+    except Exception: 
+        return []
 
 def approve_member(row_index, doi_gan):
     payload = {"action": "duyet_thanh_vien", "row": row_index, "doi_gan": doi_gan}
@@ -96,7 +100,8 @@ def approve_member(row_index, doi_gan):
         req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
         with urllib.request.urlopen(req, timeout=15) as response:
             return json.loads(response.read().decode('utf-8')).get("status") == "success"
-    except: return False
+    except Exception: 
+        return False
 
 def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
     ds_kq = []
@@ -145,10 +150,14 @@ st.markdown("<p style='text-align: center; color: #64748B; font-size: 14px; marg
 menu_options = ["📊 Báo cáo nhiệm vụ", "📝 Đăng ký thành viên", "🔒 ADMIN DUYỆT ĐK THÀNH VIÊN", "🔗 Báo cáo tiến độ (để lãnh đạo xem)"]
 selected_menu = st.selectbox("CHỌN CHỨC NĂNG", options=menu_options, label_visibility="collapsed")
 
-if "Báo cáo" in selected_menu and "tiến độ" not in selected_menu: nav_tab = "Bao_cao"
-elif "Đăng ký" in selected_menu: nav_tab = "Dang_ky"
-elif "ADMIN" in selected_menu: nav_tab = "Admin"
-else: nav_tab = "Link"
+if "Báo cáo" in selected_menu and "tiến độ" not in selected_menu:
+    nav_tab = "Bao_cao"
+elif "Đăng ký" in selected_menu:
+    nav_tab = "Dang_ky"
+elif "ADMIN" in selected_menu:
+    nav_tab = "Admin"
+else:
+    nav_tab = "Link"
 
 st.divider()
 
@@ -162,7 +171,7 @@ if nav_tab == "Dang_ky":
     else:
         # LỌC RÁC TIÊU ĐỀ CHO DANH SÁCH ĐỊA ĐIỂM
         ds_diem_raw = raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []
-        ds_diem_sach = [x for x in ds_diem_raw if str(x).strip().upper() not in ["MÃ ĐIỂM", "ĐỊA ĐIỂM", "TÊN ĐIỂM", "ĐIỂM", "ĐƠN VỊ"]]
+        ds_diem_sach = [str(x).strip() for x in ds_diem_raw if str(x).strip() != "" and str(x).strip().upper() not in ["MÃ ĐIỂM", "ĐỊA ĐIỂM", "TÊN ĐIỂM", "ĐIỂM", "ĐƠN VỊ", "NONE", "NAN"]]
 
         with st.form("form_dang_ky_thanh_vien"):
             reg_hoten = st.text_input("Họ và tên *", placeholder="Nhập đầy đủ họ và tên...")
@@ -173,10 +182,13 @@ if nav_tab == "Dang_ky":
             
             st.markdown("<br>", unsafe_allow_html=True)
             if st.form_submit_button("GỬI ĐĂNG KÝ", use_container_width=True):
-                if not reg_hoten.strip() or not reg_sdt.strip(): st.warning("Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
+                if not reg_hoten.strip() or not reg_sdt.strip(): 
+                    st.warning("Vui lòng nhập đầy đủ Họ tên và Số điện thoại!")
                 else:
-                    if submit_registration(reg_hoten, reg_sdt, ", ".join(reg_diaban_list), reg_chuyenmon, reg_phuongtien): st.success(f"Đăng ký thành công {reg_hoten}!")
-                    else: st.error("Gửi đăng ký thất bại!")
+                    if submit_registration(reg_hoten, reg_sdt, ", ".join(reg_diaban_list), reg_chuyenmon, reg_phuongtien): 
+                        st.success(f"Đăng ký thành công {reg_hoten}!")
+                    else: 
+                        st.error("Gửi đăng ký thất bại!")
 
 elif nav_tab == "Bao_cao":
     with st.spinner("Đang đồng bộ dữ liệu hệ thống..."):
@@ -193,20 +205,20 @@ elif nav_tab == "Bao_cao":
         
         # LỌC SẠCH RÁC TIÊU ĐỀ
         ds_du_an_raw = raw_data.get("du_an", []) if isinstance(raw_data, dict) else []
-        ds_du_an_sach = [x for x in ds_du_an_raw if str(x).strip().upper() not in ["MÃ DỰ ÁN", "TÊN DỰ ÁN", "DỰ ÁN", "MÃ DA", "MÃ CÔNG VIỆC"]]
+        ds_du_an_sach = [str(x).strip() for x in ds_du_an_raw if str(x).strip() != "" and str(x).strip().upper() not in ["MÃ DỰ ÁN", "TÊN DỰ ÁN", "DỰ ÁN", "MÃ DA", "MÃ CÔNG VIỆC", "NONE", "NAN"]]
         
         ds_doi_raw = raw_data.get("doi", []) if isinstance(raw_data, dict) else []
-        ds_doi_sach = [x for x in ds_doi_raw if str(x).strip().upper() not in ["MÃ ĐỘI", "TÊN ĐỘI", "ĐỘI THỰC HIỆN", "ĐỘI"]]
+        ds_doi_sach = [str(x).strip() for x in ds_doi_raw if str(x).strip() != "" and str(x).strip().upper() not in ["MÃ ĐỘI", "TÊN ĐỘI", "ĐỘI THỰC HIỆN", "ĐỘI", "NONE", "NAN"]]
         
         ds_diem_raw = raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []
-        ds_diem_sach = [x for x in ds_diem_raw if str(x).strip().upper() not in ["MÃ ĐIỂM", "ĐỊA ĐIỂM", "TÊN ĐIỂM", "ĐIỂM", "ĐƠN VỊ"]]
+        ds_diem_sach = [str(x).strip() for x in ds_diem_raw if str(x).strip() != "" and str(x).strip().upper() not in ["MÃ ĐIỂM", "ĐỊA ĐIỂM", "TÊN ĐIỂM", "ĐIỂM", "ĐƠN VỊ", "NONE", "NAN"]]
 
         du_an_chon = st.selectbox("DỰ ÁN TRIỂN KHAI *", options=ds_du_an_sach, index=None)
         
         if du_an_chon:
             title_placeholder.markdown(f"<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>🚀 QUẢN LÝ DỰ ÁN <br><span style='color: #DC2626; font-size: 22px;'>[ {du_an_chon} ]</span></h2>", unsafe_allow_html=True)
             
-        doi_thuc_hiện = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=ds_doi_sach, index=None)
+        doi_thuc_hien = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=ds_doi_sach, index=None)
         
         # KHÔI PHỤC HOÀN TOÀN Ô ĐỊA ĐIỂM & GÕ TÌM KIẾM
         diem_giao_lap = st.selectbox(
@@ -231,9 +243,9 @@ elif nav_tab == "Bao_cao":
                 unsafe_allow_html=True
             )
         
-        if du_an_chon and doi_thuc_hiện and diem_giao_lap:
+        if du_an_chon and doi_thuc_hien and diem_giao_lap:
             p_code = du_an_chon
-            d_doi = doi_thuc_hiện
+            d_doi = doi_thuc_hien
             d_diem = diem_giao_lap
             ds_hang_raw = quet_mat_than(data_ld, p_code, d_doi, d_diem) + quet_mat_than(data_vc, p_code, d_doi, d_diem)
             
@@ -248,7 +260,8 @@ elif nav_tab == "Bao_cao":
             st.markdown("##### 2️⃣ THIẾT BỊ CẦN BÁO CÁO")
             if ds_hang:
                 tb_md = "| SKU | Thiết bị | SL | ĐVT |\n| :--- | :--- | :---: | :---: |\n"
-                for item in ds_hang: tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
+                for item in ds_hang: 
+                    tb_md += f"| {item['sku']} | {item['ten']} | **{item['sl']}** | {item['dvt']} |\n"
                 st.markdown(tb_md)
             else:
                 st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này.")
@@ -275,29 +288,40 @@ elif nav_tab == "Bao_cao":
         col_b1, col_b2, col_b3 = st.columns(3)
         with col_b1:
             if st.button("🚚 ĐÃ GIAO", type="primary", use_container_width=True):
-                if not gps_link: st.error("❌ Thiếu GPS!")
-                elif not img_captured: st.error("❌ Thiếu Hình Ảnh!")
+                if not gps_link: 
+                    st.error("❌ Thiếu GPS!")
+                elif not img_captured: 
+                    st.error("❌ Thiếu Hình Ảnh!")
                 else:
                     with st.spinner("Đang tải ảnh lên Drive..."):
-                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, "", diem_giao_lap, ds_hang, gps_link, "Đã giao hàng", img_captured): st.success("🎉 Xong!")
+                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hien, "", diem_giao_lap, ds_hang, gps_link, "Đã giao hàng", img_captured): 
+                            st.success("🎉 Xong!")
         with col_b2:
             if st.button("🔧 ĐÃ LẮP", type="primary", use_container_width=True):
-                if not gps_link: st.error("❌ Thiếu GPS!")
-                elif not img_captured: st.error("❌ Thiếu Hình Ảnh!")
+                if not gps_link: 
+                    st.error("❌ Thiếu GPS!")
+                elif not img_captured: 
+                    st.error("❌ Thiếu Hình Ảnh!")
                 else:
                     with st.spinner("Đang tải ảnh lên Drive..."):
-                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt", img_captured): st.success("🎉 Xong!")
+                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hien, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt", img_captured): 
+                            st.success("🎉 Xong!")
         with col_b3:
             if st.button("✅ GIAO & LẮP ĐẶT XONG", type="primary", use_container_width=True):
-                if not gps_link: st.error("❌ Thiếu GPS!")
-                elif not img_captured: st.error("❌ Thiếu Hình Ảnh!")
+                if not gps_link: 
+                    st.error("❌ Thiếu GPS!")
+                elif not img_captured: 
+                    st.error("❌ Thiếu Hình Ảnh!")
                 else:
                     with st.spinner("Đang tải ảnh lên Drive..."):
-                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hiện, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong", img_captured): st.success("🎉 Xong!")
+                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hien, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong", img_captured): 
+                            st.success("🎉 Xong!")
 
 elif nav_tab in ["Admin", "Link"]:
-    if nav_tab == "Admin": st.markdown("##### 🔒 ADMIN DUYỆT ĐK THÀNH VIÊN")
-    else: st.markdown("##### 🔒 DỮ LIỆU ĐIỀU HÀNH DÀNH CHO LÃNH ĐẠO")
+    if nav_tab == "Admin": 
+        st.markdown("##### 🔒 ADMIN DUYỆT ĐK THÀNH VIÊN")
+    else: 
+        st.markdown("##### 🔒 DỮ LIỆU ĐIỀU HÀNH DÀNH CHO LÃNH ĐẠO")
         
     khung_nhap_pin = st.empty()
     pass_input = khung_nhap_pin.text_input("Nhập mã PIN:", type="password")
@@ -314,7 +338,7 @@ elif nav_tab in ["Admin", "Link"]:
             else:
                 st.info("💡 Danh sách thành viên đang chờ duyệt:")
                 ds_doi_raw = raw_data.get("doi", []) if isinstance(raw_data, dict) else []
-                ds_doi_sach = [x for x in ds_doi_raw if str(x).strip().upper() not in ["MÃ ĐỘI", "TÊN ĐỘI", "ĐỘI THỰC HIỆN", "ĐỘI"]]
+                ds_doi_sach = [str(x).strip() for x in ds_doi_raw if str(x).strip() != "" and str(x).strip().upper() not in ["MÃ ĐỘI", "TÊN ĐỘI", "ĐỘI THỰC HIỆN", "ĐỘI", "NONE", "NAN"]]
                 
                 with st.spinner("Đang quét thành viên mới..."):
                     pending = get_pending_members()
@@ -356,25 +380,32 @@ elif nav_tab in ["Admin", "Link"]:
                 try:
                     raw_giao = str(dash.get('giao_hang', '0')).replace(',', '').strip()
                     val_giao = int(float(raw_giao)) if raw_giao and raw_giao != 'None' else 0
-                    if val_giao > 1000: val_giao = 1
-                except: val_giao = 0
+                    if val_giao > 1000: 
+                        val_giao = 1
+                except Exception: 
+                    val_giao = 0
 
                 try:
                     raw_lap = str(dash.get('lap_dat', '0')).replace(',', '').strip()
                     val_lap = int(float(raw_lap)) if raw_lap and raw_lap != 'None' else 0
-                    if val_lap > 1000: val_lap = 1
-                except: val_lap = 0
+                    if val_lap > 1000: 
+                        val_lap = 1
+                except Exception: 
+                    val_lap = 0
 
                 try:
                     raw_nghiem = str(dash.get('nghiem_thu', '0')).replace(',', '').strip()
                     val_nghiem = int(float(raw_nghiem)) if raw_nghiem and raw_nghiem != 'None' else 0
-                except: val_nghiem = 0
+                except Exception: 
+                    val_nghiem = 0
 
                 try:
                     raw_tong = str(dash.get('tong_diem', '136')).replace(',', '').strip()
                     val_tong = int(float(raw_tong)) if raw_tong and raw_tong != 'None' else 136
-                    if val_tong <= 0: val_tong = 136
-                except: val_tong = 136
+                    if val_tong <= 0: 
+                        val_tong = 136
+                except Exception: 
+                    val_tong = 136
                 
                 st.markdown("### 📈 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN")
                 
@@ -408,11 +439,13 @@ elif nav_tab in ["Admin", "Link"]:
                     """, unsafe_allow_html=True)
                 
                 def tinh_ty_le(so_thuc_te, tong):
-                    if tong <= 0: return 0.0
+                    if tong <= 0: 
+                        return 0.0
                     return min(so_thuc_te / tong, 1.0)
 
                 def tinh_pct_str(so_thuc_te, tong):
-                    if tong <= 0: return "0%"
+                    if tong <= 0: 
+                        return "0%"
                     return f"{(so_thuc_te / tong) * 100:.1f}%"
 
                 html_chart = (
