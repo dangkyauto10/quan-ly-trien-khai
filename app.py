@@ -47,7 +47,7 @@ def fetch_api_data():
             try:
                 return json.loads(resp_text), None
             except json.JSONDecodeError:
-                return None, "❌ LỖI API KHÔNG TRẢ VỀ JSON: Vui lòng kiểm tra quyền Deploy Apps Script (Phải chọn 'Anyone')."
+                return None, "❌ LỖI API KHÔNG TRẢ VỀ JSON: Vui lòng kiểm tra quyền Deploy Apps Script."
     except Exception as e: 
         return None, f"❌ LỖI KẾT NỐI API: {str(e)}"
 
@@ -169,7 +169,6 @@ if nav_tab == "Dang_ky":
     if err_msg:
         st.error(err_msg)
     else:
-        # LỌC RÁC TIÊU ĐỀ CHO DANH SÁCH ĐỊA ĐIỂM
         ds_diem_raw = raw_data.get("danh_sach_diem", []) if isinstance(raw_data, dict) else []
         ds_diem_sach = [str(x).strip() for x in ds_diem_raw if str(x).strip() != "" and str(x).strip().upper() not in ["MÃ ĐIỂM", "ĐỊA ĐIỂM", "TÊN ĐIỂM", "ĐIỂM", "ĐƠN VỊ", "NONE", "NAN"]]
 
@@ -203,7 +202,6 @@ elif nav_tab == "Bao_cao":
         
         st.markdown("##### 1️⃣ CHỌN THÔNG TIN NHIỆM VỤ")
         
-        # LỌC SẠCH RÁC TIÊU ĐỀ
         ds_du_an_raw = raw_data.get("du_an", []) if isinstance(raw_data, dict) else []
         ds_du_an_sach = [str(x).strip() for x in ds_du_an_raw if str(x).strip() != "" and str(x).strip().upper() not in ["MÃ DỰ ÁN", "TÊN DỰ ÁN", "DỰ ÁN", "MÃ DA", "MÃ CÔNG VIỆC", "NONE", "NAN"]]
         
@@ -220,7 +218,6 @@ elif nav_tab == "Bao_cao":
             
         doi_thuc_hien = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=ds_doi_sach, index=None)
         
-        # KHÔI PHỤC HOÀN TOÀN Ô ĐỊA ĐIỂM & GÕ TÌM KIẾM
         diem_giao_lap = st.selectbox(
             "📍 ĐỊA ĐIỂM GIAO & LẮP *", 
             options=ds_diem_sach, 
@@ -228,7 +225,6 @@ elif nav_tab == "Bao_cao":
             placeholder="🔍 Chạm để gõ tìm tên địa điểm..."
         )
         
-        # KHÔI PHỤC NÚT TÌM ĐƯỜNG BẰNG GOOGLE MAPS
         if diem_giao_lap:
             diem_den_encoded = urllib.parse.quote(diem_giao_lap)
             maps_url = f"https://www.google.com/maps/dir/?api=1&destination={diem_den_encoded}"
@@ -269,10 +265,10 @@ elif nav_tab == "Bao_cao":
             st.warning("💡 Chọn đầy đủ thông tin để hiển thị Mắt Thần.")
             
         st.markdown("##### 3️⃣ CHỤP ẢNH HIỆN TRƯỜNG")
-        # THAY THẾ CAMERA BỊ LỖI THÀNH NÚT TẢI/CHỤP ẢNH MƯỢT MÀ TRÊN ĐIỆN THOẠI
-        img_captured = st.file_uploader("📸 Chụp ảnh thực tế hoặc chọn từ máy", type=["jpg", "jpeg", "png", "heic"])
-        if img_captured is not None:
-            st.image(img_captured, caption="Ảnh hiện trường", use_container_width=True)
+        # NÂNG CẤP X2: Hiển thị cả Camera trực tiếp và Nút tải ảnh để dự phòng cho mọi điện thoại
+        cam_captured = st.camera_input("📸 Chụp trực tiếp từ Camera")
+        file_captured = st.file_uploader("📁 Hoặc tải ảnh lên từ máy", type=["jpg", "jpeg", "png", "heic"])
+        img_captured = cam_captured if cam_captured is not None else file_captured
         
         loc = streamlit_geolocation()
         gps_link = ""
@@ -376,7 +372,6 @@ elif nav_tab in ["Admin", "Link"]:
             else:
                 dash = raw_data.get("dashboard", {}) if isinstance(raw_data, dict) else {}
                 
-                # BỌC THÉP LỖI 44256 CỦA BÁO CÁO LÃNH ĐẠO
                 try:
                     raw_giao = str(dash.get('giao_hang', '0')).replace(',', '').strip()
                     val_giao = int(float(raw_giao)) if raw_giao and raw_giao != 'None' else 0
