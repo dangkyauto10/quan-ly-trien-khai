@@ -4,11 +4,13 @@ import urllib.parse
 import json
 import base64
 from streamlit_geolocation import streamlit_geolocation
+from PIL import Image
+import io
 
 st.set_page_config(page_title="QUẢN LÝ DỰ ÁN", page_icon="🚀", layout="centered")
 
 # ==========================================
-# CSS GIAO DIỆN ĐIỆN THOẠI HIỆN ĐẠI
+# CSS GIAO DIỆN ĐIỆN THOẠI HIỆN ĐẠI & ĐỘ NÚT GPS
 # ==========================================
 st.markdown("""
     <style>
@@ -30,6 +32,24 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-size: 15px;
     }
     .map-btn:active { background-color: #059669; }
+    
+    /* ĐỘ LẠI NÚT GPS: TO GẤP ĐÔI VÀ RA GIỮA MÀN HÌNH */
+    iframe {
+        transform: scale(2.0) !important;
+        transform-origin: center !important;
+        display: block !important;
+        margin: 25px auto !important;
+    }
+    .gps-box {
+        background-color: #F8FAFC;
+        border: 2px dashed #3B82F6;
+        border-radius: 15px;
+        padding: 20px 10px 5px 10px;
+        text-align: center;
+        margin-top: 20px;
+        margin-bottom: 25px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -37,8 +57,20 @@ SECURE_PASS = "880880"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwp2Pq3-PYNvHOWe4IQVm5PqeJd5TcIc_mPDtLm0BkDEGYUxq-C1cnV3rNS1X3xfI1p7w/exec"
 
 # ==========================================
-# HÀM TẢI VÀ XỬ LÝ DỮ LIỆU
+# HÀM NÉN ẢNH VÀ GỬI DỮ LIỆU
 # ==========================================
+def compress_image(uploaded_file, max_size=(1024, 1024), quality=60):
+    try:
+        img = Image.open(uploaded_file)
+        if img.mode != 'RGB': 
+            img = img.convert('RGB')
+        img.thumbnail(max_size)
+        output = io.BytesIO()
+        img.save(output, format='JPEG', quality=quality)
+        return base64.b64encode(output.getvalue()).decode('utf-8')
+    except Exception:
+        return ""
+
 def fetch_api_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -55,53 +87,48 @@ def submit_registration(ho_ten, sdt, dia_ban, chuyen_mon, phuong_tien):
     payload = {"action": "dang_ky", "ho_ten": ho_ten, "sdt": sdt, "dia_ban": dia_ban, "chuyen_mon": chuyen_mon, "phuong_tien": phuong_tien}
     try:
         data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
+        req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json'}, method='POST')
         with urllib.request.urlopen(req, timeout=15) as response:
             return json.loads(response.read().decode('utf-8')).get("status") == "success"
-    except Exception: 
-        return False
+    except Exception: return False
 
-def submit_to_google(ma_da, ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_trang, image_file):
-    img_base64 = ""
-    if image_file is not None:
-        try:
-            img_bytes = image_file.getvalue()
-            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
-        except Exception: 
-            pass
+def submit_to_google(ma_da, ten_doi, diem_lap, diem_giao, ds_hang, gps, tinh_trang, image_files):
+    imgs_base64 = []
+    if image_files:
+        for f in image_files:
+            b64 = compress_image(f)
+            if b64: imgs_base64.append(b64)
+            
     payload = {
         "action": "bao_cao", "ma_du_an": ma_da, "ten_doi": ten_doi, 
         "diem_lap_dat": diem_lap, "diem_giao_hang": diem_giao, 
-        "ds_hang_hoa": ds_hang, "link_maps": gps, "tinh_trang": tinh_trang, "image_base64": img_base64
+        "ds_hang_hoa": ds_hang, "link_maps": gps, "tinh_trang": tinh_trang, 
+        "images_base64": imgs_base64
     }
     try:
         data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
-        with urllib.request.urlopen(req, timeout=25) as response:
+        req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(req, timeout=60) as response:
             return json.loads(response.read().decode('utf-8')).get("status") == "success"
-    except Exception: 
-        return False
+    except Exception: return False
 
 def get_pending_members():
     payload = {"action": "get_pending"}
     try:
         data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
+        req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json'}, method='POST')
         with urllib.request.urlopen(req, timeout=15) as response:
-            res = json.loads(response.read().decode('utf-8'))
-            return res.get("data", [])
-    except Exception: 
-        return []
+            return json.loads(response.read().decode('utf-8')).get("data", [])
+    except Exception: return []
 
 def approve_member(row_index, doi_gan):
     payload = {"action": "duyet_thanh_vien", "row": row_index, "doi_gan": doi_gan}
     try:
         data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
+        req = urllib.request.Request(APPS_SCRIPT_URL, data=data, headers={'Content-Type': 'application/json'}, method='POST')
         with urllib.request.urlopen(req, timeout=15) as response:
             return json.loads(response.read().decode('utf-8')).get("status") == "success"
-    except Exception: 
-        return False
+    except Exception: return False
 
 def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
     ds_kq = []
@@ -150,14 +177,10 @@ st.markdown("<p style='text-align: center; color: #64748B; font-size: 14px; marg
 menu_options = ["📊 Báo cáo nhiệm vụ", "📝 Đăng ký thành viên", "🔒 ADMIN DUYỆT ĐK THÀNH VIÊN", "🔗 Báo cáo tiến độ (để lãnh đạo xem)"]
 selected_menu = st.selectbox("CHỌN CHỨC NĂNG", options=menu_options, label_visibility="collapsed")
 
-if "Báo cáo" in selected_menu and "tiến độ" not in selected_menu:
-    nav_tab = "Bao_cao"
-elif "Đăng ký" in selected_menu:
-    nav_tab = "Dang_ky"
-elif "ADMIN" in selected_menu:
-    nav_tab = "Admin"
-else:
-    nav_tab = "Link"
+if "Báo cáo" in selected_menu and "tiến độ" not in selected_menu: nav_tab = "Bao_cao"
+elif "Đăng ký" in selected_menu: nav_tab = "Dang_ky"
+elif "ADMIN" in selected_menu: nav_tab = "Admin"
+else: nav_tab = "Link"
 
 st.divider()
 
@@ -212,32 +235,22 @@ elif nav_tab == "Bao_cao":
         ds_diem_sach = [str(x).strip() for x in ds_diem_raw if str(x).strip() != "" and str(x).strip().upper() not in ["MÃ ĐIỂM", "ĐỊA ĐIỂM", "TÊN ĐIỂM", "ĐIỂM", "ĐƠN VỊ", "NONE", "NAN"]]
 
         du_an_chon = st.selectbox("DỰ ÁN TRIỂN KHAI *", options=ds_du_an_sach, index=None)
-        
         if du_an_chon:
             title_placeholder.markdown(f"<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>🚀 QUẢN LÝ DỰ ÁN <br><span style='color: #DC2626; font-size: 22px;'>[ {du_an_chon} ]</span></h2>", unsafe_allow_html=True)
             
         doi_thuc_hien = st.selectbox("TÊN ĐỘI THỰC HIỆN *", options=ds_doi_sach, index=None)
         
-        diem_giao_lap = st.selectbox(
-            "📍 ĐỊA ĐIỂM GIAO & LẮP *", 
-            options=ds_diem_sach, 
-            index=None, 
-            placeholder="🔍 Chạm để gõ tìm tên địa điểm..."
-        )
+        diem_giao_lap = st.selectbox("📍 ĐỊA ĐIỂM GIAO & LẮP *", options=ds_diem_sach, index=None, placeholder="🔍 Chạm để gõ tìm tên địa điểm...")
         
         if diem_giao_lap:
-            diem_den_encoded = urllib.parse.quote(diem_giao_lap)
+            diem_den_chuan = f"{diem_giao_lap}, Tuyên Quang"
+            diem_den_encoded = urllib.parse.quote(diem_den_chuan)
             maps_url = f"https://www.google.com/maps/dir/?api=1&destination={diem_den_encoded}"
             st.markdown(
-                f"""
-                <a href="{maps_url}" target="_blank" style="text-decoration: none;">
+                f"""<a href="{maps_url}" target="_blank" style="text-decoration: none;">
                     <div style="background-color: #E8F0FE; color: #1A73E8; padding: 12px; border-radius: 8px; text-align: center; font-weight: bold; border: 1px solid #1A73E8; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                        🗺️ MỞ GOOGLE MAPS DẪN ĐƯỜNG TỚI ĐÂY (Tự động bắt GPS hiện tại)
-                    </div>
-                </a>
-                """, 
-                unsafe_allow_html=True
-            )
+                        🗺️ MỞ GOOGLE MAPS DẪN ĐƯỜNG TỚI ĐÂY
+                    </div></a>""", unsafe_allow_html=True)
         
         if du_an_chon and doi_thuc_hien and diem_giao_lap:
             p_code = du_an_chon
@@ -264,12 +277,23 @@ elif nav_tab == "Bao_cao":
         else: 
             st.warning("💡 Chọn đầy đủ thông tin để hiển thị Mắt Thần.")
             
-        st.markdown("##### 3️⃣ CHỤP ẢNH HIỆN TRƯỜNG")
-        # NÂNG CẤP X2: Hiển thị cả Camera trực tiếp và Nút tải ảnh để dự phòng cho mọi điện thoại
-        cam_captured = st.camera_input("📸 Chụp trực tiếp từ Camera")
-        file_captured = st.file_uploader("📁 Hoặc tải ảnh lên từ máy", type=["jpg", "jpeg", "png", "heic"])
-        img_captured = cam_captured if cam_captured is not None else file_captured
+        st.markdown("##### 3️⃣ CHỤP ẢNH HIỆN TRƯỜNG (Tối đa 10 ảnh)")
+        img_captured_list = st.file_uploader("📸 Chọn hoặc Chụp ảnh từ điện thoại", type=["jpg", "jpeg", "png", "heic"], accept_multiple_files=True)
         
+        if img_captured_list:
+            if len(img_captured_list) > 10:
+                st.warning("⚠️ Chỉ được tải tối đa 10 ảnh. Các ảnh thừa sẽ bị bỏ qua!")
+                img_captured_list = img_captured_list[:10]
+            st.success(f"✅ Đã chọn {len(img_captured_list)} ảnh. Sẵn sàng báo cáo!")
+
+        st.markdown("##### 4️⃣ CHỐT TỌA ĐỘ GPS (BẮT BUỘC)")
+        st.markdown("""
+            <div class="gps-box">
+                <h4 style="color: #1E3A8A; margin-top: 0; font-size: 16px;">📍 BẤM NÚT BÊN DƯỚI ĐỂ CHECK-IN</h4>
+                <p style="color: #64748B; font-size: 13px; margin-bottom: 0;">(Vui lòng cho phép trình duyệt truy cập vị trí)</p>
+            </div>
+        """, unsafe_allow_html=True)
+
         loc = streamlit_geolocation()
         gps_link = ""
         if loc and loc.get('latitude'):
@@ -278,46 +302,41 @@ elif nav_tab == "Bao_cao":
             gps_link = f"https://www.google.com/maps?q={lat},{lon}"
             st.success("✅ Đã chốt tọa độ GPS an toàn!")
         else:
-            st.error("⚠️ Bấm Định Vị (Location) để quét tọa độ GPS.")
+            st.error("⚠️ Bạn chưa bấm định vị. Vui lòng bấm vào biểu tượng Tâm ngắm ở trên!")
 
-        st.markdown("##### 4️⃣ CHỐT BÁO CÁO NGHIỆM THU")
+        st.markdown("##### 5️⃣ GỬI BÁO CÁO NGHIỆM THU")
         col_b1, col_b2, col_b3 = st.columns(3)
         with col_b1:
             if st.button("🚚 ĐÃ GIAO", type="primary", use_container_width=True):
-                if not gps_link: 
-                    st.error("❌ Thiếu GPS!")
-                elif not img_captured: 
-                    st.error("❌ Thiếu Hình Ảnh!")
+                if not gps_link: st.error("❌ Thiếu GPS!")
+                elif not img_captured_list: st.error("❌ Thiếu Hình Ảnh!")
                 else:
-                    with st.spinner("Đang tải ảnh lên Drive..."):
-                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hien, "", diem_giao_lap, ds_hang, gps_link, "Đã giao hàng", img_captured): 
+                    with st.spinner(f"Đang nén và tải {len(img_captured_list)} ảnh lên Drive..."):
+                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hien, "", diem_giao_lap, ds_hang, gps_link, "Đã giao hàng", img_captured_list): 
                             st.success("🎉 Xong!")
+                        else: st.error("❌ Báo cáo thất bại!")
         with col_b2:
             if st.button("🔧 ĐÃ LẮP", type="primary", use_container_width=True):
-                if not gps_link: 
-                    st.error("❌ Thiếu GPS!")
-                elif not img_captured: 
-                    st.error("❌ Thiếu Hình Ảnh!")
+                if not gps_link: st.error("❌ Thiếu GPS!")
+                elif not img_captured_list: st.error("❌ Thiếu Hình Ảnh!")
                 else:
-                    with st.spinner("Đang tải ảnh lên Drive..."):
-                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hien, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt", img_captured): 
+                    with st.spinner(f"Đang nén và tải {len(img_captured_list)} ảnh lên Drive..."):
+                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hien, diem_giao_lap, "", ds_hang, gps_link, "Đã lắp đặt", img_captured_list): 
                             st.success("🎉 Xong!")
+                        else: st.error("❌ Báo cáo thất bại!")
         with col_b3:
-            if st.button("✅ GIAO & LẮP ĐẶT XONG", type="primary", use_container_width=True):
-                if not gps_link: 
-                    st.error("❌ Thiếu GPS!")
-                elif not img_captured: 
-                    st.error("❌ Thiếu Hình Ảnh!")
+            if st.button("✅ GIAO LẮP XONG", type="primary", use_container_width=True):
+                if not gps_link: st.error("❌ Thiếu GPS!")
+                elif not img_captured_list: st.error("❌ Thiếu Hình Ảnh!")
                 else:
-                    with st.spinner("Đang tải ảnh lên Drive..."):
-                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hien, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong", img_captured): 
+                    with st.spinner(f"Đang nén và tải {len(img_captured_list)} ảnh lên Drive..."):
+                        if submit_to_google(du_an_chon if du_an_chon else "", doi_thuc_hien, diem_giao_lap, diem_giao_lap, ds_hang, gps_link, "Giao và Lắp xong", img_captured_list): 
                             st.success("🎉 Xong!")
+                        else: st.error("❌ Báo cáo thất bại!")
 
 elif nav_tab in ["Admin", "Link"]:
-    if nav_tab == "Admin": 
-        st.markdown("##### 🔒 ADMIN DUYỆT ĐK THÀNH VIÊN")
-    else: 
-        st.markdown("##### 🔒 DỮ LIỆU ĐIỀU HÀNH DÀNH CHO LÃNH ĐẠO")
+    if nav_tab == "Admin": st.markdown("##### 🔒 ADMIN DUYỆT ĐK THÀNH VIÊN")
+    else: st.markdown("##### 🔒 DỮ LIỆU ĐIỀU HÀNH DÀNH CHO LÃNH ĐẠO")
         
     khung_nhap_pin = st.empty()
     pass_input = khung_nhap_pin.text_input("Nhập mã PIN:", type="password")
@@ -371,36 +390,28 @@ elif nav_tab in ["Admin", "Link"]:
                 st.error(err_msg)
             else:
                 dash = raw_data.get("dashboard", {}) if isinstance(raw_data, dict) else {}
-                
                 try:
                     raw_giao = str(dash.get('giao_hang', '0')).replace(',', '').strip()
                     val_giao = int(float(raw_giao)) if raw_giao and raw_giao != 'None' else 0
-                    if val_giao > 1000: 
-                        val_giao = 1
-                except Exception: 
-                    val_giao = 0
+                    if val_giao > 1000: val_giao = 1
+                except: val_giao = 0
 
                 try:
                     raw_lap = str(dash.get('lap_dat', '0')).replace(',', '').strip()
                     val_lap = int(float(raw_lap)) if raw_lap and raw_lap != 'None' else 0
-                    if val_lap > 1000: 
-                        val_lap = 1
-                except Exception: 
-                    val_lap = 0
+                    if val_lap > 1000: val_lap = 1
+                except: val_lap = 0
 
                 try:
                     raw_nghiem = str(dash.get('nghiem_thu', '0')).replace(',', '').strip()
                     val_nghiem = int(float(raw_nghiem)) if raw_nghiem and raw_nghiem != 'None' else 0
-                except Exception: 
-                    val_nghiem = 0
+                except: val_nghiem = 0
 
                 try:
                     raw_tong = str(dash.get('tong_diem', '136')).replace(',', '').strip()
                     val_tong = int(float(raw_tong)) if raw_tong and raw_tong != 'None' else 136
-                    if val_tong <= 0: 
-                        val_tong = 136
-                except Exception: 
-                    val_tong = 136
+                    if val_tong <= 0: val_tong = 136
+                except: val_tong = 136
                 
                 st.markdown("### 📈 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN")
                 
@@ -433,15 +444,8 @@ elif nav_tab in ["Admin", "Link"]:
                     </div>
                     """, unsafe_allow_html=True)
                 
-                def tinh_ty_le(so_thuc_te, tong):
-                    if tong <= 0: 
-                        return 0.0
-                    return min(so_thuc_te / tong, 1.0)
-
-                def tinh_pct_str(so_thuc_te, tong):
-                    if tong <= 0: 
-                        return "0%"
-                    return f"{(so_thuc_te / tong) * 100:.1f}%"
+                def tinh_ty_le(so_thuc_te, tong): return min(so_thuc_te / tong, 1.0) if tong > 0 else 0.0
+                def tinh_pct_str(so_thuc_te, tong): return f"{(so_thuc_te / tong) * 100:.1f}%" if tong > 0 else "0%"
 
                 html_chart = (
                     '<div style="background-color: white; padding: 20px; border-radius: 10px; border: 1px solid #E2E8F0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 15px; margin-bottom: 20px;">'
@@ -454,8 +458,7 @@ elif nav_tab in ["Admin", "Link"]:
                     '</div>'
                     '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
                     f'<div style="width: {tinh_ty_le(val_giao, val_tong) * 100}%; background-color: #D35400; height: 100%; border-radius: 10px;"></div>'
-                    '</div>'
-                    '</div>'
+                    '</div></div>'
                     
                     '<div style="margin-bottom: 15px;">'
                     '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
@@ -464,8 +467,7 @@ elif nav_tab in ["Admin", "Link"]:
                     '</div>'
                     '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
                     f'<div style="width: {tinh_ty_le(val_lap, val_tong) * 100}%; background-color: #007BFF; height: 100%; border-radius: 10px;"></div>'
-                    '</div>'
-                    '</div>'
+                    '</div></div>'
                     
                     '<div style="margin-bottom: 5px;">'
                     '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
@@ -474,9 +476,6 @@ elif nav_tab in ["Admin", "Link"]:
                     '</div>'
                     '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
                     f'<div style="width: {tinh_ty_le(val_nghiem, val_tong) * 100}%; background-color: #28A745; height: 100%; border-radius: 10px;"></div>'
-                    '</div>'
-                    '</div>'
-                    
-                    '</div>'
+                    '</div></div></div>'
                 )
                 st.markdown(html_chart, unsafe_allow_html=True)
