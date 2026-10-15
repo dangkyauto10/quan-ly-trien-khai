@@ -56,7 +56,7 @@ def compress_image(uploaded_file, max_size=(1024, 1024), quality=60):
 def fetch_api_data():
     try:
         req = urllib.request.Request(APPS_SCRIPT_URL, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=15) as response:
+        with urllib.request.urlopen(req, timeout=60) as response:
             resp_text = response.read().decode('utf-8')
             try:
                 return json.loads(resp_text), None
