@@ -10,35 +10,57 @@ import io
 st.set_page_config(page_title="QUẢN LÝ DỰ ÁN", page_icon="🚀", layout="centered")
 
 # ==========================================
-# CSS GIAO DIỆN CHUẨN
+# CSS GIAO DIỆN CHUYÊN NGHIỆP & HIỆN ĐẠI (UI/UX 2026)
 # ==========================================
 st.markdown("""
     <style>
-    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 600px; }
+    .block-container { padding-top: 1.2rem; padding-bottom: 2.5rem; max-width: 600px; background-color: #F8FAFC; }
+    
+    /* Thẻ Card hiện đại */
+    .st-emotion-cache-1r6slb0, div[data-testid="stVerticalBlock"] > div { 
+        border-radius: 12px; 
+    }
+    
+    /* Nút bấm tổng quát */
     .stButton>button {
         border-radius: 12px; font-weight: 700 !important; font-size: 15px !important;
-        height: 50px !important; color: white !important;
-        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
-        border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out;
+        height: 52px !important; color: white !important;
+        background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%);
+        border: none; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); transition: all 0.2s ease-in-out;
     }
-    .stButton>button:active { transform: scale(0.97); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .stButton>button:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35); }
+    .stButton>button:active { transform: scale(0.98); }
+    
+    /* Nút bấm hành động chính (Nguy hiểm / Báo cáo) */
     div[data-testid="stButton"] button[kind="primary"] {
-        background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+        background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%) !important;
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
     }
+    div[data-testid="stButton"] button[kind="primary"]:hover {
+        box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35);
+    }
+
+    /* Input & Selectbox bo góc mềm mại */
     div[data-baseweb="select"] > div, input {
-        border-radius: 10px !important; border: 1px solid #CBD5E1 !important; padding: 2px !important;
+        border-radius: 10px !important; border: 1.5px solid #E2E8F0 !important; background-color: #FFFFFF !important;
     }
-    h5 { color: #1E293B; font-weight: 700; margin-top: 20px; margin-bottom: 15px; font-size: 16px; }
+    div[data-baseweb="select"] > div:hover { border-color: #3B82F6 !important; }
+
+    /* Tiêu đề bước chuyên nghiệp */
+    h5 { color: #0F172A; font-weight: 800; margin-top: 24px; margin-bottom: 12px; font-size: 15px; letter-spacing: -0.2px; }
+    
+    /* Thẻ thông tin chờ duyệt */
     .pending-card {
-        border: 1px solid #E2E8F0; padding: 15px; border-radius: 10px;
-        margin-bottom: 15px; background-color: #F8FAFC; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border: 1px solid #E2E8F0; padding: 18px; border-radius: 14px;
+        margin-bottom: 16px; background-color: #FFFFFF; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
     }
-    .map-btn {
-        display: block; width: 100%; background-color: #10B981; color: white; text-align: center;
-        padding: 12px 0; border-radius: 10px; font-weight: bold; text-decoration: none;
-        margin-top: 5px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-size: 15px;
+    
+    /* Header chính */
+    .main-header {
+        text-align: center; padding: 10px 0 20px 0;
+        background: linear-gradient(180deg, rgba(30,58,138,0.03) 0%, rgba(255,255,255,0) 100%);
+        border-radius: 0 0 20px 20px; margin-bottom: 15px;
     }
-    .map-btn:active { background-color: #059669; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -225,18 +247,20 @@ def quet_mat_than(data_sheet, p_code, d_doi, d_diem):
     return ds_kq
 
 # ==========================================
-# KHU VỰC HIỂN THỊ CHÍNH
+# KHU VỰC HIỂN THỊ CHÍNH (GIAO DIỆN CHUYÊN NGHIỆP)
 # ==========================================
+st.markdown('<div class="main-header">', unsafe_allow_html=True)
 title_placeholder = st.empty()
 title_placeholder.markdown(
-    "<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>🚀 QUẢN LÝ DỰ ÁN</h2>",
+    "<h2 style='text-align: center; color: #1E3A8A; font-weight: 900; margin-bottom: 0px;'>🚀 QUẢN LÝ DỰ ÁN</h2>",
     unsafe_allow_html=True
 )
 st.markdown(
-    "<p style='text-align: center; color: #64748B; font-size: 14px; "
-    "margin-top: -10px; margin-bottom: 20px;'>Hệ thống Điều hành Hiện trường</p>",
+    "<p style='text-align: center; color: #64748B; font-size: 13px; "
+    "margin-top: 4px; margin-bottom: 0px; font-weight: 500;'>Hệ thống Điều hành Hiện trường Chuyên nghiệp</p>",
     unsafe_allow_html=True
 )
+st.markdown('</div>', unsafe_allow_html=True)
 
 menu_options = [
     "📊 Báo cáo nhiệm vụ",
@@ -255,7 +279,7 @@ elif "ADMIN" in selected_menu:
 else:
     nav_tab = "Link"
 
-st.divider()
+st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
 
 BAD_WORDS = [
     "MÃ DỰ ÁN", "TÊN DỰ ÁN", "DỰ ÁN", "MÃ DA", "MÃ CÔNG VIỆC",
@@ -309,7 +333,7 @@ elif nav_tab == "Bao_cao":
     else:
         data_ld = raw_data.get("KHO_LAP_DAT", []) if isinstance(raw_data, dict) else []
         data_vc = raw_data.get("KHO_VAN_CHUYEN", []) if isinstance(raw_data, dict) else []
-        st.info(f"✅ Đã kết nối Mắt Thần: {len(data_ld)} dòng LĐ | {len(data_vc)} dòng VC")
+        st.info(f"✅ Mắt Thần đã sẵn sàng: {len(data_ld)} dòng LĐ | {len(data_vc)} dòng VC")
 
         st.markdown("##### 1️⃣ CHỌN THÔNG TIN NHIỆM VỤ")
 
@@ -334,8 +358,8 @@ elif nav_tab == "Bao_cao":
         du_an_chon = st.selectbox("DỰ ÁN TRIỂN KHAI *", options=ds_du_an_sach, index=None)
         if du_an_chon:
             html_title = (
-                "<h2 style='text-align: center; color: #1E3A8A; font-weight: 900;'>"
-                f"🚀 QUẢN LÝ DỰ ÁN <br><span style='color: #DC2626; font-size: 22px;'>[ {du_an_chon} ]</span>"
+                "<h2 style='text-align: center; color: #1E3A8A; font-weight: 900; margin-bottom: 0px;'>"
+                f"🚀 QUẢN LÝ DỰ ÁN <br><span style='color: #DC2626; font-size: 20px;'>[ {du_an_chon} ]</span>"
                 "</h2>"
             )
             title_placeholder.markdown(html_title, unsafe_allow_html=True)
@@ -354,9 +378,9 @@ elif nav_tab == "Bao_cao":
             maps_url = f"https://www.google.com/maps/dir/?api=1&destination={diem_den_encoded}"
             html_map_btn = (
                 f'<a href="{maps_url}" target="_blank" style="text-decoration: none;">'
-                '<div style="background-color: #E8F0FE; color: #1A73E8; padding: 12px; '
-                'border-radius: 8px; text-align: center; font-weight: bold; border: 1px solid #1A73E8; '
-                'margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+                '<div style="background-color: #EFF6FF; color: #1D4ED8; padding: 14px; '
+                'border-radius: 12px; text-align: center; font-weight: 700; border: 1.5px solid #BFDBFE; '
+                'margin-bottom: 20px; box-shadow: 0 4px 6px rgba(37,99,235,0.05);">'
                 '🗺️ MỞ GOOGLE MAPS DẪN ĐƯỜNG TỚI ĐÂY'
                 '</div></a>'
             )
@@ -384,7 +408,7 @@ elif nav_tab == "Bao_cao":
             else:
                 st.warning("Không tìm thấy hàng hóa phân bổ cho dự án, đội và địa điểm này.")
         else:
-            st.warning("💡 Chọn đầy đủ thông tin để hiển thị Mắt Thần.")
+            st.info("💡 Vui lòng chọn đầy đủ Dự án, Tên đội và Địa điểm để kích hoạt Mắt Thần.")
 
         st.markdown("##### 3️⃣ CHỤP ẢNH HIỆN TRƯỜNG (Tối đa 10 ảnh)")
         img_captured_list = st.file_uploader(
@@ -397,16 +421,16 @@ elif nav_tab == "Bao_cao":
             if len(img_captured_list) > 10:
                 st.warning("⚠️ Chỉ được tải tối đa 10 ảnh. Các ảnh thừa sẽ bị bỏ qua!")
                 img_captured_list = img_captured_list[:10]
-            st.success(f"✅ Đã chọn {len(img_captured_list)} ảnh. Sẵn sàng báo cáo!")
+            st.success(f"✅ Đã chọn {len(img_captured_list)} ảnh hiện trường. Sẵn sàng báo cáo!")
 
         st.markdown("##### 4️⃣ CHỐT TỌA ĐỘ GPS (BẮT BUỘC)")
         html_gps_box = (
-            '<div style="background-color: #F8FAFC; border: 2px dashed #3B82F6; '
-            'border-radius: 15px; padding: 15px; text-align: center; margin-bottom: 10px;">'
-            '<h4 style="color: #1E3A8A; margin: 0 0 5px 0; font-size: 16px;">'
+            '<div style="background-color: #FFFFFF; border: 2px dashed #93C5FD; '
+            'border-radius: 14px; padding: 18px; text-align: center; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">'
+            '<h4 style="color: #1E3A8A; margin: 0 0 6px 0; font-size: 15px; font-weight: 700;">'
             '📍 BẤM NÚT TÂM NGẮM BÊN DƯỚI ĐỂ CHECK-IN</h4>'
             '<p style="color: #64748B; font-size: 13px; margin: 0;">'
-            '(Vui lòng cho phép trình duyệt truy cập vị trí)</p></div>'
+            '(Cho phép trình duyệt truy cập vị trí hiện tại của bạn)</p></div>'
         )
         st.markdown(html_gps_box, unsafe_allow_html=True)
 
@@ -421,7 +445,7 @@ elif nav_tab == "Bao_cao":
             gps_link = f"https://www.google.com/maps?q={lat},{lon}"
             st.success("✅ Đã chốt tọa độ GPS an toàn!")
         else:
-            st.error("⚠️ Bạn chưa bấm định vị. Vui lòng bấm vào biểu tượng Tâm ngắm ở trên!")
+            st.warning("⚠️ Bạn chưa bấm định vị. Vui lòng bấm vào biểu tượng Tâm ngắm ở trên!")
 
         st.markdown("##### 5️⃣ GỬI BÁO CÁO NGHIỆM THU")
         col_b1, col_b2, col_b3 = st.columns(3)
@@ -432,7 +456,7 @@ elif nav_tab == "Bao_cao":
                 elif not img_captured_list:
                     st.error("❌ Thiếu Hình Ảnh!")
                 else:
-                    with st.spinner(f"Đang xử lý tải siêu tốc {len(img_captured_list)} ảnh..."):
+                    with st.spinner(f"Đang đẩy siêu tốc {len(img_captured_list)} ảnh lên mây..."):
                         is_ok, msg = submit_to_google(
                             du_an_chon if du_an_chon else "",
                             doi_thuc_hien,
@@ -444,7 +468,7 @@ elif nav_tab == "Bao_cao":
                             img_captured_list
                         )
                         if is_ok:
-                            st.success("🎉 XONG!")
+                            st.success("🎉 GIAO HÀNG THÀNH CÔNG!")
                             st.balloons()
                         else:
                             st.error(f"❌ THẤT BẠI: {msg}")
@@ -455,7 +479,7 @@ elif nav_tab == "Bao_cao":
                 elif not img_captured_list:
                     st.error("❌ Thiếu Hình Ảnh!")
                 else:
-                    with st.spinner(f"Đang xử lý tải siêu tốc {len(img_captured_list)} ảnh..."):
+                    with st.spinner(f"Đang đẩy siêu tốc {len(img_captured_list)} ảnh lên mây..."):
                         is_ok, msg = submit_to_google(
                             du_an_chon if du_an_chon else "",
                             doi_thuc_hien,
@@ -467,7 +491,7 @@ elif nav_tab == "Bao_cao":
                             img_captured_list
                         )
                         if is_ok:
-                            st.success("🎉 XONG!")
+                            st.success("🎉 LẮP ĐẶT THÀNH CÔNG!")
                             st.balloons()
                         else:
                             st.error(f"❌ THẤT BẠI: {msg}")
@@ -478,7 +502,7 @@ elif nav_tab == "Bao_cao":
                 elif not img_captured_list:
                     st.error("❌ Thiếu Hình Ảnh!")
                 else:
-                    with st.spinner(f"Đang xử lý tải siêu tốc {len(img_captured_list)} ảnh..."):
+                    with st.spinner(f"Đang đẩy siêu tốc {len(img_captured_list)} ảnh lên mây..."):
                         is_ok, msg = submit_to_google(
                             du_an_chon if du_an_chon else "",
                             doi_thuc_hien,
@@ -490,7 +514,7 @@ elif nav_tab == "Bao_cao":
                             img_captured_list
                         )
                         if is_ok:
-                            st.success("🎉 XONG!")
+                            st.success("🎉 HOÀN THÀNH TOÀN TRẠNG!")
                             st.balloons()
                         else:
                             st.error(f"❌ THẤT BẠI: {msg}")
@@ -602,17 +626,17 @@ elif nav_tab in ["Admin", "Link"]:
                 col_d1, col_d2 = st.columns(2)
                 with col_d1:
                     box1 = (
-                        '<div style="background-color: #FFF3CD; padding: 15px; border-radius: 10px; '
-                        'text-align: center; border: 1px solid #FFEEBA; margin-bottom: 10px;">'
-                        '<h5 style="color: #856404; margin: 0; font-size: 14px;">🚚 GIAO HÀNG</h5>'
-                        f'<h2 style="color: #D35400; margin: 0; font-weight: 900; font-size: 30px;">{val_giao}</h2>'
+                        '<div style="background-color: #FFF3CD; padding: 15px; border-radius: 12px; '
+                        'text-align: center; border: 1px solid #FFEEBA; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">'
+                        '<h5 style="color: #856404; margin: 0; font-size: 13px;">🚚 GIAO HÀNG</h5>'
+                        f'<h2 style="color: #D35400; margin: 0; font-weight: 900; font-size: 28px;">{val_giao}</h2>'
                         '</div>'
                     )
                     box2 = (
-                        '<div style="background-color: #D4EDDA; padding: 15px; border-radius: 10px; '
-                        'text-align: center; border: 1px solid #C3E6CB; margin-bottom: 10px;">'
-                        '<h5 style="color: #155724; margin: 0; font-size: 14px;">☑️ NGHIỆM THU</h5>'
-                        f'<h2 style="color: #28A745; margin: 0; font-weight: 900; font-size: 30px;">{val_nghiem}</h2>'
+                        '<div style="background-color: #D4EDDA; padding: 15px; border-radius: 12px; '
+                        'text-align: center; border: 1px solid #C3E6CB; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">'
+                        '<h5 style="color: #155724; margin: 0; font-size: 13px;">☑️ NGHIỆM THU</h5>'
+                        f'<h2 style="color: #28A745; margin: 0; font-weight: 900; font-size: 28px;">{val_nghiem}</h2>'
                         '</div>'
                     )
                     st.markdown(box1, unsafe_allow_html=True)
@@ -620,17 +644,17 @@ elif nav_tab in ["Admin", "Link"]:
 
                 with col_d2:
                     box3 = (
-                        '<div style="background-color: #D1ECF1; padding: 15px; border-radius: 10px; '
-                        'text-align: center; border: 1px solid #BEE5EB; margin-bottom: 10px;">'
-                        '<h5 style="color: #0C5460; margin: 0; font-size: 14px;">🔧 LẮP ĐẶT</h5>'
-                        f'<h2 style="color: #007BFF; margin: 0; font-weight: 900; font-size: 30px;">{val_lap}</h2>'
+                        '<div style="background-color: #D1ECF1; padding: 15px; border-radius: 12px; '
+                        'text-align: center; border: 1px solid #BEE5EB; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">'
+                        '<h5 style="color: #0C5460; margin: 0; font-size: 13px;">🔧 LẮP ĐẶT</h5>'
+                        f'<h2 style="color: #007BFF; margin: 0; font-weight: 900; font-size: 28px;">{val_lap}</h2>'
                         '</div>'
                     )
                     box4 = (
-                        '<div style="background-color: #F8D7DA; padding: 15px; border-radius: 10px; '
-                        'text-align: center; border: 1px solid #F5C6CB; margin-bottom: 10px;">'
-                        '<h5 style="color: #721C24; margin: 0; font-size: 14px;">📍 TỔNG ĐIỂM</h5>'
-                        f'<h2 style="color: #DC3545; margin: 0; font-weight: 900; font-size: 30px;">{val_tong}</h2>'
+                        '<div style="background-color: #F8D7DA; padding: 15px; border-radius: 12px; '
+                        'text-align: center; border: 1px solid #F5C6CB; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">'
+                        '<h5 style="color: #721C24; margin: 0; font-size: 13px;">📍 TỔNG ĐIỂM</h5>'
+                        f'<h2 style="color: #DC3545; margin: 0; font-weight: 900; font-size: 28px;">{val_tong}</h2>'
                         '</div>'
                     )
                     st.markdown(box3, unsafe_allow_html=True)
@@ -643,36 +667,36 @@ elif nav_tab in ["Admin", "Link"]:
                     return f"{(so_thuc_te / tong) * 100:.1f}%" if tong > 0 else "0%"
 
                 html_chart = (
-                    '<div style="background-color: white; padding: 20px; border-radius: 10px; '
-                    'border: 1px solid #E2E8F0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); '
+                    '<div style="background-color: white; padding: 20px; border-radius: 14px; '
+                    'border: 1px solid #E2E8F0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); '
                     'margin-top: 15px; margin-bottom: 20px;">'
                     '<h4 style="color: #1E293B; margin-top: 0; margin-bottom: 20px; '
-                    'font-size: 16px; text-align: center;">📊 TỶ TRỌNG SO SÁNH TIẾN ĐỘ</h4>'
+                    'font-size: 15px; text-align: center; font-weight: 800;">📊 TỶ TRỌNG SO SÁNH TIẾN ĐỘ</h4>'
 
                     '<div style="margin-bottom: 15px;">'
-                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
-                    f'<span style="font-weight: bold; color: #D35400; font-size: 14px;">📦 Giao hàng ({val_giao}/{val_tong})</span>'
-                    f'<span style="font-weight: bold; color: #D35400; font-size: 14px;">{tinh_pct_str(val_giao, val_tong)}</span>'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 6px;">'
+                    f'<span style="font-weight: 700; color: #D35400; font-size: 13px;">📦 Giao hàng ({val_giao}/{val_tong})</span>'
+                    f'<span style="font-weight: 700; color: #D35400; font-size: 13px;">{tinh_pct_str(val_giao, val_tong)}</span>'
                     '</div>'
-                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 10px; overflow: hidden;">'
                     f'<div style="width: {tinh_ty_le(val_giao, val_tong) * 100}%; background-color: #D35400; height: 100%; border-radius: 10px;"></div>'
                     '</div></div>'
 
                     '<div style="margin-bottom: 15px;">'
-                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
-                    f'<span style="font-weight: bold; color: #007BFF; font-size: 14px;">⚙️ Lắp đặt ({val_lap}/{val_tong})</span>'
-                    f'<span style="font-weight: bold; color: #007BFF; font-size: 14px;">{tinh_pct_str(val_lap, val_tong)}</span>'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 6px;">'
+                    f'<span style="font-weight: 700; color: #007BFF; font-size: 13px;">⚙️ Lắp đặt ({val_lap}/{val_tong})</span>'
+                    f'<span style="font-weight: 700; color: #007BFF; font-size: 13px;">{tinh_pct_str(val_lap, val_tong)}</span>'
                     '</div>'
-                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 10px; overflow: hidden;">'
                     f'<div style="width: {tinh_ty_le(val_lap, val_tong) * 100}%; background-color: #007BFF; height: 100%; border-radius: 10px;"></div>'
                     '</div></div>'
 
                     '<div style="margin-bottom: 5px;">'
-                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
-                    f'<span style="font-weight: bold; color: #28A745; font-size: 14px;">✅ Hoàn thành ({val_nghiem}/{val_tong})</span>'
-                    f'<span style="font-weight: bold; color: #28A745; font-size: 14px;">{tinh_pct_str(val_nghiem, val_tong)}</span>'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 6px;">'
+                    f'<span style="font-weight: 700; color: #28A745; font-size: 13px;">✅ Hoàn thành ({val_nghiem}/{val_tong})</span>'
+                    f'<span style="font-weight: 700; color: #28A745; font-size: 13px;">{tinh_pct_str(val_nghiem, val_tong)}</span>'
                     '</div>'
-                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 10px; overflow: hidden;">'
                     f'<div style="width: {tinh_ty_le(val_nghiem, val_tong) * 100}%; background-color: #28A745; height: 100%; border-radius: 10px;"></div>'
                     '</div></div></div>'
                 )
