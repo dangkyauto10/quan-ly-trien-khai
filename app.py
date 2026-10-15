@@ -521,4 +521,159 @@ elif nav_tab in ["Admin", "Link"]:
                 st.info("💡 Danh sách thành viên đang chờ duyệt:")
                 ds_doi_raw = raw_data.get("doi", []) if isinstance(raw_data, dict) else []
                 ds_doi_sach = [
-                    str(x).strip() for x in
+                    str(x).strip() for x in ds_doi_raw
+                    if str(x).strip() != "" and str(x).strip().upper() not in BAD_WORDS
+                ]
+
+                with st.spinner("Đang quét thành viên mới..."):
+                    pending = get_pending_members()
+
+                if not pending:
+                    st.success("🎉 Hiện không có thành viên nào cần duyệt!")
+                else:
+                    for tv in pending:
+                        card_html = (
+                            '<div class="pending-card">'
+                            f'<h4 style="color:#1E3A8A; margin-top:0px; margin-bottom:5px;">👤 {tv["ho_ten"]}</h4>'
+                            f'<b>📞 SĐT:</b> {tv["sdt"]} <br>'
+                            f'<b>📍 Địa bàn:</b> {tv["dia_ban"]} <br>'
+                            f'<b>🛠 Chuyên môn:</b> {tv["chuyen_mon"]} <br>'
+                            f'<b>🛵 Phương tiện:</b> {tv["phuong_tien"]}'
+                            '</div>'
+                        )
+                        st.markdown(card_html, unsafe_allow_html=True)
+
+                        doi_chon = st.selectbox(
+                            f"Gán Đội cho {tv['ho_ten']}:",
+                            options=["-- Chưa gán đội --"] + ds_doi_sach,
+                            key=f"doi_{tv['row']}"
+                        )
+
+                        btn_label = f"✅ BẤM ĐỂ DUYỆT {tv['ho_ten'].upper()}"
+                        if st.button(btn_label, type="primary", key=f"btn_{tv['row']}", use_container_width=True):
+                            voi_doi = "" if doi_chon == "-- Chưa gán đội --" else doi_chon
+                            with st.spinner("Đang truyền lệnh về Google Sheets..."):
+                                if approve_member(tv['row'], voi_doi):
+                                    st.cache_data.clear()
+                                    st.success("Đã duyệt thành công! Dữ liệu đã được làm mới.")
+                                else:
+                                    st.error("Lỗi mạng, vui lòng thử lại.")
+                        st.divider()
+
+        elif nav_tab == "Link":
+            with st.spinner("Đang đồng bộ số liệu từ Trung Tâm Điều Hành..."):
+                raw_data, err_msg = fetch_api_data()
+            if err_msg:
+                st.error(err_msg)
+            else:
+                dash = raw_data.get("dashboard", {}) if isinstance(raw_data, dict) else {}
+                try:
+                    raw_giao = str(dash.get('giao_hang', '0')).replace(',', '').strip()
+                    val_giao = int(float(raw_giao)) if raw_giao and raw_giao != 'None' else 0
+                    if val_giao > 1000:
+                        val_giao = 1
+                except Exception:
+                    val_giao = 0
+
+                try:
+                    raw_lap = str(dash.get('lap_dat', '0')).replace(',', '').strip()
+                    val_lap = int(float(raw_lap)) if raw_lap and raw_lap != 'None' else 0
+                    if val_lap > 1000:
+                        val_lap = 1
+                except Exception:
+                    val_lap = 0
+
+                try:
+                    raw_nghiem = str(dash.get('nghiem_thu', '0')).replace(',', '').strip()
+                    val_nghiem = int(float(raw_nghiem)) if raw_nghiem and raw_nghiem != 'None' else 0
+                except Exception:
+                    val_nghiem = 0
+
+                try:
+                    raw_tong = str(dash.get('tong_diem', '136')).replace(',', '').strip()
+                    val_tong = int(float(raw_tong)) if raw_tong and raw_tong != 'None' else 136
+                    if val_tong <= 0:
+                        val_tong = 136
+                except Exception:
+                    val_tong = 136
+
+                st.markdown("### 📈 TRUNG TÂM ĐIỀU HÀNH DỰ ÁN")
+
+                col_d1, col_d2 = st.columns(2)
+                with col_d1:
+                    box1 = (
+                        '<div style="background-color: #FFF3CD; padding: 15px; border-radius: 10px; '
+                        'text-align: center; border: 1px solid #FFEEBA; margin-bottom: 10px;">'
+                        '<h5 style="color: #856404; margin: 0; font-size: 14px;">🚚 GIAO HÀNG</h5>'
+                        f'<h2 style="color: #D35400; margin: 0; font-weight: 900; font-size: 30px;">{val_giao}</h2>'
+                        '</div>'
+                    )
+                    box2 = (
+                        '<div style="background-color: #D4EDDA; padding: 15px; border-radius: 10px; '
+                        'text-align: center; border: 1px solid #C3E6CB; margin-bottom: 10px;">'
+                        '<h5 style="color: #155724; margin: 0; font-size: 14px;">☑️ NGHIỆM THU</h5>'
+                        f'<h2 style="color: #28A745; margin: 0; font-weight: 900; font-size: 30px;">{val_nghiem}</h2>'
+                        '</div>'
+                    )
+                    st.markdown(box1, unsafe_allow_html=True)
+                    st.markdown(box2, unsafe_allow_html=True)
+
+                with col_d2:
+                    box3 = (
+                        '<div style="background-color: #D1ECF1; padding: 15px; border-radius: 10px; '
+                        'text-align: center; border: 1px solid #BEE5EB; margin-bottom: 10px;">'
+                        '<h5 style="color: #0C5460; margin: 0; font-size: 14px;">🔧 LẮP ĐẶT</h5>'
+                        f'<h2 style="color: #007BFF; margin: 0; font-weight: 900; font-size: 30px;">{val_lap}</h2>'
+                        '</div>'
+                    )
+                    box4 = (
+                        '<div style="background-color: #F8D7DA; padding: 15px; border-radius: 10px; '
+                        'text-align: center; border: 1px solid #F5C6CB; margin-bottom: 10px;">'
+                        '<h5 style="color: #721C24; margin: 0; font-size: 14px;">📍 TỔNG ĐIỂM</h5>'
+                        f'<h2 style="color: #DC3545; margin: 0; font-weight: 900; font-size: 30px;">{val_tong}</h2>'
+                        '</div>'
+                    )
+                    st.markdown(box3, unsafe_allow_html=True)
+                    st.markdown(box4, unsafe_allow_html=True)
+
+                def tinh_ty_le(so_thuc_te, tong):
+                    return min(so_thuc_te / tong, 1.0) if tong > 0 else 0.0
+
+                def tinh_pct_str(so_thuc_te, tong):
+                    return f"{(so_thuc_te / tong) * 100:.1f}%" if tong > 0 else "0%"
+
+                html_chart = (
+                    '<div style="background-color: white; padding: 20px; border-radius: 10px; '
+                    'border: 1px solid #E2E8F0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); '
+                    'margin-top: 15px; margin-bottom: 20px;">'
+                    '<h4 style="color: #1E293B; margin-top: 0; margin-bottom: 20px; '
+                    'font-size: 16px; text-align: center;">📊 TỶ TRỌNG SO SÁNH TIẾN ĐỘ</h4>'
+
+                    '<div style="margin-bottom: 15px;">'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                    f'<span style="font-weight: bold; color: #D35400; font-size: 14px;">📦 Giao hàng ({val_giao}/{val_tong})</span>'
+                    f'<span style="font-weight: bold; color: #D35400; font-size: 14px;">{tinh_pct_str(val_giao, val_tong)}</span>'
+                    '</div>'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    f'<div style="width: {tinh_ty_le(val_giao, val_tong) * 100}%; background-color: #D35400; height: 100%; border-radius: 10px;"></div>'
+                    '</div></div>'
+
+                    '<div style="margin-bottom: 15px;">'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                    f'<span style="font-weight: bold; color: #007BFF; font-size: 14px;">⚙️ Lắp đặt ({val_lap}/{val_tong})</span>'
+                    f'<span style="font-weight: bold; color: #007BFF; font-size: 14px;">{tinh_pct_str(val_lap, val_tong)}</span>'
+                    '</div>'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    f'<div style="width: {tinh_ty_le(val_lap, val_tong) * 100}%; background-color: #007BFF; height: 100%; border-radius: 10px;"></div>'
+                    '</div></div>'
+
+                    '<div style="margin-bottom: 5px;">'
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">'
+                    f'<span style="font-weight: bold; color: #28A745; font-size: 14px;">✅ Hoàn thành ({val_nghiem}/{val_tong})</span>'
+                    f'<span style="font-weight: bold; color: #28A745; font-size: 14px;">{tinh_pct_str(val_nghiem, val_tong)}</span>'
+                    '</div>'
+                    '<div style="width: 100%; background-color: #F1F5F9; border-radius: 10px; height: 12px; overflow: hidden;">'
+                    f'<div style="width: {tinh_ty_le(val_nghiem, val_tong) * 100}%; background-color: #28A745; height: 100%; border-radius: 10px;"></div>'
+                    '</div></div></div>'
+                )
+                st.markdown(html_chart, unsafe_allow_html=True)
