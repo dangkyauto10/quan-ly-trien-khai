@@ -26,7 +26,10 @@ from preview_remember import (
 
 from preview_registration import role_for_specialty, team_id_from_registration, matching_teams
 from preview_approval_ui import render_pending_approvals
-from preview_assignment import assignment_rows, assignment_batch_requests
+from preview_assignment import (
+    assignment_rows, assignment_batch_requests, allowed_modes,
+    eligible_site_tasks, site_assignment_plan, compact_site_assignment_requests
+)
 from preview_bulk_allocation import (
     inventory_by_sku, build_plan, verify_plan, atomic_requests
 )
@@ -907,9 +910,150 @@ def teams_and_approval():
                     except Exception as exc:
                         st.error("Không lưu được đội ("+type(exc).__name__+
                                  "). Dữ liệu nhập vẫn được giữ nguyên để kiểm tra.")
-    st.markdown("#### 📌 GÁN NHIỆM VỤ CHO ĐỘI TRƯỞNG")
-    st.caption("Có thể gán toàn bộ hàng hóa chưa gán tại cùng một địa điểm "
-               "cho một đội, hoặc gán riêng từng dòng nếu các mặt hàng khác đội.")
+    st.markdown("#### 📍 GIAO ĐỊA BÀN CHO ĐỘI TRƯỞNG")
+    assign_mode=st.radio("Phương thức phân công",
+        ["Theo nhiều địa điểm (gõ tìm kiếm)", "Theo từng SKU (nâng cao)"],
+        key="preview_assign_mode", horizontal=False)
+    if assign_mode.startswith("Theo nhiều"):
+        st.caption("ADMIN chỉ chọn đội trưởng và các địa điểm theo hợp đồng; "
+                   "hệ thống tự lấy đủ các SKU và số lượng đã phân bổ. "
+                   "Có thể gõ tên xã, đơn vị hoặc mã điểm để tìm ngay.")
+        saved_notice=st.session_state.pop("assignment_site_notice",None)
+        if saved_notice:
+            st.success(saved_notice)
+        all_projects=[r["Mã dự án"] for r in read_sheet("DANH_SACH_DU_AN")
+                      if r.get("Mã dự án")]
+        if not all_projects:
+            st.info("Cần tạo dự án trước khi giao địa bàn.")
+            return
+        project=st.selectbox("1. Dự án",all_projects,key="site_assign_project")
+        teams=[t for t in read_sheet("QUAN_LY_DOI") if
+               t.get("Mã dự án")==project and t.get("Trạng thái")=="Hoạt động"
+               and allowed_modes(t)]
+        if not teams:
+            st.warning("Dự án chưa có đội trưởng VC/LĐ đã duyệt.")
+            return
+        selected_team=st.selectbox("2. Đội trưởng nhận địa bàn",teams,
+            format_func=lambda t:(t.get("Tên đội/đội trưởng","")+
+                                  " • "+t.get("Mã đội","")+
+                                  " • "+t.get("Loại nhiệm vụ","")),
+            key=f"site_assign_team_{project}")
+        mode_labels={"VC":"Vận chuyển (VC)", "LD":"Lắp đặt (LĐ)",
+                     "VC+LD":"Cả vận chuyển và lắp đặt"}
+        choices=allowed_modes(selected_team)
+        role_mode=st.radio("3. Loại công việc được giao",
+            choices,format_func=lambda m:mode_labels[m],
+            key=f"site_assign_role_{project}_{selected_team['Mã đội']}",
+            horizontal=len(choices)>1)
+        kinds=("VAN_CHUYEN","LAP_DAT") if role_mode=="VC+LD" else (
+            ("VAN_CHUYEN",) if role_mode=="VC" else ("LAP_DAT",))
+        tasksets={tab:read_sheet(tab) for tab in kinds}
+        places=read_sheet("DANH_SACH_DIEM")
+        try:
+            eligible=eligible_site_tasks(selected_team,role_mode,places,tasksets)
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        total_locations=sum(1 for p in places if
+                            p.get("Mã dự án")==project and
+                            p.get("Trạng thái")=="Hoạt động")
+        st.caption(f"{len(eligible)} / {total_locations} địa điểm đang có "
+                   "nhiệm vụ phù hợp và chưa phân công. Điểm đã có đội khác "
+                   "hoặc chưa phân bổ sẽ không xuất hiện trong danh sách.")
+        if not eligible:
+            st.info("Chưa có địa điểm phù hợp để giao cho đội trưởng này.")
+            return
+        def site_name(pid):
+            p=eligible[pid][0]
+            return (p.get("Tên xã/phường/đơn vị","") or pid)+" • "+pid
+        options=sorted(eligible,key=lambda pid:site_name(pid).casefold())
+        chosen=st.multiselect(
+            "4. 🔎 Tìm và chọn nhiều địa điểm theo hợp đồng",
+            options,format_func=site_name,
+            placeholder="Gõ tên xã, đơn vị hoặc mã điểm để tìm...",
+            key=f"site_assign_multi_{project}_{selected_team['Mã đội']}_{role_mode}")
+        st.caption("Chạm ô trên và gõ vài chữ: ví dụ “Minh Xuân”, "
+                   "“Ban Tổ chức” hoặc “DD-TEST-127”. "
+                   "Danh sách gợi ý tự lọc; chọn nhiều điểm liên tiếp.")
+        if not chosen:
+            st.info("Chọn các địa điểm đã ký hợp đồng để xem đối soát giao việc.")
+            return
+        try:
+            planned=site_assignment_plan(
+                selected_team,role_mode,chosen,places,tasksets)
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        st.markdown("#### 5. Kiểm tra địa bàn và nhiệm vụ trước khi giao")
+        counts={tab:len(rows) for tab,rows in planned.items()}
+        st.write(f"**{len(chosen)} địa điểm** · "
+                 f"**{sum(counts.values())} nhiệm vụ/SKU** sẽ được gán một lần.")
+        summary=[]
+        for pid in chosen:
+            loc, by_role=eligible[pid]
+            summary.append({
+                "Địa điểm":loc.get("Tên xã/phường/đơn vị",""),
+                "Mã điểm":pid,
+                "Nhiệm vụ VC":by_role.get("VAN_CHUYEN",0),
+                "Nhiệm vụ LĐ":by_role.get("LAP_DAT",0)
+            })
+        st.dataframe(summary,hide_index=True,use_container_width=True)
+        with st.expander("Xem SKU và số lượng tại các địa điểm đã chọn"):
+            for tab,rows in planned.items():
+                st.write("**"+("Vận chuyển" if tab=="VAN_CHUYEN" else "Lắp đặt")+"**")
+                st.dataframe([{
+                    "Điểm":r.get("Mã điểm"),"SKU":r.get("SKU"),
+                    "Số lượng":r.get("SL giao" if tab=="VAN_CHUYEN" else "SL lắp")
+                } for r in rows],hide_index=True,use_container_width=True)
+        review_key="site_contract_checked_"+hashlib.sha256(
+            repr((project,selected_team["Mã đội"],role_mode,tuple(sorted(chosen)),
+                  tuple(sorted((tab,r.get("Mã nhiệm vụ VC" if tab=="VAN_CHUYEN"
+                         else "Mã nhiệm vụ LD")) for tab,rr in planned.items()
+                         for r in rr)))).encode("utf-8")).hexdigest()[:14]
+        checked=st.checkbox("Tôi đã đối chiếu các địa điểm được giao với hợp đồng.",
+                            key=review_key)
+        if st.button("✅ XÁC NHẬN GIAO CÁC ĐỊA ĐIỂM ĐÃ CHỌN",
+                     type="primary",use_container_width=True,
+                     disabled=not checked,
+                     key="site_assignment_confirm"):
+            try:
+                # Re-read the current spreadsheet; reject stale selections.
+                read_sheet.clear()
+                live_teams=read_sheet("QUAN_LY_DOI")
+                live_team=lookup(live_teams,"Mã đội",selected_team["Mã đội"])
+                if not live_team:
+                    st.error("Đội đã bị xóa hoặc thay đổi.")
+                    return
+                live_places=read_sheet("DANH_SACH_DIEM")
+                live_tasks={tab:read_sheet(tab) for tab in kinds}
+                actual=site_assignment_plan(live_team,role_mode,
+                    chosen,live_places,live_tasks)
+                taskkeys={"VAN_CHUYEN":"Mã nhiệm vụ VC",
+                          "LAP_DAT":"Mã nhiệm vụ LD"}
+                if any({r[taskkeys[tab]] for r in actual.get(tab,[])} !=
+                       {r[taskkeys[tab]] for r in planned.get(tab,[])}
+                       for tab in kinds):
+                    st.error("Phân bổ/phân công đã thay đổi. Chưa ghi; "
+                             "vui lòng đối soát rồi xác nhận lại.")
+                    return
+                sheetids={tab:sheet(tab).id for tab in kinds}
+                updates=compact_site_assignment_requests(
+                    sheetids,actual,live_team["Mã đội"])
+                client()[0].batch_update({"requests":updates})
+                read_sheet.clear()
+                st.session_state["assignment_site_notice"]=(
+                    f"Đã giao {len(chosen)} địa điểm, {sum(len(x) for x in actual.values())} "
+                    f"nhiệm vụ cho đội trưởng {live_team['Tên đội/đội trưởng']}. "
+                    "Không thay đổi số lượng hoặc phân bổ kho.")
+                st.rerun()
+            except Exception as exc:
+                read_sheet.clear()
+                st.error("Chưa xác nhận được kết quả ghi ("+type(exc).__name__+
+                         "). KHÔNG bấm lại ngay; cần kiểm tra VAN_CHUYEN "
+                         "và LAP_DAT.")
+        return
+    st.caption("Chế độ nâng cao: gán một SKU hoặc toàn bộ SKU của một điểm. "
+               "Chỉ sử dụng khi cần phân chia nhiệm vụ cho nhiều đội.")
     tab=st.selectbox("Loại nhiệm vụ cần gán",["VAN_CHUYEN","LAP_DAT"])
     task_key = "Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
     team_key = "Mã đội VC" if tab=="VAN_CHUYEN" else "Mã đội KTV"
