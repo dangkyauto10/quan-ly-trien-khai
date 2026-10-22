@@ -362,7 +362,7 @@ def register(on_behalf=False):
                     rid = "DK-" + uuid.uuid4().hex[:12].upper()
                     submitter = ("ADMIN:" + acting_admin["username"]) if acting_admin else "Tự đăng ký"
                     try:
-                        append("DANG_KY_THANH_VIEN", [rid, now(), full_name.strip(),
+                        append("DANG_KY_THANH_VIEN", [rid, datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).strftime("%d/%m/%Y %H:%M"), full_name.strip(),
                                normalized_phone, described_areas, specialty, vehicle,
                                "Chờ duyệt", "", "", "", project, submitter])
                         st.session_state["registered_notice"] = (
