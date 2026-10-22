@@ -78,4 +78,12 @@ def approval_requests(registration_sheet_id, team_sheet_id, row_number,
         ]}],
         "fields":"userEnteredValue"
     }})
+    req.append({"repeatCell":{
+        "range":{"sheetId":registration_sheet_id,
+                 "startRowIndex":row_number-1,"endRowIndex":row_number,
+                 "startColumnIndex":10,"endColumnIndex":11},
+        "cell":{"userEnteredFormat":{"numberFormat":{
+            "type":"DATE_TIME","pattern":"dd/mm/yyyy hh:mm"}}},
+        "fields":"userEnteredFormat.numberFormat"
+    }})
     return req
