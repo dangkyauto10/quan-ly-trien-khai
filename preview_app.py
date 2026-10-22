@@ -540,6 +540,18 @@ def projects_and_inventory():
         return
     projects = read_sheet("DANH_SACH_DU_AN")
     ids = [x.get("Mã dự án") for x in projects if x.get("Mã dự án")]
+    # This selector MUST remain OUTSIDE clear_on_submit form.
+    # Otherwise after every receipt it silently reverts to first project.
+    project = None
+    if choice in ("Địa điểm", "Hàng nhập kho"):
+        if not ids:
+            st.warning("Chưa có dự án. Hãy tạo dự án trước.")
+            return
+        project = st.selectbox(
+            "📁 Dự án đang nhập (giữ nguyên sau mỗi lần lưu)",
+            ids, key="master_sticky_project")
+        st.caption(f"Đang ghi dữ liệu vào dự án: {project}. "
+                   "Khi nhập phiếu mới, kiểm tra mã dự án trước khi bấm LƯU.")
     with st.form("new_master", clear_on_submit=True):
         if choice == "Dự án":
             code = st.text_input("Mã dự án")
@@ -547,7 +559,6 @@ def projects_and_inventory():
             deadline = st.date_input("Hạn hoàn thành")
         elif choice == "Địa điểm":
             code = st.text_input("Mã điểm duy nhất")
-            project = st.selectbox("Dự án", ids)
             name = st.text_input("Tên xã/phường/đơn vị")
             address = st.text_input("Địa chỉ chi tiết")
             province = st.text_input("Tỉnh/Thành")
@@ -555,7 +566,6 @@ def projects_and_inventory():
             latitude = st.text_input("Vĩ độ (nếu có)")
             longitude = st.text_input("Kinh độ (nếu có)")
         else:
-            project = st.selectbox("Dự án", ids)
             sku = st.text_input("SKU")
             name = st.text_input("Tên hàng hóa")
             unit = st.text_input("ĐVT")
