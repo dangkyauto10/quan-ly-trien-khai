@@ -16,6 +16,6 @@ jobs:
       - name: Install import parser dependencies
         run: python -m pip install 'openpyxl>=3.1,<4' 'python-docx>=1.1,<2'
       - name: Check syntax
-        run: python -m py_compile preview_app.py preview_import_locations.py preview_registration.py preview_remember.py preview_bulk_allocation.py preview_bulk_excel.py generate_preview_hash.py
+        run: python -m py_compile preview_app.py preview_import_locations.py preview_registration.py preview_approval_ui.py preview_remember.py preview_bulk_allocation.py preview_bulk_excel.py generate_preview_hash.py
       - name: Test location imports
         run: python -m unittest discover -s tests -v
