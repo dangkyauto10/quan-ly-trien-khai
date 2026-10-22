@@ -1,0 +1,17 @@
+name: Preview syntax checks
+on:
+  push:
+    branches: [preview-20261022]
+  workflow_dispatch:
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check syntax
+        run: python -m py_compile preview_app.py generate_preview_hash.py
