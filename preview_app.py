@@ -17,6 +17,8 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from PIL import Image
 from streamlit_geolocation import streamlit_geolocation
+from preview_import_locations import (read_location_file, candidate_names,
+    column_choice, is_header, normalize_name, blank_excel_template)
 
 st.set_page_config(page_title="QUẢN LÝ DỰ ÁN • PREVIEW", page_icon="🚀", layout="centered")
 
@@ -282,10 +284,113 @@ def directions():
     st.link_button("🧭 MỞ GOOGLE MAPS CHỈ ĐƯỜNG", url, use_container_width=True)
     st.caption("Tìm đường không cấp quyền báo cáo nhiệm vụ.")
 
+
+def bulk_import_locations():
+    """Admin-only, review-before-write import of a project location list."""
+    require_role("ADMIN")
+    st.markdown("#### 📥 Nạp danh sách xã, đơn vị, địa điểm")
+    st.caption("Dữ liệu chỉ nhập vào dự án đã chọn. Không xóa hoặc ghi đè các điểm đã có.")
+    projects = [r["Mã dự án"] for r in read_sheet("DANH_SACH_DU_AN") if r.get("Mã dự án")]
+    if not projects:
+        st.info("Admin cần tạo dự án trước khi nhập danh sách.")
+        return
+    project = st.selectbox("Dự án cần nhập danh sách *", projects, key="bulk_location_project")
+    st.download_button("⬇️ Tải mẫu Excel (1 cột tên địa điểm)",
+        data=blank_excel_template(),
+        file_name="MAU_DANH_SACH_DIEM.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="download_location_template")
+    upload = st.file_uploader("Tải Word (.docx) hoặc Excel (.xlsx), tối đa 5 MB",
+        type=["docx", "xlsx"], key="upload_bulk_locations")
+    if upload is None:
+        return
+    try:
+        sources = read_location_file(upload.name, upload.getvalue())
+    except Exception as exc:
+        st.error("Không đọc được danh sách: " + str(exc))
+        return
+    if not sources:
+        st.warning("Tệp không có dòng dữ liệu hợp lệ.")
+        return
+    chosen_sheet = st.selectbox("Trang chứa danh sách", list(sources),
+                                key="bulk_location_source_sheet")
+    rows = sources[chosen_sheet]
+    number_of_cols = min(24, max((len(row) for row in rows), default=1))
+    preferred_col = min(column_choice(rows), number_of_cols - 1)
+    cols = list(range(number_of_cols))
+    selected_col = st.selectbox("Cột chứa tên xã/phường/đơn vị", cols,
+        index=preferred_col, key="bulk_location_column",
+        format_func=lambda idx: f"Cột {idx+1} • " +
+        ", ".join(str(r[idx])[:48] for r in rows[:4] if len(r)>idx and r[idx])[:125])
+    first_is_header = bool(rows and len(rows[0]) > selected_col and is_header(rows[0][selected_col]))
+    skip_header = st.checkbox("Bỏ qua dòng đầu (dòng tiêu đề)",
+                              value=first_is_header, key="bulk_location_skip_header")
+    names = candidate_names(rows, selected_col, skip_header)
+    seen, unique = set(), []
+    duplicate_inside = 0
+    for name in names:
+        norm = normalize_name(name)
+        if norm in seen:
+            duplicate_inside += 1
+        else:
+            seen.add(norm)
+            unique.append(name)
+    prior = [r for r in read_sheet("DANH_SACH_DIEM") if r.get("Mã dự án") == project]
+    oldnames = {normalize_name(r.get("Tên xã/phường/đơn vị")) for r in prior}
+    to_add = [name for name in unique if normalize_name(name) not in oldnames]
+    st.write(f"**Đọc được:** {len(names)} dòng  •  **Trùng trong tệp:** {duplicate_inside}"
+             f"  •  **Đã có trong dự án:** {len(unique)-len(to_add)}"
+             f"  •  **Dự kiến thêm:** {len(to_add)}")
+    if to_add:
+        st.dataframe([{"STT":i, "Tên xã/phường/đơn vị":name}
+                      for i,name in enumerate(to_add[:100],1)],
+                     hide_index=True, use_container_width=True)
+        if len(to_add)>100:
+            st.caption("Đang hiển thị 100 tên đầu tiên; khi xác nhận sẽ nhập cả danh sách.")
+    else:
+        st.info("Không có địa điểm mới để thêm.")
+        return
+    st.warning("Vui lòng kiểm tra cột, tên địa điểm và dự án trước khi nạp.")
+    if st.button(f"✅ XÁC NHẬN NẠP {len(to_add)} ĐỊA ĐIỂM",
+                 type="primary", use_container_width=True,
+                 key="confirm_bulk_locations", disabled=len(to_add)>1000):
+        # Recheck project and duplicates immediately before committing.
+        if project not in {r["Mã dự án"] for r in read_sheet("DANH_SACH_DU_AN")}:
+            st.error("Dự án không còn tồn tại; không ghi dữ liệu.")
+            return
+        latest = [r for r in read_sheet("DANH_SACH_DIEM") if r.get("Mã dự án") == project]
+        already = {normalize_name(r.get("Tên xã/phường/đơn vị")) for r in latest}
+        final = [name for name in to_add if normalize_name(name) not in already]
+        if not final:
+            st.info("Danh sách này đã được nạp trước đó, không tạo bản ghi trùng.")
+            return
+        payload = []
+        for name in final:
+            point_id = "DD-" + uuid.uuid4().hex[:12].upper()
+            # Coordinates must be verified by Admin before relying on navigation.
+            payload.append([point_id, project, name, "", "", "", "", "", "",
+                            "Hoạt động", "Nhập từ " + upload.name[:80]])
+        try:
+            sheet("DANH_SACH_DIEM").append_rows(payload, value_input_option="RAW")
+            read_sheet.clear()
+            audit(auth()["username"], "NHẬP ĐỊA ĐIỂM", "DANH_SACH_DIEM", project,
+                  "OK", f"{len(final)} điểm từ tệp {upload.name[:80]}")
+            st.success(f"Đã thêm {len(final)} địa điểm vào dự án {project}. "
+                       "Điểm trùng được giữ nguyên, không ghi đè.")
+            st.info("Tên điểm mới chưa có tọa độ. Admin cần kiểm tra vị trí trên "
+                    "Google Maps trước khi dùng chức năng chỉ đường chính thức.")
+        except Exception as exc:
+            read_sheet.clear()
+            st.error("Chưa thể xác nhận nhập danh sách thành công (" +
+                     type(exc).__name__ + "). Hãy kiểm tra Google Sheets trước khi thử lại.")
+
 def projects_and_inventory():
     require_role("ADMIN")
     st.subheader("📁 Danh mục do Admin quản lý")
-    choice = st.radio("Nhập mới", ["Dự án", "Địa điểm", "Hàng nhập kho"], horizontal=True)
+    choice = st.radio("Thao tác quản lý", ["Dự án", "Địa điểm", "Hàng nhập kho", "Nạp danh sách địa điểm"], horizontal=False)
+    if choice == "Nạp danh sách địa điểm":
+        bulk_import_locations()
+        return
     projects = read_sheet("DANH_SACH_DU_AN")
     ids = [x.get("Mã dự án") for x in projects if x.get("Mã dự án")]
     with st.form("new_master", clear_on_submit=True):
