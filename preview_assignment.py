@@ -184,3 +184,55 @@ def compact_site_assignment_requests(sheet_ids, plan, team_id):
     if not requests:
         raise ValueError("Không có nhiệm vụ chờ giao.")
     return requests
+
+
+def project_site_catalog(team, mode, locations, tasksets):
+    """List ALL active project sites for searching, not just unassigned ones.
+
+    Returns point_id => (location, display_status, pending_task_counts).
+    Only status Sẵn sàng giao may be committed to tasks.
+    """
+    eligible = eligible_site_tasks(team, mode, locations, tasksets)
+    project, team_id = team["Mã dự án"], team["Mã đội"]
+    grouped = {}
+    for tab in ROLE_TABS[mode]:
+        task_id, _, _ = TASK_SCHEMA[tab]
+        for task in tasksets.get(tab, []):
+            if task.get("Mã dự án") != project or not task.get(task_id):
+                continue
+            grouped.setdefault((tab, task.get("Mã điểm")), []).append(task)
+    result = {}
+    for loc in locations:
+        pid = loc.get("Mã điểm")
+        if (not pid or loc.get("Mã dự án") != project or
+                loc.get("Trạng thái") != "Hoạt động"):
+            continue
+        if pid in result:
+            raise ValueError(f"Mã địa điểm trùng trong danh mục: {pid}.")
+        if pid in eligible:
+            result[pid] = (loc, "Sẵn sàng giao", eligible[pid][1])
+            continue
+        jobs = [r for tab in ROLE_TABS[mode]
+                for r in grouped.get((tab, pid), [])]
+        if not jobs:
+            status = "Chưa phân bổ hàng"
+        elif any(
+            r.get(TASK_SCHEMA[tab][1]) not in ("", None, team_id)
+            for tab in ROLE_TABS[mode]
+            for r in grouped.get((tab, pid), [])
+        ):
+            status = "Đã gán đội khác"
+        elif any(
+            not grouped.get((tab, pid), []) for tab in ROLE_TABS[mode]
+        ):
+            status = "Chưa có đủ nhiệm vụ VC/LĐ"
+        elif all(
+            r.get(TASK_SCHEMA[tab][1]) == team_id
+            for tab in ROLE_TABS[mode]
+            for r in grouped.get((tab, pid), [])
+        ):
+            status = "Đã gán cho đội này"
+        else:
+            status = "Không còn nhiệm vụ chờ gán"
+        result[pid] = (loc, status, {})
+    return result
