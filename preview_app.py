@@ -141,7 +141,7 @@ def valid_login(username, pin):
     return None
 
 def login():
-    with st.form("auth"):
+    with st.form("login_form_preview"):
         username = st.text_input("Mã tài khoản")
         pin = st.text_input("Mã truy cập riêng", type="password")
         if st.form_submit_button("ĐĂNG NHẬP", use_container_width=True):
