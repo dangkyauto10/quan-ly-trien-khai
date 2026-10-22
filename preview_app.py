@@ -17,6 +17,44 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from PIL import Image
 from streamlit_geolocation import streamlit_geolocation
+# The cookie component runs once on each page execution. Its browser-side
+# cookie cache is populated asynchronously after the component has mounted.
+from streamlit_cookies_controller import CookieController
+from preview_remember import (
+    COOKIE_NAME, VALID_SECONDS, issue_remember_token, verify_remember_token
+)
+
+cookie_controller = CookieController(key="tdv_cookie_controller_v1")
+
+
+def remember_signing_key():
+    raw = st.secrets.get("remember_login_secret", "")
+    return raw if isinstance(raw, str) and len(raw) >= 32 else None
+
+
+def sync_remembered_login():
+    """Handle a pending browser-cookie change before trying auto login."""
+    action = st.session_state.pop("_remember_action", None)
+    if action == "set":
+        token = st.session_state.pop("_remember_token", "")
+        if token:
+            cookie_controller.set(
+                COOKIE_NAME, token,
+                max_age=VALID_SECONDS, secure=True, same_site="strict")
+    elif action == "remove":
+        st.session_state.pop("_remember_token", None)
+        if cookie_controller.get(COOKIE_NAME) is not None:
+            cookie_controller.remove(COOKIE_NAME)
+
+    if not st.session_state.get("auth") and action != "remove":
+        key = remember_signing_key()
+        cookie = cookie_controller.get(COOKIE_NAME)
+        if key and cookie:
+            account = verify_remember_token(cookie, st.secrets.get("accounts", {}), key)
+            if account:
+                st.session_state["auth"] = account
+
+
 from preview_registration import role_for_specialty, team_id_from_registration, matching_teams
 from preview_import_locations import (read_location_file, candidate_names,
     column_choice, is_header, normalize_name, blank_excel_template)
@@ -193,12 +231,27 @@ def login():
     with st.form("login_form_preview"):
         username = st.text_input("Mã tài khoản")
         pin = st.text_input("Mã truy cập riêng", type="password")
+        remember_key = remember_signing_key()
+        remember = st.checkbox(
+            "☑ Ghi nhớ đăng nhập trên thiết bị này (30 ngày)",
+            value=False, disabled=not bool(remember_key),
+            help="Chỉ chọn trên điện thoại hoặc máy tính cá nhân; đừng chọn ở máy dùng chung.")
+        if remember_key is None:
+            st.caption("Chức năng ghi nhớ sẽ bật sau khi Admin cấu hình remember_login_secret trong Secrets.")
         if st.form_submit_button("ĐĂNG NHẬP", use_container_width=True):
             user = valid_login(username.strip(), pin)
             if not user:
                 st.error("Thông tin không hợp lệ hoặc tài khoản tạm khóa.")
             else:
                 st.session_state["auth"] = user
+                if remember and remember_key:
+                    account = st.secrets["accounts"][user["username"]]
+                    st.session_state["_remember_token"] = issue_remember_token(
+                        user["username"], account, remember_key)
+                    st.session_state["_remember_action"] = "set"
+                else:
+                    # Prevent an old remembered account from being restored later.
+                    st.session_state["_remember_action"] = "remove"
                 st.rerun()
 
 def auth():
@@ -219,6 +272,7 @@ def require_role(*roles):
     return a
 
 def menu():
+    sync_remembered_login()
     a = auth()
     if not a:
         opts = ["🔐 Đăng nhập", "📝 Đăng ký tham gia"]
@@ -235,6 +289,7 @@ def menu():
         st.caption(f"Đã đăng nhập: {a['username']} • {a['role']}")
         if st.button("Đăng xuất"):
             st.session_state.pop("auth", None)
+            st.session_state["_remember_action"] = "remove"
             st.rerun()
     return st.selectbox("CHỌN CHỨC NĂNG", opts)
 
