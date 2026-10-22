@@ -25,6 +25,11 @@ from preview_remember import (
 )
 
 from preview_registration import role_for_specialty, team_id_from_registration, matching_teams
+from preview_bulk_allocation import (
+    inventory_by_sku, build_plan, verify_plan, atomic_requests
+)
+from io import BytesIO
+from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
     column_choice, is_header, normalize_name, blank_excel_template)
 
@@ -557,7 +562,223 @@ def projects_and_inventory():
             except Exception as e:
                 st.error(f"Lưu thất bại: {type(e).__name__}")
 
+def read_sheet_live(name):
+    """Bypass Streamlit's short cache for the final stock/duplicate check."""
+    values = sheet(name).get_all_values()
+    if not values:
+        return []
+    headers = values[0]
+    return [dict(zip(headers, row + [""] * (len(headers)-len(row))), _row=i)
+            for i, row in enumerate(values[1:], 2) if any(str(x).strip() for x in row)]
+
+
+def bulk_matrix_xlsx(plan, sku_list):
+    wb = ExcelWorkbook()
+    ws = wb.active
+    ws.title = "PHAN_BO_XEM_TRUOC"
+    ws.append(["Mã điểm", "Tên địa điểm"] + sku_list)
+    for r in plan:
+        ws.append([r["Mã điểm"], r["Tên địa điểm"]] +
+                  [float(r["quantities"][sku]) for sku in sku_list])
+    ws.freeze_panes = "C2"
+    ws.column_dimensions["A"].width = 24
+    ws.column_dimensions["B"].width = 44
+    for n in range(len(sku_list)):
+        from openpyxl.utils import get_column_letter
+        ws.column_dimensions[get_column_letter(n+3)].width = 16
+    for cell in ws[1]:
+        from openpyxl.styles import Font, PatternFill
+        cell.fill = PatternFill("solid", fgColor="183A72")
+        cell.font = Font(color="FFFFFF", bold=True)
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+def allocate_bulk():
+    require_role("ADMIN")
+    st.subheader("📦 Phân bổ hàng loạt – đa mặt hàng")
+    st.caption("SKU tự lấy từ NHAP_KHO của từng dự án. Số lượng 0 nghĩa là "
+               "điểm đó không nhận mặt hàng. Chỉ ADMIN xác nhận mới ghi dữ liệu.")
+    prows = read_sheet("DANH_SACH_DU_AN")
+    projects = [r["Mã dự án"] for r in prows if r.get("Mã dự án")]
+    if not projects:
+        st.warning("Cần tạo dự án trước.")
+        return
+    project = st.selectbox("Dự án", projects, key="bulk_project")
+    points = [r for r in read_sheet("DANH_SACH_DIEM")
+              if r.get("Mã dự án") == project and r.get("Mã điểm")
+              and r.get("Trạng thái") == "Hoạt động"]
+    imports = read_sheet("NHAP_KHO")
+    allocations = read_sheet("KHO_PHAN_BO")
+    inventory, inventory_issues = inventory_by_sku(project, imports, allocations)
+    if inventory_issues:
+        for issue in inventory_issues:
+            st.error(issue)
+        st.warning("Phải đối soát kho trước khi phân bổ.")
+        return
+    if not points or not inventory:
+        st.warning("Dự án cần có danh sách địa điểm và ít nhất một SKU trong NHAP_KHO.")
+        return
+    point_by_id = {r["Mã điểm"]:r for r in points}
+    point_ids = list(point_by_id)
+    names = {pid:point_by_id[pid]["Tên xã/phường/đơn vị"] for pid in point_ids}
+    skus = list(inventory)
+    st.write(f"**{len(point_ids)} điểm** • **{len(skus)} SKU** có trong dự án")
+    st.markdown("#### 1. Định mức chung cho từng SKU")
+    defaults = {}
+    for sku in skus:
+        itm = inventory[sku]
+        st.caption(f"{sku} — {itm['name']} • Tồn khả dụng: "
+                   f"{itm['remaining']:g} {itm['unit']}")
+        defaults[sku] = st.number_input(
+            f"Định mức {sku} / điểm ({itm['unit']})", min_value=0.0,
+            value=0.0, step=1.0, format="%.3f",
+            key=f"bulk_default_{project}_{sku}")
+    chosen_ids = st.multiselect("2. Điểm được đưa vào đợt phân bổ",
+        point_ids, default=point_ids,
+        format_func=lambda pid: f"{names[pid]} • {pid}",
+        key=f"bulk_points_{project}")
+    if not chosen_ids:
+        st.info("Vui lòng chọn địa điểm cần phân bổ.")
+        return
+    st.markdown("#### 3. Điều chỉnh những đơn vị có định mức khác")
+    exceptions = st.multiselect("Chọn các điểm ngoại lệ (có thể nhiều hoặc ít hơn 15)",
+        chosen_ids, format_func=lambda pid:f"{names[pid]} • {pid}",
+        key=f"bulk_exception_{project}")
+    overrides = {}
+    if exceptions:
+        source_rows = []
+        for pid in exceptions:
+            row = {"Mã điểm":pid,"Tên địa điểm":names[pid]}
+            row.update({sku:float(defaults[sku]) for sku in skus})
+            source_rows.append(row)
+        ui_key = hashlib.sha256(
+            repr((project, sorted(exceptions),
+                  tuple((k,defaults[k]) for k in skus))).encode()
+        ).hexdigest()[:16]
+        edited = st.data_editor(
+            source_rows, key=f"bulk_exceptions_{ui_key}", hide_index=True,
+            use_container_width=True, num_rows="fixed",
+            disabled=["Mã điểm", "Tên địa điểm"],
+            column_config={
+                "Mã điểm":st.column_config.TextColumn("Mã điểm"),
+                "Tên địa điểm":st.column_config.TextColumn("Địa điểm"),
+                **{sku:st.column_config.NumberColumn(
+                    sku, min_value=0.0, step=1.0, format="%.3f")
+                   for sku in skus}
+            })
+        exception_rows = edited.to_dict("records") if hasattr(edited,"to_dict") else edited
+        for row in exception_rows:
+            pid = row["Mã điểm"]
+            for sku in skus:
+                overrides[(pid,sku)] = row.get(sku,defaults[sku])
+    plan = build_plan([point_by_id[pid] for pid in chosen_ids],
+                      skus, defaults, overrides)
+    errors, candidates, totals = verify_plan(
+        project, plan, inventory, allocations, points)
+    st.markdown("#### 4. Đối soát trước khi xác nhận")
+    preview_summary = []
+    for sku,itm in inventory.items():
+        preview_summary.append({
+            "SKU":sku,"Tên hàng":itm["name"],"ĐVT":itm["unit"],
+            "Tồn khả dụng":float(itm["remaining"]),
+            "Dự kiến phân bổ":float(totals.get(sku, 0)),
+            "Còn sau phân bổ":float(itm["remaining"]-totals.get(sku,0))
+        })
+    st.dataframe(preview_summary, hide_index=True, use_container_width=True)
+    st.caption(f"Dự kiến ghi {len(candidates)} dòng vào KHO_PHAN_BO; "
+               f"phát sinh tương ứng nhiệm vụ VC và KTV. "
+               f"Địa điểm được chọn: {len(chosen_ids)}; ngoại lệ: {len(exceptions)}.")
+    with st.expander("Xem toàn bộ ma trận địa điểm × SKU",expanded=False):
+        st.dataframe([{"Mã điểm":r["Mã điểm"],"Địa điểm":r["Tên địa điểm"],
+                       **{sku:float(r["quantities"][sku]) for sku in skus}}
+                      for r in plan],hide_index=True,use_container_width=True)
+    st.download_button("⬇️ Tải ma trận xem trước (.xlsx)",
+        data=bulk_matrix_xlsx(plan, skus),
+        file_name=f"PHAN_BO_NHAP_{project}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key=f"bulk_preview_download_{project}")
+    if errors:
+        for error in errors[:12]:
+            st.error(error)
+        if len(errors)>12:
+            st.error(f"Còn {len(errors)-12} lỗi khác; phải xử lý trước khi ghi.")
+        return
+    st.warning("Chỉ bấm XÁC NHẬN khi đã đối chiếu lượng hàng từng SKU và "
+               "các xã/đơn vị ngoại lệ. Không thể ghi trùng SKU tại cùng điểm.")
+    accepted = st.checkbox("Tôi đã kiểm tra định mức và tồn kho; đồng ý tạo "
+                           "nhiệm vụ vận chuyển, lắp đặt.",
+                           key=f"bulk_approved_{project}")
+    if not st.button("✅ XÁC NHẬN PHÂN BỔ HÀNG LOẠT",
+                     key=f"bulk_confirm_{project}",type="primary",
+                     use_container_width=True,disabled=not accepted):
+        return
+    # A single atomic Google Sheets batch contains the data for all tables.
+    # Re-read live without cached data immediately before commit.
+    try:
+        live_imports = read_sheet_live("NHAP_KHO")
+        live_allocations = read_sheet_live("KHO_PHAN_BO")
+        live_points = read_sheet_live("DANH_SACH_DIEM")
+        live_projects = read_sheet_live("DANH_SACH_DU_AN")
+        if project not in {p.get("Mã dự án") for p in live_projects}:
+            st.error("Dự án đã thay đổi, không ghi phân bổ.")
+            return
+        live_inventory, live_errors = inventory_by_sku(
+            project,live_imports,live_allocations)
+        changed = any(sku not in live_inventory or
+            (live_inventory[sku]["name"],live_inventory[sku]["unit"]) !=
+            (inventory[sku]["name"],inventory[sku]["unit"])
+            for sku in skus)
+        if live_errors or changed:
+            st.error("Danh mục kho đã thay đổi; vui lòng kiểm tra và lập lại.")
+            return
+        live_errors, live_candidates, live_totals = verify_plan(
+            project,plan,live_inventory,live_allocations,live_points)
+        if live_errors:
+            for issue in live_errors[:8]:
+                st.error(issue)
+            st.error("Không ghi dữ liệu. Hãy kiểm tra lại phương án.")
+            return
+        batch_id="PB-"+uuid.uuid4().hex[:12].upper()
+        sheet_names=["DM_CHUAN","KHO_PHAN_BO","VAN_CHUYEN","LAP_DAT",
+                     "TIEN_DO","NHAT_KY_HE_THONG"]
+        spreadsheet=client()[0]
+        ids={name:spreadsheet.worksheet(name).id for name in sheet_names}
+        existing_tasks={
+            "VAN_CHUYEN":read_sheet_live("VAN_CHUYEN"),
+            "LAP_DAT":read_sheet_live("LAP_DAT")
+        }
+        progress=read_sheet_live("TIEN_DO")
+        requests = atomic_requests(
+            ids,live_candidates,batch_id,project,live_inventory,
+            names,auth()["username"],now(),existing_tasks,progress)
+        spreadsheet.batch_update({"requests":requests})
+        read_sheet.clear()
+        st.success(f"Đã phân bổ {len(live_candidates)} dòng tại "
+                   f"{len({p for p,s,q in live_candidates})} điểm. "
+                   f"Mã đợt: {batch_id}. "
+                   "Đã tạo đồng thời nhiệm vụ VC/KTV, chờ ADMIN gán đội.")
+    except Exception as exc:
+        read_sheet.clear()
+        st.error("CHƯA XÁC NHẬN ĐƯỢC KẾT QUẢ GHI ("+type(exc).__name__+
+                 "). KHÔNG bấm lại. Kiểm tra KHO_PHAN_BO, VAN_CHUYEN, "
+                 "LAP_DAT và NHAT_KY_HE_THONG trước khi thử tiếp.")
+
+
 def allocate():
+    require_role("ADMIN")
+    mode=st.radio("Cách phân bổ",[
+        "Hàng loạt – định mức chung + ngoại lệ",
+        "Theo từng địa điểm (cách cũ)"
+    ],key="allocation_mode")
+    if mode.startswith("Hàng loạt"):
+        allocate_bulk()
+    else:
+        allocate_single()
+
+
+def allocate_single():
     require_role("ADMIN")
     st.subheader("📦 Phân bổ SLHH theo từng điểm")
     prows=read_sheet("DANH_SACH_DU_AN")
