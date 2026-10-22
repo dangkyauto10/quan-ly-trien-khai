@@ -327,7 +327,7 @@ def register(on_behalf=False):
             if p.get("Mã dự án") == project and p.get("Tên xã/phường/đơn vị")
         })
         area = st.multiselect("Khu vực đã hợp đồng (chọn nhiều nếu cần)",
-                              area_options)
+                              area_options, key=f"register_areas_{project}_{revision}")
         area_other = st.text_area("Khu vực theo hợp đồng cần ghi bổ sung",
             placeholder="Gõ địa bàn, xã/phường hoặc đơn vị chưa có trong danh sách...",
             max_chars=1200, height=84)
