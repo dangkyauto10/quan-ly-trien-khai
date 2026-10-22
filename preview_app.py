@@ -1,6 +1,7 @@
 # QUAN LY DU AN — PREVIEW 2026-10-22
 # Staged only: never deploy to production without user approval.
 import io
+import json
 import uuid
 import hmac
 import hashlib
@@ -66,9 +67,15 @@ def fail(message):
 
 @st.cache_resource
 def client():
-    if "gcp_service_account" not in st.secrets or "spreadsheet_id" not in st.secrets:
-        raise RuntimeError("Thiếu cấu hình kết nối Google Sheets trong Streamlit Secrets.")
-    info = dict(st.secrets["gcp_service_account"])
+    if "spreadsheet_id" not in st.secrets:
+        raise RuntimeError("Thiếu spreadsheet_id trong Streamlit Secrets.")
+    # Support the original JSON file pasted as a literal TOML multiline value.
+    if "gcp_service_account_json" in st.secrets:
+        info = json.loads(st.secrets["gcp_service_account_json"])
+    elif "gcp_service_account" in st.secrets:
+        info = dict(st.secrets["gcp_service_account"])
+    else:
+        raise RuntimeError("Thiếu gcp_service_account_json trong Streamlit Secrets.")
     cred = Credentials.from_service_account_info(info, scopes=SHEETS_SCOPE)
     sh = gspread.authorize(cred).open_by_key(st.secrets["spreadsheet_id"])
     return sh, cred
