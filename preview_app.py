@@ -296,6 +296,7 @@ def allocate():
                     append("KHO_PHAN_BO",[pid,bid,project,point["Mã điểm"],sku,item["name"],item["unit"],qty,now(),"Đã phân bổ",""])
                     append("VAN_CHUYEN",["VC-"+uuid.uuid4().hex[:12].upper(),pid,project,point["Mã điểm"],sku,qty,"","Chưa giao","","","","","",""])
                     append("LAP_DAT",["LD-"+uuid.uuid4().hex[:12].upper(),pid,project,point["Mã điểm"],sku,qty,"","Chưa lắp","","","","","",""])
+                sync_progress(project, point["Mã điểm"])
                 audit(auth()["username"],"PHÂN BỔ","KHO_PHAN_BO",bid,"OK")
                 st.success(f"Đã phân bổ {len(chosen)} SKU. Tiếp theo Admin gán đội VC/KTV.")
             except Exception as e:
@@ -340,6 +341,25 @@ def teams_and_approval():
             st.rerun()
     else:
         st.info("Không có công việc chờ gán hoặc chưa có đội đúng chuyên môn.")
+
+def sync_progress(project_id, point_id):
+    """Derived per-point summary; not a substitute for source task rows."""
+    read_sheet.clear()
+    vc=[r for r in read_sheet("VAN_CHUYEN") if r.get("Mã dự án")==project_id and r.get("Mã điểm")==point_id]
+    ld=[r for r in read_sheet("LAP_DAT") if r.get("Mã dự án")==project_id and r.get("Mã điểm")==point_id]
+    vc_done=sum(r.get("Trạng thái")=="Đã giao hàng" for r in vc)
+    ld_done=sum(r.get("Trạng thái")=="Đã lắp đặt" for r in ld)
+    all_done=bool(vc or ld) and vc_done==len(vc) and ld_done==len(ld)
+    some_done=vc_done+ld_done>0
+    status="Hoàn thành" if all_done else ("Đang thực hiện" if some_done else "Chưa thực hiện")
+    loc=lookup(read_sheet("DANH_SACH_DIEM"),"Mã điểm",point_id) or {}
+    current=next((r for r in read_sheet("TIEN_DO") if r.get("Mã dự án")==project_id and r.get("Mã điểm")==point_id),None)
+    values=[project_id,point_id,loc.get("Tên xã/phường/đơn vị",""),len(vc),vc_done,len(ld),ld_done,status,now()]
+    if current:
+        sheet("TIEN_DO").update(f"A{current['_row']}:I{current['_row']}",[values],value_input_option="RAW")
+    else:
+        append("TIEN_DO",values)
+    read_sheet.clear()
 
 def images_to_drive(files, report_id):
     sh, cred=client()
@@ -444,6 +464,7 @@ def report():
                   [[status,now(),", ".join(urls),maps,rid,
                     row["SL giao" if tab=="VAN_CHUYEN" else "SL lắp"],""]],
                   value_input_option="RAW")
+            sync_progress(chosen[0],chosen[1])
             sheet("BAO_CAO_TRIEN_KHAI").update(
                  f"N{row_index}:O{row_index}",[[READY,""]],value_input_option="RAW")
             read_sheet.clear()
