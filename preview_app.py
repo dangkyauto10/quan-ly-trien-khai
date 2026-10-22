@@ -362,9 +362,14 @@ def register(on_behalf=False):
                     rid = "DK-" + uuid.uuid4().hex[:12].upper()
                     submitter = ("ADMIN:" + acting_admin["username"]) if acting_admin else "Tự đăng ký"
                     try:
-                        append("DANG_KY_THANH_VIEN", [rid, datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).strftime("%d/%m/%Y %H:%M"), full_name.strip(),
-                               normalized_phone, described_areas, specialty, vehicle,
-                               "Chờ duyệt", "", "", "", project, submitter])
+                        local_time = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).replace(tzinfo=None, microsecond=0)
+                        date_serial = (local_time - datetime(1899, 12, 30)).total_seconds() / 86400
+                        sheet("DANG_KY_THANH_VIEN").append_row(
+                            [rid, date_serial, full_name.strip(),
+                             normalized_phone, described_areas, specialty, vehicle,
+                             "Chờ duyệt", "", "", "", project, submitter],
+                            value_input_option="RAW")
+                        read_sheet.clear()
                         st.session_state["registered_notice"] = (
                             f"Đã nhận hồ sơ {rid} — đang chờ ADMIN duyệt. "
                             "Hồ sơ chưa được cấp quyền báo cáo.")
