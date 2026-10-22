@@ -6,7 +6,7 @@ import uuid
 import hmac
 import hashlib
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import quote
 
@@ -46,7 +46,8 @@ def sync_remembered_login():
         if token:
             cookie_controller.set(
                 COOKIE_NAME, token,
-                max_age=VALID_SECONDS, secure=True, same_site="strict")
+                max_age=VALID_SECONDS, expires=datetime.now() + timedelta(days=30),
+                secure=True, same_site="strict")
     elif action == "remove":
         st.session_state.pop("_remember_token", None)
         if cookie_controller.get(COOKIE_NAME) is not None:
