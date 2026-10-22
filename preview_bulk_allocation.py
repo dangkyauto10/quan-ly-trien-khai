@@ -54,6 +54,43 @@ def inventory_by_sku(project, imports, allocations):
             for sku, v in metadata.items()}, issues
 
 
+
+
+def allocation_waiting_summary(project, imports, allocations):
+    """Per-SKU reserved-balance summary; not a physical warehouse stock ledger.
+
+    Total receipts minus reserved allocations reaches zero once all imported
+    quantity has been assigned to project locations. Warehouse issues must
+    be accounted for separately when physical stock tracking is deployed.
+    """
+    stock, issues = inventory_by_sku(project, imports, allocations)
+    imports_by_sku = defaultdict(Decimal)
+    allocated_by_sku = defaultdict(Decimal)
+    for row in imports:
+        if row.get("Mã dự án") == project and row.get("SKU"):
+            try:
+                imports_by_sku[str(row["SKU"]).strip()] += quantity(
+                    row.get("SL thực nhận") or 0)
+            except ValueError:
+                pass   # inventory_by_sku records the data-quality error.
+    for row in allocations:
+        if row.get("Mã dự án") == project and row.get("SKU"):
+            try:
+                allocated_by_sku[str(row["SKU"]).strip()] += quantity(
+                    row.get("SL phân bổ") or 0)
+            except ValueError:
+                pass
+    result = []
+    for sku, meta in stock.items():
+        result.append({
+            "SKU": sku, "Tên hàng hóa": meta["name"], "ĐVT": meta["unit"],
+            "Tổng nhập": float(imports_by_sku[sku]),
+            "Đã phân bổ": float(allocated_by_sku[sku]),
+            "Hàng còn chờ phân bổ": float(meta["remaining"])
+        })
+    return result, issues
+
+
 def build_plan(selected_points, skus, defaults, overrides=None):
     """Create list of proposed rows; override only chosen (point,sku) pairs."""
     overrides = overrides or {}
