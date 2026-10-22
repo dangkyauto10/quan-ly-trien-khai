@@ -28,9 +28,10 @@ class ApprovalRuntimeImportTests(unittest.TestCase):
         self.assertTrue(callable(module.approval_requests))
         team=["KTV-123","A","0912345678","KTV","","Hoạt động","DA-TEST01",""]
         req=module.approval_requests(1,2,3,"Đã duyệt",team,"KTV-123","admin",46317.6)
-        self.assertEqual(len(req),2)
+        self.assertEqual(len(req),3)
         self.assertIn("appendCells",req[0])
         self.assertIn("updateCells",req[1])
+        self.assertEqual(req[2]["repeatCell"]["cell"]["userEnteredFormat"]["numberFormat"]["pattern"],"dd/mm/yyyy hh:mm")
 
 if __name__ == "__main__":
     unittest.main()
