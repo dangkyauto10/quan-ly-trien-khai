@@ -25,6 +25,7 @@ from preview_remember import (
 )
 
 from preview_registration import role_for_specialty, team_id_from_registration, matching_teams
+from preview_approval_ui import render_pending_approvals
 from preview_bulk_allocation import (
     inventory_by_sku, build_plan, verify_plan, atomic_requests
 )
@@ -867,67 +868,9 @@ def allocate_single():
 def teams_and_approval():
     require_role("ADMIN")
     st.subheader("👥 Quản lý đội / Duyệt đăng ký")
-    pending=[x for x in read_sheet("DANG_KY_THANH_VIEN") if x.get("Trạng thái duyệt")=="Chờ duyệt"]
-    all_projects=[r["Mã dự án"] for r in read_sheet("DANH_SACH_DU_AN") if r.get("Mã dự án")]
-    if not pending:
-        st.info("Hiện không có hồ sơ chờ duyệt.")
-    for p in pending:
-        rid=p["Mã đăng ký"]
-        kind=role_for_specialty(p.get("Chuyên môn", ""))
-        st.write(f"**{p['Họ tên']}** • {p['Chuyên môn']} • Mã {rid}")
-        if not kind:
-            st.warning("Chuyên môn này chưa được tự tạo đội VC/KTV. Admin cần xử lý riêng.")
-            continue
-        if not all_projects:
-            st.warning("Cần tạo dự án trước khi duyệt tạo đội.")
-            continue
-        chosen_project=st.selectbox("Dự án nhận đội",all_projects,
-            key="approve_project_"+rid)
-        st.caption("Địa bàn đăng ký chỉ là đề xuất; Admin sẽ gán điểm thực hiện riêng.")
-        if st.button("DUYỆT & TẠO ĐỘI "+kind,key="approve_"+rid):
-            # Re-read before writing, so repeated clicks/retries cannot create two teams.
-            read_sheet.clear()
-            live=lookup(read_sheet("DANG_KY_THANH_VIEN"),"Mã đăng ký",rid)
-            if not live or live.get("Trạng thái duyệt")!="Chờ duyệt":
-                st.warning("Hồ sơ đã được xử lý. Tải lại để xem trạng thái.")
-                st.stop()
-            if chosen_project not in [r["Mã dự án"] for r in read_sheet("DANH_SACH_DU_AN")]:
-                st.error("Dự án không còn tồn tại, chưa ghi dữ liệu.")
-                st.stop()
-            teams_now=read_sheet("QUAN_LY_DOI")
-            matches=matching_teams(teams_now,name=live["Họ tên"],
-                phone=live["Số điện thoại"],kind=kind,project=chosen_project)
-            if len(matches)>1:
-                st.error("Có nhiều đội trùng người và dự án; cần Admin xử lý trước khi duyệt.")
-                st.stop()
-            tid=(matches[0]["Mã đội"] if matches else
-                 team_id_from_registration(rid,kind))
-            existing=lookup(teams_now,"Mã đội",tid)
-            if existing and (existing.get("Tên đội/đội trưởng")!=live["Họ tên"]
-                             or existing.get("SĐT đội trưởng")!=live["Số điện thoại"]
-                             or existing.get("Loại nhiệm vụ")!=kind
-                             or existing.get("Mã dự án")!=chosen_project
-                             or existing.get("Trạng thái")!="Hoạt động"):
-                st.error("Đội đã có nhưng thông tin hoặc trạng thái chưa khớp. Cần Admin đối soát.")
-                st.stop()
-            try:
-                if not existing:
-                    append("QUAN_LY_DOI",[tid,live["Họ tên"],live["Số điện thoại"],
-                           kind,"","Hoạt động",chosen_project,
-                           "Duyệt từ "+rid+"; chưa cấp đăng nhập"])
-                sheet("DANG_KY_THANH_VIEN").update(
-                    f"H{live['_row']}:K{live['_row']}",
-                    [["Đã duyệt",tid,auth()["username"],sheet_datetime_serial()]],value_input_option="RAW")
-                read_sheet.clear()
-                audit(auth()["username"],"DUYỆT & TẠO ĐỘI","QUAN_LY_DOI",tid,"OK",rid)
-                st.success(("Đã duyệt và liên kết đội có sẵn " if matches else
-                            "Đã duyệt và tạo đội ") + tid + ". "
-                           "Chưa cấp quyền đăng nhập hoặc phân công điểm.")
-                st.rerun()
-            except Exception as exc:
-                read_sheet.clear()
-                st.error("Chưa hoàn tất việc duyệt ("+type(exc).__name__+"). "
-                         "Hãy kiểm tra hai sheet trước khi thao tác lại.")
+    render_pending_approvals(
+        read_sheet=read_sheet, sheet=sheet, client=client, auth=auth,
+        audit=audit, lookup=lookup, sheet_datetime_serial=sheet_datetime_serial)
     st.caption("Chỉ quản lý đội trưởng. Thành viên của đội do đội trưởng tự quản lý.")
     with st.expander("➕ Thêm đội trưởng thủ công (không phải gán nhiệm vụ)", expanded=False):
         saved_team_message=st.session_state.pop("team_saved_message", None)
