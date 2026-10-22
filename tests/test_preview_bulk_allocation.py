@@ -2,7 +2,7 @@ import unittest
 from decimal import Decimal
 
 from preview_bulk_allocation import (
-    quantity, inventory_by_sku, build_plan, verify_plan, atomic_requests
+    quantity, inventory_by_sku, allocation_waiting_summary, build_plan, verify_plan, atomic_requests
 )
 
 PROJECT = "DA-TEST01"
@@ -110,6 +110,32 @@ class MultiSkuAllocationTests(unittest.TestCase):
         self.assertEqual(len(updates),1)
         value=updates[0]["updateCells"]["rows"][0]["values"][3]["userEnteredValue"]["numberValue"]
         self.assertEqual(value,2)
+
+
+
+    def test_all_receipts_allocated_waiting_zero(self):
+        allocations=[
+            {"Mã dự án":PROJECT,"SKU":"TB-01","SL phân bổ":"20"},
+            {"Mã dự án":PROJECT,"SKU":"TB-01","SL phân bổ":"5"},
+            {"Mã dự án":PROJECT,"SKU":"TB-02","SL phân bổ":"15"},
+        ]
+        overview,issues=allocation_waiting_summary(PROJECT,RECEIPTS,allocations)
+        self.assertFalse(issues)
+        self.assertEqual(len(overview),2)
+        self.assertTrue(all(row["Hàng còn chờ phân bổ"] == 0 for row in overview))
+        self.assertEqual(next(x for x in overview if x["SKU"]=="TB-01")["Tổng nhập"],25)
+
+    def test_multiple_receipts_less_allocations(self):
+        allocations=[{"Mã dự án":PROJECT,"SKU":"TB-01","SL phân bổ":"7"}]
+        overview,issues=allocation_waiting_summary(PROJECT,RECEIPTS,allocations)
+        self.assertFalse(issues)
+        self.assertEqual(next(x for x in overview if x["SKU"]=="TB-01")["Hàng còn chờ phân bổ"],18)
+
+    def test_separate_project_not_mixed(self):
+        unrelated=[{"Mã dự án":"DA880","SKU":"TB-01","SL phân bổ":"500"}]
+        overview,issues=allocation_waiting_summary(PROJECT,RECEIPTS,unrelated)
+        self.assertFalse(issues)
+        self.assertEqual(next(x for x in overview if x["SKU"]=="TB-01")["Hàng còn chờ phân bổ"],25)
 
 
 if __name__ == "__main__":
