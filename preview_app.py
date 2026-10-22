@@ -21,6 +21,38 @@ st.set_page_config(page_title="QUẢN LÝ DỰ ÁN • PREVIEW", page_icon="🚀
 st.title("🚀 QUẢN LÝ DỰ ÁN")
 st.caption("BẢN PREVIEW — CHƯA ĐƯỢC NGHIỆM THU / CHƯA VẬN HÀNH")
 
+st.markdown("""
+<style>
+.block-container {max-width: 620px; padding: 1.3rem 1rem 3rem;}
+h1 {color: #163C88; font-weight: 850; text-align: center; font-size: 2rem;}
+h2, h3 {color: #173A73;}
+div[data-testid="stMetric"] {
+  border: 1px solid #DFEAF5;
+  background: #F2F7FC;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+div[data-testid="stForm"] {
+  border: 1px solid #D9E5F2;
+  border-radius: 16px;
+  background: #F8FBFE;
+  padding: 16px;
+}
+div.stButton > button, div.stLinkButton > a {
+  border-radius: 11px;
+  min-height: 43px;
+  font-weight: 700;
+}
+div.stButton > button[kind="primary"] {
+  background: #155EEF;
+  color: white;
+}
+div[data-baseweb="select"] > div {border-radius: 10px;}
+input {border-radius: 10px !important;}
+</style>
+""", unsafe_allow_html=True)
+
+
 SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive.file"]
 READY = "Đã đồng bộ"
