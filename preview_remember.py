@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import json
 import time
+from collections.abc import Mapping
 
 COOKIE_NAME = "tdv_preview_remember_v1"
 VALID_SECONDS = 30 * 24 * 60 * 60
@@ -65,7 +66,7 @@ def verify_remember_token(token, accounts, signing_key, now=None):
         if not isinstance(username, str) or not username:
             return None
         account = accounts.get(username)
-        if not account or not isinstance(account, dict):
+        if not account or not isinstance(account, Mapping):
             return None
         if not hmac.compare_digest(str(data.get("fp","")),
                                    account_fingerprint(account)):
