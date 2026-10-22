@@ -64,3 +64,14 @@
 - Không cho ghi vượt tồn kho, số lượng âm, trùng điểm/SKU, hoặc vượt 1.800 dòng/đợt. Với dự án rất lớn có thể chọn địa điểm theo nhiều đợt khác nhau.
 - Kiểm thử thực tế tối thiểu: 2 bộ TB-TEST01, chọn 1 địa điểm và phân bổ 1 bộ, đối chiếu 6 sheet; khi đã nghiệm thu thì kiểm tra các bộ SKU phức tạp trên dữ liệu giả trước khi dùng thật.
 - Trước khi xác nhận, yêu cầu **chỉ một Admin thao tác phân bổ mỗi lúc**, vì Google Sheets không phải cơ sở dữ liệu khóa giao dịch đồng thời. Nếu xảy ra lỗi không rõ kết quả, không bấm lại liên tục; đối chiếu mã đợt trong các sheet.
+
+## Phân bổ theo bộ định mức và nhóm điểm theo hồ sơ thầu (PREVIEW)
+- Mỗi nhóm địa điểm nhận cùng một bộ mặt hàng / định mức trên mỗi điểm.
+- ADMIN nhập SL/điểm cho từng SKU; SKU không cấp để 0.
+- Chọn các điểm cùng định mức bằng ô tìm tên/mã điểm, dán danh sách mỗi dòng một điểm, nạp Excel cột Mã điểm/Tên xã/phường/đơn vị, hoặc chọn tất cả điểm chưa phân bổ.
+- Chỉ nhận tên/mã điểm đang hoạt động đúng dự án, không trùng; tên sai, trùng tên hoặc ngoại dự án không được tự đoán.
+- Bảng đối soát tính SL/điểm × số điểm; hiển thị SKU, ĐVT, tổng cần, tồn khả dụng, ngoại lệ và ma trận chi tiết.
+- Thay đổi SKU/định mức/nhóm địa điểm thì xác nhận cũ mất hiệu lực.
+- DM_CHUAN hiện là nhật ký phân bổ, KHÔNG phải danh mục định mức độc lập lấy từ hồ sơ thầu. ADMIN cần đối chiếu bản gốc trước khi ghi.
+- Giới hạn 3.000 dòng điểm×SKU/đợt trong PREVIEW; nhiều hơn thì chia nhóm, không cho vượt tồn hoặc phân bổ trùng.
+- Phân bổ khởi tạo nhiệm vụ VC/LĐ chứ chưa phải xuất kho hay đã giao hàng. Chỉ một ADMIN phân bổ tại một thời điểm; dữ liệu PREVIEW cần nghiệm thu trước sản xuất.
