@@ -55,3 +55,132 @@ def assignment_batch_requests(sheet_id, rows, team_id):
         }}
         for row in rows
     ]
+
+
+ROLE_TABS = {
+    "VC": ("VAN_CHUYEN",),
+    "LD": ("LAP_DAT",),
+    "VC+LD": ("VAN_CHUYEN", "LAP_DAT"),
+}
+
+TASK_SCHEMA = {
+    "VAN_CHUYEN": ("Mã nhiệm vụ VC", "Mã đội VC", "Chưa giao"),
+    "LAP_DAT": ("Mã nhiệm vụ LD", "Mã đội KTV", "Chưa lắp"),
+}
+
+
+def allowed_modes(team):
+    """Never allow role assignment outside the team leader's approved role."""
+    role = team.get("Loại nhiệm vụ")
+    if role == "VC":
+        return ("VC",)
+    if role == "KTV":
+        return ("LD",)
+    if role == "VC+KTV":
+        return ("VC", "LD", "VC+LD")
+    return ()
+
+
+def eligible_site_tasks(team, mode, locations, tasksets):
+    """Return safe, searchable eligible points and their pending task counts.
+
+    Exclude sites with tasks already assigned to a DIFFERENT team for one of
+    the requested roles. A point with only previously assigned work is excluded.
+    """
+    if mode not in allowed_modes(team):
+        raise ValueError("Đội trưởng không có chuyên môn phù hợp loại việc.")
+    project, tid = team.get("Mã dự án"), team.get("Mã đội")
+    if not project or not tid or team.get("Trạng thái") != "Hoạt động":
+        raise ValueError("Đội trưởng chưa được duyệt hoặc thiếu dự án.")
+    if len(set(ROLE_TABS[mode])) != len(ROLE_TABS[mode]):
+        raise ValueError("Trùng nhóm nhiệm vụ.")
+    locs = {}
+    for loc in locations:
+        pid = loc.get("Mã điểm")
+        if loc.get("Mã dự án") != project or loc.get("Trạng thái") != "Hoạt động" or not pid:
+            continue
+        if pid in locs:
+            raise ValueError(f"Mã địa điểm bị trùng: {pid}.")
+        locs[pid] = loc
+    ready = {}
+    for pid in locs:
+        per_tab = {}
+        for tab in ROLE_TABS[mode]:
+            idcol, teamcol, pending = TASK_SCHEMA[tab]
+            associated = [r for r in tasksets.get(tab, []) if
+                          r.get("Mã dự án") == project and r.get("Mã điểm") == pid
+                          and r.get(idcol)]
+            if any(r.get(teamcol) and r.get(teamcol) != tid for r in associated):
+                break
+            unassigned = [r for r in associated if
+                          not r.get(teamcol) and r.get("Trạng thái") == pending]
+            if not unassigned:
+                break
+            per_tab[tab] = len(unassigned)
+        else:
+            ready[pid] = per_tab
+    return {pid: (locs[pid], counts) for pid, counts in ready.items()}
+
+
+def site_assignment_plan(team, mode, selected_ids, locations, tasksets):
+    """Validate selected places; gather ALL pending SKU tasks per requested role."""
+    choices = list(selected_ids)
+    if not choices or len(choices) != len(set(choices)):
+        raise ValueError("Cần chọn ít nhất một địa điểm, không được trùng.")
+    eligible = eligible_site_tasks(team, mode, locations, tasksets)
+    bad = [pid for pid in choices if pid not in eligible]
+    if bad:
+        raise ValueError("Các điểm không còn hợp lệ/chưa phân bổ/đã có đội khác: " +
+                         ", ".join(bad[:8]))
+    out = {}
+    project = team["Mã dự án"]
+    for tab in ROLE_TABS[mode]:
+        idcol, teamcol, pending = TASK_SCHEMA[tab]
+        rows = [r for r in tasksets.get(tab, []) if
+                r.get("Mã dự án") == project and r.get("Mã điểm") in choices and
+                r.get(idcol) and not r.get(teamcol) and
+                r.get("Trạng thái") == pending]
+        ids = [r[idcol] for r in rows]
+        if len(ids) != len(set(ids)):
+            raise ValueError(f"{tab}: trùng mã nhiệm vụ.")
+        if len({r.get("_row") for r in rows}) != len(rows) or any(
+                not isinstance(r.get("_row"), int) or r["_row"] < 2 for r in rows):
+            raise ValueError(f"{tab}: vị trí dòng ghi không hợp lệ.")
+        out[tab] = rows
+    return out
+
+
+def compact_site_assignment_requests(sheet_ids, plan, team_id):
+    """RepeatCell consecutive task rows, one atomic batch across VC and LD."""
+    if not team_id or not plan:
+        raise ValueError("Thiếu mã đội hoặc nhiệm vụ.")
+    requests = []
+    for tab, rows in plan.items():
+        if not rows:
+            continue
+        if tab not in TASK_SCHEMA or tab not in sheet_ids:
+            raise ValueError("Thiếu sheet hợp lệ để cập nhật phân công.")
+        indices = sorted(r["_row"] - 1 for r in rows)
+        if len(indices) != len(set(indices)):
+            raise ValueError("Trùng dòng trong phương án giao việc.")
+        start = prev = indices[0]
+        groups = []
+        for row in indices[1:]:
+            if row == prev + 1:
+                prev = row
+            else:
+                groups.append((start, prev + 1))
+                start = prev = row
+        groups.append((start, prev + 1))
+        for start_row, end_row in groups:
+            requests.append({"repeatCell": {
+                "range": {"sheetId": sheet_ids[tab],
+                          "startRowIndex": start_row,
+                          "endRowIndex": end_row,
+                          "startColumnIndex": 6, "endColumnIndex": 7},
+                "cell": {"userEnteredValue": {"stringValue": team_id}},
+                "fields": "userEnteredValue"
+            }})
+    if not requests:
+        raise ValueError("Không có nhiệm vụ chờ giao.")
+    return requests
