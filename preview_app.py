@@ -19,13 +19,51 @@ from PIL import Image
 from streamlit_geolocation import streamlit_geolocation
 
 st.set_page_config(page_title="QUẢN LÝ DỰ ÁN • PREVIEW", page_icon="🚀", layout="centered")
-st.title("🚀 QUẢN LÝ DỰ ÁN")
-st.caption("BẢN PREVIEW — CHƯA ĐƯỢC NGHIỆM THU / CHƯA VẬN HÀNH")
 
 st.markdown("""
 <style>
-.block-container {max-width: 620px; padding: 1.3rem 1rem 3rem;}
-h1 {color: #163C88; font-weight: 850; text-align: center; font-size: 2rem;}
+.block-container {max-width: 620px; padding: 1.5rem 1rem 3rem;}
+.tdv-hero {
+  text-align: center;
+  padding: 0.45rem 0.25rem 1.05rem;
+  margin: 0 auto 0.45rem;
+}
+.tdv-hero-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  color: #173A73;
+  font-weight: 800;
+  font-size: clamp(1.45rem, 4.6vw, 1.95rem);
+  line-height: 1.35;
+  letter-spacing: -0.025em;
+  white-space: nowrap;
+}
+.tdv-hero-icon {font-size: 1.25rem; line-height: 1; flex-shrink: 0;}
+.tdv-hero-subtitle {
+  margin-top: 0.25rem;
+  color: #64748b;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.tdv-preview-tag {
+  display: inline-block;
+  margin-top: 0.55rem;
+  padding: 0.22rem 0.7rem;
+  border: 1px solid #dbe5f2;
+  background: #f5f8fc;
+  border-radius: 999px;
+  color: #526581;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+@media (max-width: 480px) {
+  .block-container {padding-top: 1.15rem;}
+  .tdv-hero-title {font-size: 1.38rem; gap: 0.35rem;}
+  .tdv-hero-icon {font-size: 1.05rem;}
+}
 h2, h3 {color: #173A73;}
 div[data-testid="stMetric"] {
   border: 1px solid #DFEAF5;
@@ -51,6 +89,14 @@ div.stButton > button[kind="primary"] {
 div[data-baseweb="select"] > div {border-radius: 10px;}
 input {border-radius: 10px !important;}
 </style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="tdv-hero">
+  <div class="tdv-hero-title"><span class="tdv-hero-icon" aria-hidden="true">🚀</span><span>QUẢN LÝ DỰ ÁN</span></div>
+  <div class="tdv-hero-subtitle">Hệ thống điều hành hiện trường</div>
+  <div class="tdv-preview-tag">BẢN THỬ NGHIỆM · CHƯA VẬN HÀNH</div>
+</div>
 """, unsafe_allow_html=True)
 
 
