@@ -955,18 +955,44 @@ def teams_and_approval():
                              "). Dữ liệu nhập vẫn được giữ nguyên để kiểm tra.")
     st.markdown("#### Gán nhiệm vụ theo mã đội")
     tab=st.selectbox("Loại nhiệm vụ cần gán",["VAN_CHUYEN","LAP_DAT"])
-    tasks=[x for x in read_sheet(tab) if x.get("Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD") and not x.get("Mã đội VC" if tab=="VAN_CHUYEN" else "Mã đội KTV")]
-    teams=[x for x in read_sheet("QUAN_LY_DOI") if x.get("Trạng thái")=="Hoạt động" and (x.get("Loại nhiệm vụ") in (["VC","VC+KTV"] if tab=="VAN_CHUYEN" else ["KTV","VC+KTV"]))]
-    if tasks and teams:
-        r=st.selectbox("Công việc chưa gán",tasks,format_func=lambda x:f"{x['Mã dự án']} • {x['Mã điểm']} • {x['SKU']}")
-        t=st.selectbox("Đội trưởng nhận nhiệm vụ",teams,format_func=lambda x:f"{x['Mã đội']} • {x['Tên đội/đội trưởng']}")
-        if st.button("GÁN ĐỘI"):
-            sheet(tab).update_cell(r["_row"],7,t["Mã đội"])
-            read_sheet.clear()
-            st.success("Đã gán. Đội trưởng sẽ thấy nhiệm vụ của mình.")
-            st.rerun()
-    else:
-        st.info("Không có công việc chờ gán hoặc chưa có đội đúng chuyên môn.")
+    task_key = "Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
+    team_key = "Mã đội VC" if tab=="VAN_CHUYEN" else "Mã đội KTV"
+    required_kinds = ("VC","VC+KTV") if tab=="VAN_CHUYEN" else ("KTV","VC+KTV")
+    waiting_status = "Chưa giao" if tab=="VAN_CHUYEN" else "Chưa lắp"
+    tasks=[x for x in read_sheet(tab) if x.get(task_key) and not x.get(team_key)
+           and x.get("Trạng thái")==waiting_status]
+    if not tasks:
+        st.info("Chưa có nhiệm vụ đang chờ phân công.")
+        return
+    selected_task=st.selectbox("Công việc chưa gán",tasks,
+        format_func=lambda x:f"{x['Mã dự án']} • {x['Mã điểm']} • {x['SKU']} • {x.get(task_key,'')}")
+    teams=[x for x in read_sheet("QUAN_LY_DOI") if
+           x.get("Trạng thái")=="Hoạt động"
+           and x.get("Mã dự án")==selected_task.get("Mã dự án")
+           and x.get("Loại nhiệm vụ") in required_kinds]
+    if not teams:
+        st.warning("Chưa có đội hoạt động đúng chuyên môn TRONG CÙNG DỰ ÁN.")
+        return
+    selected_team=st.selectbox("Đội trưởng nhận nhiệm vụ",teams,
+        format_func=lambda x:f"{x['Mã đội']} • {x['Tên đội/đội trưởng']}")
+    if st.button("GÁN ĐỘI"):
+        # Prevent stale UI data or cross-project assignments on submission.
+        read_sheet.clear()
+        latest_task=lookup(read_sheet(tab),task_key,selected_task[task_key])
+        latest_team=lookup(read_sheet("QUAN_LY_DOI"),"Mã đội",selected_team["Mã đội"])
+        if not latest_task or latest_task.get(team_key) or latest_task.get("Trạng thái")!=waiting_status:
+            st.error("Nhiệm vụ đã được thay đổi hoặc phân công; hãy tải lại.")
+            return
+        if not latest_team or latest_team.get("Trạng thái")!="Hoạt động" or (
+            latest_team.get("Mã dự án")!=latest_task.get("Mã dự án")
+            or latest_team.get("Loại nhiệm vụ") not in required_kinds):
+            st.error("Đội không hợp lệ với dự án hoặc chuyên môn; không ghi phân công.")
+            return
+        sheet(tab).update_cell(latest_task["_row"],7,latest_team["Mã đội"])
+        read_sheet.clear()
+        st.success("Đã gán đúng đội của dự án. Đội trưởng sẽ thấy nhiệm vụ "
+                   "sau khi được cấp tài khoản và đăng nhập.")
+        st.rerun()
 
 def sync_progress(project_id, point_id):
     """Derived per-point summary; not a substitute for source task rows."""
