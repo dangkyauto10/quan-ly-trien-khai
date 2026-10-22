@@ -280,7 +280,8 @@ def menu():
         opts = ["🔐 Đăng nhập", "📝 Đăng ký tham gia"]
     elif a["role"] == "ADMIN":
         opts = ["📊 Điều hành", "📁 Dự án/Điểm/Nhập kho", "📦 Phân bổ",
-                "👥 Đăng ký & quản lý đội", "📋 Báo cáo nhiệm vụ", "🗺️ Tìm đường"]
+                "👥 Đăng ký & quản lý đội", "📝 Đăng ký hộ thành viên",
+                "📋 Báo cáo nhiệm vụ", "🗺️ Tìm đường"]
     elif a["role"] == "LANH_DAO":
         opts = ["📊 Điều hành", "🗺️ Tìm đường"]
     elif a["role"] == "DOI_TRUONG":
@@ -295,28 +296,81 @@ def menu():
             st.rerun()
     return st.selectbox("CHỌN CHỨC NĂNG", opts)
 
-def register():
-    st.subheader("📝 Đăng ký tham gia dự án")
+def register(on_behalf=False):
+    """Public registration and Admin-assisted registration use the same pending queue."""
+    acting_admin = require_role("ADMIN") if on_behalf else None
+    st.subheader("📝 " + ("ADMIN đăng ký hộ thành viên" if on_behalf else "Đăng ký tham gia dự án"))
+    st.caption("Khai khu vực đã hợp đồng với công ty. Đây là thông tin đăng ký, "
+               "không tự cấp quyền báo cáo; ADMIN sẽ xét duyệt và giao nhiệm vụ.")
+    saved_notice = st.session_state.pop("registered_notice", None)
+    if saved_notice:
+        st.success(saved_notice)
+    projects = [p for p in read_sheet("DANH_SACH_DU_AN")
+                if p.get("Mã dự án") and p.get("Tên dự án")]
+    if not projects:
+        st.info("Chưa có dự án mở đăng ký. Vui lòng liên hệ ADMIN.")
+        return
+    options = [p["Mã dự án"] for p in projects]
+    project_names = {p["Mã dự án"]: p["Tên dự án"] for p in projects}
     points = read_sheet("DANH_SACH_DIEM")
-    with st.form("registration", clear_on_submit=True):
-        full_name = st.text_input("Họ tên *")
-        phone = st.text_input("Điện thoại liên hệ *")
-        area = st.multiselect("Địa bàn đề xuất",
-             sorted(set(r.get("Tên xã/phường/đơn vị", "") for r in points if r.get("Tên xã/phường/đơn vị"))))
-        specialty = st.selectbox("Chuyên môn",
-             ["Vận chuyển / Giao nhận", "KTV lắp đặt", "Điều phối / Giám sát", "Kho vận / Hậu cứ"])
+    revision = st.session_state.get("registration_form_revision", 0)
+    with st.form(f"registration_{'admin' if on_behalf else 'public'}_{revision}"):
+        project = st.selectbox("Dự án đăng ký *", options,
+            format_func=lambda key: f"{key} — {project_names[key]}")
+        full_name = st.text_input("Họ và tên *", max_chars=120)
+        phone = st.text_input("Điện thoại liên hệ (Zalo) *", max_chars=20)
+        area_options = sorted({
+            p["Tên xã/phường/đơn vị"] for p in points
+            if p.get("Mã dự án") == project and p.get("Tên xã/phường/đơn vị")
+        })
+        area = st.multiselect("Khu vực đã hợp đồng (chọn nhiều nếu cần)",
+                              area_options)
+        area_other = st.text_area("Khu vực theo hợp đồng cần ghi bổ sung",
+            placeholder="Gõ địa bàn, xã/phường hoặc đơn vị chưa có trong danh sách...",
+            max_chars=1200, height=84)
+        specialty = st.selectbox("Chuyên môn / Nhiệm vụ *",
+            ["Vận chuyển / Giao nhận", "KTV lắp đặt",
+             "Điều phối / Giám sát", "Kho vận / Hậu cứ"])
         vehicle = st.selectbox("Phương tiện", ["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
-        if st.form_submit_button("GỬI ĐĂNG KÝ", use_container_width=True):
-            if len(full_name.strip()) < 3 or not phone.strip().isdigit() or len(phone.strip()) < 9:
-                st.error("Kiểm tra lại họ tên và số điện thoại.")
+        st.caption("Khu vực tự khai chỉ để ADMIN tham khảo khi phân công. "
+                   "Chỉ điểm được giao chính thức mới có thể báo cáo.")
+        if st.form_submit_button("GỬI ĐĂNG KÝ" if not on_behalf else
+                                 "GỬI HỒ SƠ ĐĂNG KÝ HỘ", use_container_width=True):
+            normalized_phone = "".join(c for c in phone if c.isdigit())
+            described_areas = ", ".join(area + ([area_other.strip()] if area_other.strip() else []))
+            if len(full_name.strip()) < 3 or len(normalized_phone) not in (9,10,11):
+                st.error("Vui lòng kiểm tra họ tên và số điện thoại (9–11 chữ số).")
+            elif not described_areas:
+                st.error("Hãy chọn hoặc ghi ít nhất một khu vực đã hợp đồng.")
+            elif project not in [p["Mã dự án"] for p in read_sheet("DANH_SACH_DU_AN")]:
+                st.error("Dự án không còn tồn tại, vui lòng kiểm tra lại.")
             else:
-                rid = "DK-" + uuid.uuid4().hex[:12].upper()
-                try:
-                    append("DANG_KY_THANH_VIEN", [rid, now(), full_name.strip(), phone.strip(),
-                           ", ".join(area), specialty, vehicle, "Chờ duyệt", "", "", ""])
-                    st.success("Đã nhận đăng ký. Admin sẽ kiểm tra và duyệt.")
-                except Exception as e:
-                    st.error(f"Không gửi được đăng ký: {type(e).__name__}")
+                existing = read_sheet("DANG_KY_THANH_VIEN")
+                same = [row for row in existing
+                    if row.get("Mã dự án đăng ký") == project
+                    and "".join(c for c in row.get("Số điện thoại","") if c.isdigit()) == normalized_phone
+                    and " ".join(row.get("Họ tên","").casefold().split()) ==
+                        " ".join(full_name.casefold().split())
+                    and row.get("Trạng thái duyệt") in ("Chờ duyệt", "Đã duyệt")]
+                if same:
+                    st.warning("Hồ sơ của người này đã được gửi cho dự án này. "
+                               "Không tạo bản đăng ký trùng.")
+                else:
+                    rid = "DK-" + uuid.uuid4().hex[:12].upper()
+                    submitter = ("ADMIN:" + acting_admin["username"]) if acting_admin else "Tự đăng ký"
+                    try:
+                        append("DANG_KY_THANH_VIEN", [rid, now(), full_name.strip(),
+                               normalized_phone, described_areas, specialty, vehicle,
+                               "Chờ duyệt", "", "", "", project, submitter])
+                        st.session_state["registered_notice"] = (
+                            f"Đã nhận hồ sơ {rid} — đang chờ ADMIN duyệt. "
+                            "Hồ sơ chưa được cấp quyền báo cáo.")
+                        st.session_state["registration_form_revision"] = revision + 1
+                        st.rerun()
+                    except Exception as e:
+                        st.error("Chưa xác nhận gửi hồ sơ thành công (" +
+                                 type(e).__name__ +
+                                 "). Hãy nhờ ADMIN kiểm tra danh sách trước khi gửi lại.")
 
 def directions():
     st.subheader("🗺️ Tìm địa điểm – Dẫn đường")
@@ -822,6 +876,7 @@ def main():
         view=menu()
         if view=="🔐 Đăng nhập":login()
         elif view=="📝 Đăng ký tham gia":register()
+        elif view=="📝 Đăng ký hộ thành viên":register(on_behalf=True)
         elif view=="🗺️ Tìm đường":directions()
         elif view=="📁 Dự án/Điểm/Nhập kho":projects_and_inventory()
         elif view=="📦 Phân bổ":allocate()
