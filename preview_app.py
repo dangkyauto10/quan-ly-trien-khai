@@ -6,6 +6,7 @@ import hmac
 import hashlib
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from urllib.parse import quote
 
 import gspread
@@ -25,7 +26,7 @@ SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets",
 READY = "Đã đồng bộ"
 
 def now():
-    return datetime.now().astimezone().isoformat(timespec="seconds")
+    return datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).isoformat(timespec="seconds")
 
 def fail(message):
     st.error(message)
@@ -132,7 +133,7 @@ def require_role(*roles):
 def menu():
     a = auth()
     if not a:
-        opts = ["🔐 Đăng nhập", "📝 Đăng ký tham gia", "🗺️ Tìm đường"]
+        opts = ["🔐 Đăng nhập", "📝 Đăng ký tham gia"]
     elif a["role"] == "ADMIN":
         opts = ["📊 Điều hành", "📁 Dự án/Điểm/Nhập kho", "📦 Phân bổ",
                 "👥 Đăng ký & quản lý đội", "📋 Báo cáo nhiệm vụ", "🗺️ Tìm đường"]
