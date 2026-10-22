@@ -28,7 +28,7 @@ from preview_registration import role_for_specialty, team_id_from_registration, 
 from preview_approval_ui import render_pending_approvals
 from preview_assignment import (
     assignment_rows, assignment_batch_requests, allowed_modes,
-    eligible_site_tasks, site_assignment_plan, compact_site_assignment_requests
+    eligible_site_tasks, project_site_catalog, site_assignment_plan, compact_site_assignment_requests
 )
 from preview_bulk_allocation import (
     inventory_by_sku, build_plan, verify_plan, atomic_requests
@@ -950,33 +950,52 @@ def teams_and_approval():
         tasksets={tab:read_sheet(tab) for tab in kinds}
         places=read_sheet("DANH_SACH_DIEM")
         try:
-            eligible=eligible_site_tasks(selected_team,role_mode,places,tasksets)
+            # All project locations remain searchable, including places without
+            # stock yet. Eligibility is checked BEFORE confirmation.
+            catalog=project_site_catalog(selected_team,role_mode,places,tasksets)
         except ValueError as exc:
             st.error(str(exc))
             return
-        total_locations=sum(1 for p in places if
-                            p.get("Mã dự án")==project and
-                            p.get("Trạng thái")=="Hoạt động")
-        st.caption(f"{len(eligible)} / {total_locations} địa điểm đang có "
-                   "nhiệm vụ phù hợp và chưa phân công. Điểm đã có đội khác "
-                   "hoặc chưa phân bổ sẽ không xuất hiện trong danh sách.")
-        if not eligible:
-            st.info("Chưa có địa điểm phù hợp để giao cho đội trưởng này.")
+        eligible={pid:(loc,counts) for pid,(loc,status,counts) in catalog.items()
+                  if status=="Sẵn sàng giao"}
+        st.caption(f"**{len(catalog)} địa điểm trong dự án** • "
+                   f"{len(eligible)} điểm có nhiệm vụ chờ gán. "
+                   "Có thể tìm toàn bộ xã/đơn vị; điểm chưa phân bổ hoặc "
+                   "đã gán đội sẽ hiện trạng thái rõ ràng.")
+        if not catalog:
+            st.warning("Dự án chưa có danh sách địa điểm. "
+                       "Admin cần nạp DANH_SACH_DIEM trước.")
             return
         def site_name(pid):
-            p=eligible[pid][0]
-            return (p.get("Tên xã/phường/đơn vị","") or pid)+" • "+pid
-        options=sorted(eligible,key=lambda pid:site_name(pid).casefold())
+            loc,status,_=catalog[pid]
+            name=loc.get("Tên xã/phường/đơn vị","") or pid
+            return f"{name} • {pid} — {status}"
+        # Sort ready sites first, then the rest; do not hide project locations.
+        options=sorted(catalog,key=lambda pid:(
+            catalog[pid][1]!="Sẵn sàng giao",
+            (catalog[pid][0].get("Tên xã/phường/đơn vị","") or pid).casefold()))
         chosen=st.multiselect(
             "4. 🔎 Tìm và chọn nhiều địa điểm theo hợp đồng",
             options,format_func=site_name,
             placeholder="Gõ tên xã, đơn vị hoặc mã điểm để tìm...",
             key=f"site_assign_multi_{project}_{selected_team['Mã đội']}_{role_mode}")
-        st.caption("Chạm ô trên và gõ vài chữ: ví dụ “Minh Xuân”, "
-                   "“Ban Tổ chức” hoặc “DD-TEST-127”. "
-                   "Danh sách gợi ý tự lọc; chọn nhiều điểm liên tiếp.")
+        st.caption("Gõ tên hoặc mã điểm để lọc gợi ý. "
+                   "Danh sách không biến mất khi chọn xong một điểm. "
+                   "Chỉ điểm 'Sẵn sàng giao' mới được xác nhận phân công.")
         if not chosen:
-            st.info("Chọn các địa điểm đã ký hợp đồng để xem đối soát giao việc.")
+            st.info("Chọn các địa điểm trong hợp đồng để kiểm tra tình trạng giao việc.")
+            return
+        ineligible=[pid for pid in chosen if pid not in eligible]
+        st.write(f"**Đã chọn {len(chosen)} / {len(catalog)} địa điểm** "
+                 f"({len(chosen)-len(ineligible)} sẵn sàng giao).")
+        if ineligible:
+            st.warning("Có địa điểm chưa đủ điều kiện, chưa thể xác nhận. "
+                       "Vẫn có thể tìm trong danh sách nhưng cần phân bổ hàng "
+                       "trước hoặc kiểm tra đội đã được giao.")
+            for pid in ineligible[:15]:
+                st.write("• "+site_name(pid))
+            if len(ineligible)>15:
+                st.caption(f"Còn {len(ineligible)-15} điểm chưa đủ điều kiện.")
             return
         try:
             planned=site_assignment_plan(
