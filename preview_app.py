@@ -31,7 +31,8 @@ from preview_assignment import (
     eligible_site_tasks, project_site_catalog, site_assignment_plan, compact_site_assignment_requests
 )
 from preview_bulk_allocation import (
-    inventory_by_sku, build_plan, verify_plan, atomic_requests
+    inventory_by_sku, allocation_waiting_summary,
+    build_plan, verify_plan, atomic_requests
 )
 from preview_bulk_excel import parse_exception_excel
 from preview_allocation_groups import (
@@ -575,9 +576,28 @@ def projects_and_inventory():
                         fail("Thiếu thông tin hoặc SLHH không hợp lệ.")
                     append("NHAP_KHO",["NK-"+uuid.uuid4().hex[:12].upper(),project,now(),sku,name,unit,quantity,"",auth()["username"],""])
                 audit(auth()["username"],"THÊM DANH MỤC",choice,code if choice != "Hàng nhập kho" else sku,"OK")
+                read_sheet.clear()
                 st.success("Đã lưu vào Google Sheets Preview.")
             except Exception as e:
                 st.error(f"Lưu thất bại: {type(e).__name__}")
+    if choice == "Hàng nhập kho":
+        st.markdown("#### 📦 Hàng còn chờ phân bổ theo SKU")
+        st.caption("Tổng thực nhập qua nhiều đợt trừ tổng đã phân bổ cho "
+                   "địa điểm. Đây KHÔNG phải tồn vật lý sau xuất kho.")
+        records,problems = allocation_waiting_summary(
+            project,read_sheet("NHAP_KHO"),read_sheet("KHO_PHAN_BO"))
+        if problems:
+            for problem in problems[:8]:
+                st.error(problem)
+            st.warning("Dữ liệu kho có lỗi; cần đối soát trước khi phân bổ.")
+        elif records:
+            st.dataframe(records,hide_index=True,use_container_width=True)
+            if all(row["Hàng còn chờ phân bổ"] == 0 for row in records):
+                st.success("Toàn bộ hàng đã nhập của dự án đã được phân bổ hết "
+                           "(còn chờ phân bổ = 0 cho mọi SKU).")
+        else:
+            st.info("Dự án chưa nhập hàng. Khi có phiếu nhập, "
+                    "tổng hàng và số còn chờ phân bổ sẽ hiển thị tại đây.")
 
 def read_sheet_live(name):
     """Bypass Streamlit's short cache for the final stock/duplicate check."""
