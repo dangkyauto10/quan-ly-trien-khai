@@ -920,40 +920,42 @@ def teams_and_approval():
                 read_sheet.clear()
                 st.error("Chưa hoàn tất việc duyệt ("+type(exc).__name__+"). "
                          "Hãy kiểm tra hai sheet trước khi thao tác lại.")
-    saved_team_message=st.session_state.pop("team_saved_message", None)
-    if saved_team_message:
-        st.success(saved_team_message)
-    revision=st.session_state.get("team_form_revision", 0)
-    with st.form(f"team_form_{revision}"):
-        tid=st.text_input("Mã đội mới", key=f"team_id_{revision}")
-        name=st.text_input("Tên đội / Đội trưởng", key=f"team_name_{revision}")
-        phone=st.text_input("SĐT đội trưởng", key=f"team_phone_{revision}")
-        kind=st.selectbox("Loại nhiệm vụ", ["— Chọn loại nhiệm vụ —","VC","KTV","VC+KTV"],
-                          key=f"team_kind_{revision}")
-        proj=[r["Mã dự án"] for r in read_sheet("DANH_SACH_DU_AN") if r.get("Mã dự án")]
-        project=st.selectbox("Dự án", ["— Chọn dự án —"]+proj,
-                             key=f"team_project_{revision}")
-        if st.form_submit_button("THÊM ĐỘI"):
-            tid, name, phone=tid.strip(), name.strip(), phone.strip()
-            if not tid or not name or not phone or kind not in ("VC","KTV","VC+KTV") or project not in proj:
-                st.error("Vui lòng nhập đủ mã đội, tên, số điện thoại và chọn nhiệm vụ, dự án.")
-            elif lookup(read_sheet("QUAN_LY_DOI"),"Mã đội",tid):
-                st.error("Mã đội này đã tồn tại; hãy chọn mã khác.")
-            elif matching_teams(read_sheet("QUAN_LY_DOI"),name=name,phone=phone,
-                                kind=kind,project=project):
-                st.error("Đã có đội trùng người phụ trách, số điện thoại và dự án.")
-            else:
-                try:
-                    append("QUAN_LY_DOI",[tid,name,phone,kind,"","Hoạt động",project,""])
-                    st.session_state["team_saved_message"]=(
-                        f"Đã thêm đội {tid} thành công. Biểu mẫu đã được làm trống "
-                        "để nhập đội tiếp theo; đội chưa được cấp tài khoản báo cáo.")
-                    st.session_state["team_form_revision"]=revision+1
-                    st.rerun()
-                except Exception as exc:
-                    st.error("Không lưu được đội ("+type(exc).__name__+
-                             "). Dữ liệu nhập vẫn được giữ nguyên để kiểm tra.")
-    st.markdown("#### Gán nhiệm vụ theo mã đội")
+    st.caption("Chỉ quản lý đội trưởng. Thành viên của đội do đội trưởng tự quản lý.")
+    with st.expander("➕ Thêm đội trưởng thủ công (không phải gán nhiệm vụ)", expanded=False):
+        saved_team_message=st.session_state.pop("team_saved_message", None)
+        if saved_team_message:
+            st.success(saved_team_message)
+        revision=st.session_state.get("team_form_revision", 0)
+        with st.form(f"team_form_{revision}"):
+            tid=st.text_input("Mã đội mới", key=f"team_id_{revision}")
+            name=st.text_input("Tên đội / Đội trưởng", key=f"team_name_{revision}")
+            phone=st.text_input("SĐT đội trưởng", key=f"team_phone_{revision}")
+            kind=st.selectbox("Loại nhiệm vụ", ["— Chọn loại nhiệm vụ —","VC","KTV","VC+KTV"],
+                              key=f"team_kind_{revision}")
+            proj=[r["Mã dự án"] for r in read_sheet("DANH_SACH_DU_AN") if r.get("Mã dự án")]
+            project=st.selectbox("Dự án", ["— Chọn dự án —"]+proj,
+                                 key=f"team_project_{revision}")
+            if st.form_submit_button("THÊM ĐỘI"):
+                tid, name, phone=tid.strip(), name.strip(), phone.strip()
+                if not tid or not name or not phone or kind not in ("VC","KTV","VC+KTV") or project not in proj:
+                    st.error("Vui lòng nhập đủ mã đội, tên, số điện thoại và chọn nhiệm vụ, dự án.")
+                elif lookup(read_sheet("QUAN_LY_DOI"),"Mã đội",tid):
+                    st.error("Mã đội này đã tồn tại; hãy chọn mã khác.")
+                elif matching_teams(read_sheet("QUAN_LY_DOI"),name=name,phone=phone,
+                                    kind=kind,project=project):
+                    st.error("Đã có đội trùng người phụ trách, số điện thoại và dự án.")
+                else:
+                    try:
+                        append("QUAN_LY_DOI",[tid,name,phone,kind,"","Hoạt động",project,""])
+                        st.session_state["team_saved_message"]=(
+                            f"Đã thêm đội {tid} thành công. Biểu mẫu đã được làm trống "
+                            "để nhập đội tiếp theo; đội chưa được cấp tài khoản báo cáo.")
+                        st.session_state["team_form_revision"]=revision+1
+                        st.rerun()
+                    except Exception as exc:
+                        st.error("Không lưu được đội ("+type(exc).__name__+
+                                 "). Dữ liệu nhập vẫn được giữ nguyên để kiểm tra.")
+    st.markdown("#### 📌 GÁN NHIỆM VỤ CHO ĐỘI TRƯỞNG")
     tab=st.selectbox("Loại nhiệm vụ cần gán",["VAN_CHUYEN","LAP_DAT"])
     task_key = "Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
     team_key = "Mã đội VC" if tab=="VAN_CHUYEN" else "Mã đội KTV"
