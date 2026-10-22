@@ -1,5 +1,5 @@
 import unittest
-from preview_registration import team_id_from_registration, role_for_specialty, matching_teams
+from preview_registration import team_id_from_registration, role_for_specialty, matching_teams, approval_requests
 
 class ApprovalMappingTests(unittest.TestCase):
     def test_role_vc(self):
@@ -32,6 +32,39 @@ class ApprovalMappingTests(unittest.TestCase):
             phone="0913878775",kind="VC",project="DA-TEST01"), [])
         self.assertEqual(matching_teams(teams,name="Nguyễn Ngọc Hiền",
             phone="0913878775",kind="KTV",project="DA-OTHER"), [])
+
+
+    def test_combined_vc_ld_specialty(self):
+        self.assertEqual(role_for_specialty("Vận chuyển & Lắp đặt"),"VC+KTV")
+        self.assertEqual(team_id_from_registration("DK-123","VC+KTV"),"VC-LD-123")
+
+    def test_atomic_approve_new_team(self):
+        team=["KTV-123","Đội trưởng thử","0912345678","KTV","","Hoạt động","DA-TEST01",""]
+        requests=approval_requests(101,202,4,"Đã duyệt",team,"KTV-123","admin",46317.75)
+        self.assertEqual(len(requests),2)
+        self.assertIn("appendCells",requests[0])
+        self.assertEqual(requests[0]["appendCells"]["sheetId"],202)
+        update=requests[1]["updateCells"]
+        self.assertEqual(update["range"]["sheetId"],101)
+        self.assertEqual(update["range"]["startRowIndex"],3)
+        self.assertEqual(update["rows"][0]["values"][0]["userEnteredValue"]["stringValue"],"Đã duyệt")
+
+    def test_approve_existing_team_without_duplicate(self):
+        requests=approval_requests(101,202,2,"Đã duyệt",None,"TQ-01","admin",46317.5)
+        self.assertEqual(len(requests),1)
+        self.assertIn("updateCells",requests[0])
+
+    def test_reject_without_team(self):
+        requests=approval_requests(101,202,2,"Từ chối",None,"","admin",46317.5)
+        self.assertEqual(len(requests),1)
+        values=requests[0]["updateCells"]["rows"][0]["values"]
+        self.assertEqual(values[0]["userEnteredValue"]["stringValue"],"Từ chối")
+        self.assertEqual(values[1]["userEnteredValue"]["stringValue"],"")
+
+    def test_reject_cannot_create_team(self):
+        with self.assertRaises(ValueError):
+            approval_requests(101,202,2,"Từ chối",
+                              ["TQ-01"]*8,"TQ-01","admin",46317.5)
 
 if __name__=="__main__":
     unittest.main()
