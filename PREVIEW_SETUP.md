@@ -40,3 +40,13 @@
 - Báo cáo chọn SL thực tế hiện lấy mặc định theo số phân bổ; các trường thiếu/lệch và phục hồi giao dịch cần nghiệm thu thêm.
 - Chức năng "làm sạch" dữ liệu nghiệp vụ đã cố ý KHÔNG đưa vào bản thử để tránh xóa nhầm. Phải chốt chính sách reset riêng.
 - Google Sheets gốc, API Apps Script hiện tại, app production không được thay đổi.
+
+
+## Ghi nhớ đăng nhập trên thiết bị riêng (bản PREVIEW)
+- Tài khoản tự chọn ô **Ghi nhớ đăng nhập trên thiết bị này (30 ngày)** ở màn hình đăng nhập.
+- **Bắt buộc** đặt riêng trong Streamlit Secrets: `remember_login_secret = "<chuỗi ngẫu nhiên tối thiểu 32 ký tự>"`.
+- Không sử dụng PIN, khóa Google Service Account, hoặc mật khẩu dùng chung để làm khóa ký. Không chia sẻ Secrets/chụp ảnh vùng này.
+- Cookie có chữ ký HMAC-SHA256, HTTPS Secure, SameSite=Strict và thời hạn 30 ngày; chỉ lưu tên tài khoản, thời hạn, dấu vân tay kiểm tra phiên, **không chứa PIN/mật khẩu**.
+- Không chọn trên máy dùng chung; bấm Đăng xuất sẽ xóa cookie của thiết bị này.
+- Thay đổi PIN/hash, quyền vai trò, mã đội hoặc khóa ký phiên sẽ làm cookie ghi nhớ cũ mất hiệu lực khi kiểm tra.
+- Đây là lưu đăng nhập tùy chọn trong PREVIEW, cần kiểm thử thực tế trên Android/iOS/Chrome, đặc biệt việc tự khôi phục phiên sau tải lại trang.
