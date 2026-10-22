@@ -314,9 +314,12 @@ def register(on_behalf=False):
     project_names = {p["Mã dự án"]: p["Tên dự án"] for p in projects}
     points = read_sheet("DANH_SACH_DIEM")
     revision = st.session_state.get("registration_form_revision", 0)
+    # Project selector stays OUTSIDE the form: changing project must immediately
+    # refresh the valid list of locations, never silently retain another project.
+    project = st.selectbox("Dự án đăng ký *", options,
+        format_func=lambda key: f"{key} — {project_names[key]}",
+        key=f"register_project_{'admin' if on_behalf else 'public'}")
     with st.form(f"registration_{'admin' if on_behalf else 'public'}_{revision}"):
-        project = st.selectbox("Dự án đăng ký *", options,
-            format_func=lambda key: f"{key} — {project_names[key]}")
         full_name = st.text_input("Họ và tên *", max_chars=120)
         phone = st.text_input("Điện thoại liên hệ (Zalo) *", max_chars=20)
         area_options = sorted({
