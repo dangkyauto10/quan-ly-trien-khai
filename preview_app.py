@@ -428,6 +428,10 @@ def directions():
     url = "https://www.google.com/maps/dir/?api=1&destination=" + quote(destination)
     if lat is not None and lon is not None:
         url += "&origin=" + quote(f"{lat},{lon}")
+    if not (p.get("Vĩ độ") and p.get("Kinh độ")):
+        st.warning("Điểm này chưa có GPS đã xác minh. Google Maps sẽ tìm "
+                   "theo tên/địa chỉ; hãy chọn đúng vị trí đích trên bản đồ "
+                   "trước khi bắt đầu chỉ đường.")
     st.link_button("🧭 MỞ GOOGLE MAPS CHỈ ĐƯỜNG", url, use_container_width=True)
     st.caption("Tìm đường không cấp quyền báo cáo nhiệm vụ.")
 
@@ -524,8 +528,11 @@ def bulk_import_locations():
                   "OK", f"{len(final)} điểm từ tệp {upload.name[:80]}")
             st.success(f"Đã thêm {len(final)} địa điểm vào dự án {project}. "
                        "Điểm trùng được giữ nguyên, không ghi đè.")
-            st.info("Tên điểm mới chưa có tọa độ. Admin cần kiểm tra vị trí trên "
-                    "Google Maps trước khi dùng chức năng chỉ đường chính thức.")
+            st.info("✅ Danh sách đã nạp thành công. Chưa có tọa độ GPS "
+                    "không ảnh hưởng đến nhập kho, PHÂN BỔ hay GÁN ĐỘI. "
+                    "Khi cần dẫn đường, Google Maps có thể tìm theo tên điểm "
+                    "nhưng ADMIN/đội trưởng phải kiểm tra đúng vị trí trước "
+                    "khi đi; không tự coi kết quả tìm tên là tọa độ xác nhận.")
         except Exception as exc:
             read_sheet.clear()
             st.error("Chưa thể xác nhận nhập danh sách thành công (" +
