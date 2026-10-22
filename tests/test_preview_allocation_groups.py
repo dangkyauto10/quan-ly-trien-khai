@@ -78,7 +78,7 @@ class TenderAllocationGroupTests(unittest.TestCase):
         self.assertTrue(any("không tìm thấy" in e for e in errors))
 
     def test_ambiguous_name_never_guessed(self):
-        same=POINTS[:2]
+        same=[dict(p) for p in POINTS[:2]]
         same[0]["Tên xã/phường/đơn vị"]="Xã trùng"
         same[1]["Tên xã/phường/đơn vị"]="Xã trùng"
         _,errors=match_contract_locations(PROJECT,same,["Xã trùng"])
@@ -99,11 +99,13 @@ class TenderAllocationGroupTests(unittest.TestCase):
         pts=[{"Mã dự án":PROJECT,"Mã điểm":f"X-{i:03d}",
               "Tên xã/phường/đơn vị":f"Xã {i}",
               "Trạng thái":"Hoạt động"} for i in range(500)]
-        inv,_=inventory_by_sku(PROJECT,RECEIPTS,[])
-        plan=build_plan(pts,["TB-04"],{"TB-04":1})
+        receipts=[dict(r, **{"SL thực nhận":"5000"}) for r in RECEIPTS]
+        inv,_=inventory_by_sku(PROJECT,receipts,[])
+        quota={sku:1 for sku,_,_,_ in ITEMS}
+        plan=build_plan(pts,list(quota),quota)
         errors,rows,_=verify_plan(PROJECT,plan,inv,[],pts)
         self.assertFalse(errors)
-        self.assertEqual(len(rows),500)
+        self.assertEqual(len(rows),2500)
 
 
 if __name__=="__main__":
