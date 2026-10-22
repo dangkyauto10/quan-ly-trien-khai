@@ -150,6 +150,11 @@ READY = "Đã đồng bộ"
 def now():
     return datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).isoformat(timespec="seconds")
 
+def sheet_datetime_serial():
+    """Store a real Sheets date-time (Vietnam local time) for formatted columns."""
+    local = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).replace(tzinfo=None, microsecond=0)
+    return (local - datetime(1899, 12, 30)).total_seconds() / 86400
+
 def fail(message):
     st.error(message)
     st.stop()
@@ -362,8 +367,7 @@ def register(on_behalf=False):
                     rid = "DK-" + uuid.uuid4().hex[:12].upper()
                     submitter = ("ADMIN:" + acting_admin["username"]) if acting_admin else "Tự đăng ký"
                     try:
-                        local_time = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).replace(tzinfo=None, microsecond=0)
-                        date_serial = (local_time - datetime(1899, 12, 30)).total_seconds() / 86400
+                        date_serial = sheet_datetime_serial()
                         sheet("DANG_KY_THANH_VIEN").append_row(
                             [rid, date_serial, full_name.strip(),
                              normalized_phone, described_areas, specialty, vehicle,
@@ -666,7 +670,7 @@ def teams_and_approval():
                            "Duyệt từ "+rid+"; chưa cấp đăng nhập"])
                 sheet("DANG_KY_THANH_VIEN").update(
                     f"H{live['_row']}:K{live['_row']}",
-                    [["Đã duyệt",tid,auth()["username"],now()]],value_input_option="RAW")
+                    [["Đã duyệt",tid,auth()["username"],sheet_datetime_serial()]],value_input_option="RAW")
                 read_sheet.clear()
                 audit(auth()["username"],"DUYỆT & TẠO ĐỘI","QUAN_LY_DOI",tid,"OK",rid)
                 st.success(("Đã duyệt và liên kết đội có sẵn " if matches else
