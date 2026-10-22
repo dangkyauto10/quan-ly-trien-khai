@@ -24,6 +24,12 @@ from preview_remember import (
     COOKIE_NAME, VALID_SECONDS, issue_remember_token, verify_remember_token
 )
 
+from preview_registration import role_for_specialty, team_id_from_registration, matching_teams
+from preview_import_locations import (read_location_file, candidate_names,
+    column_choice, is_header, normalize_name, blank_excel_template)
+
+st.set_page_config(page_title="QUẢN LÝ DỰ ÁN • PREVIEW", page_icon="🚀", layout="centered")
+
 cookie_controller = CookieController(key="tdv_cookie_controller_v1")
 
 
@@ -55,11 +61,6 @@ def sync_remembered_login():
                 st.session_state["auth"] = account
 
 
-from preview_registration import role_for_specialty, team_id_from_registration, matching_teams
-from preview_import_locations import (read_location_file, candidate_names,
-    column_choice, is_header, normalize_name, blank_excel_template)
-
-st.set_page_config(page_title="QUẢN LÝ DỰ ÁN • PREVIEW", page_icon="🚀", layout="centered")
 
 st.markdown("""
 <style>
@@ -233,7 +234,7 @@ def login():
         pin = st.text_input("Mã truy cập riêng", type="password")
         remember_key = remember_signing_key()
         remember = st.checkbox(
-            "☑ Ghi nhớ đăng nhập trên thiết bị này (30 ngày)",
+            "Ghi nhớ đăng nhập trên thiết bị này (30 ngày)",
             value=False, disabled=not bool(remember_key),
             help="Chỉ chọn trên điện thoại hoặc máy tính cá nhân; đừng chọn ở máy dùng chung.")
         if remember_key is None:
