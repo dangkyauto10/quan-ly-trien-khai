@@ -1,7 +1,7 @@
 import unittest
 from preview_assignment import (
     assignment_rows, assignment_batch_requests,
-    eligible_site_tasks, site_assignment_plan, compact_site_assignment_requests,
+    eligible_site_tasks, project_site_catalog, site_assignment_plan, compact_site_assignment_requests,
     allowed_modes
 )
 
@@ -156,6 +156,45 @@ class MultipleSiteAssignmentTests(unittest.TestCase):
         self.assertEqual(len(req),2)
         self.assertEqual(req[0]["repeatCell"]["range"]["endRowIndex"],2)
         self.assertEqual(req[1]["repeatCell"]["range"]["endRowIndex"],6)
+
+
+
+
+class ProjectCatalogSearchTests(unittest.TestCase):
+    def test_all_136_project_sites_remain_searchable_with_only_one_ready(self):
+        locations=[{"Mã điểm":f"DD-{n:03d}","Mã dự án":"DA-TEST01",
+                    "Tên xã/phường/đơn vị":f"Xã {n:03d}",
+                    "Trạng thái":"Hoạt động"} for n in range(136)]
+        tasks={"VAN_CHUYEN":[{"Mã dự án":"DA-TEST01",
+                              "Mã điểm":"DD-127","Mã nhiệm vụ VC":"VC-127",
+                              "Mã đội VC":"","Trạng thái":"Chưa giao"}]}
+        catalog=project_site_catalog(TEAM,"VC",locations,tasks)
+        self.assertEqual(len(catalog),136)
+        self.assertEqual(catalog["DD-127"][1],"Sẵn sàng giao")
+        self.assertEqual(catalog["DD-002"][1],"Chưa phân bổ hàng")
+        self.assertIn("DD-002",catalog)
+
+    def test_already_assigned_remains_visible_but_not_eligible(self):
+        result=project_site_catalog(TEAM,"VC",LOCATIONS,MULTI_TASKS)
+        self.assertIn("DD-TEST-129",result)
+        self.assertEqual(result["DD-TEST-129"][1],"Đã gán đội khác")
+        self.assertEqual(result["DD-TEST-127"][1],"Sẵn sàng giao")
+        self.assertNotIn("DD-OTHER",result)
+        with self.assertRaises(ValueError):
+            site_assignment_plan(TEAM,"VC",["DD-TEST-129"],LOCATIONS,MULTI_TASKS)
+
+    def test_500_places_with_no_stock_still_searchable(self):
+        places=[{"Mã dự án":"DA-TEST01","Mã điểm":f"DD-{i:03d}",
+                 "Tên xã/phường/đơn vị":f"Điểm {i:03d}",
+                 "Trạng thái":"Hoạt động"} for i in range(500)]
+        catalog=project_site_catalog(TEAM,"VC",places,{"VAN_CHUYEN":[]})
+        self.assertEqual(len(catalog),500)
+        self.assertTrue(all(v[1]=="Chưa phân bổ hàng" for v in catalog.values()))
+
+    def test_duplicate_project_location_rejected(self):
+        duplicate=[LOCATIONS[0],dict(LOCATIONS[0])]
+        with self.assertRaises(ValueError):
+            project_site_catalog(TEAM,"VC",duplicate,MULTI_TASKS)
 
 
 if __name__=="__main__":
