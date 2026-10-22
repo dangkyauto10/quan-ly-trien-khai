@@ -68,7 +68,7 @@ def build_plan(selected_points, skus, defaults, overrides=None):
     return rows
 
 
-def verify_plan(project, plans, inventory, allocations, points, max_lines=1800):
+def verify_plan(project, plans, inventory, allocations, points, max_lines=3000):
     """Reject any invalid/duplicate lines. Zero means no goods allocated."""
     errors, candidates = [], []
     seen = set()
