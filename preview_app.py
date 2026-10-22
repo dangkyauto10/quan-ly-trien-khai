@@ -26,6 +26,7 @@ from preview_remember import (
 
 from preview_registration import role_for_specialty, team_id_from_registration, matching_teams
 from preview_approval_ui import render_pending_approvals
+from preview_assignment import assignment_rows, assignment_batch_requests
 from preview_bulk_allocation import (
     inventory_by_sku, build_plan, verify_plan, atomic_requests
 )
@@ -907,12 +908,15 @@ def teams_and_approval():
                         st.error("Không lưu được đội ("+type(exc).__name__+
                                  "). Dữ liệu nhập vẫn được giữ nguyên để kiểm tra.")
     st.markdown("#### 📌 GÁN NHIỆM VỤ CHO ĐỘI TRƯỞNG")
+    st.caption("Có thể gán toàn bộ hàng hóa chưa gán tại cùng một địa điểm "
+               "cho một đội, hoặc gán riêng từng dòng nếu các mặt hàng khác đội.")
     tab=st.selectbox("Loại nhiệm vụ cần gán",["VAN_CHUYEN","LAP_DAT"])
     task_key = "Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
     team_key = "Mã đội VC" if tab=="VAN_CHUYEN" else "Mã đội KTV"
     required_kinds = ("VC","VC+KTV") if tab=="VAN_CHUYEN" else ("KTV","VC+KTV")
     waiting_status = "Chưa giao" if tab=="VAN_CHUYEN" else "Chưa lắp"
-    tasks=[x for x in read_sheet(tab) if x.get(task_key) and not x.get(team_key)
+    all_tasks=read_sheet(tab)
+    tasks=[x for x in all_tasks if x.get(task_key) and not x.get(team_key)
            and x.get("Trạng thái")==waiting_status]
     if not tasks:
         st.info("Chưa có nhiệm vụ đang chờ phân công.")
@@ -928,24 +932,56 @@ def teams_and_approval():
         return
     selected_team=st.selectbox("Đội trưởng nhận nhiệm vụ",teams,
         format_func=lambda x:f"{x['Mã đội']} • {x['Tên đội/đội trưởng']}")
-    if st.button("GÁN ĐỘI"):
-        # Prevent stale UI data or cross-project assignments on submission.
-        read_sheet.clear()
-        latest_task=lookup(read_sheet(tab),task_key,selected_task[task_key])
-        latest_team=lookup(read_sheet("QUAN_LY_DOI"),"Mã đội",selected_team["Mã đội"])
-        if not latest_task or latest_task.get(team_key) or latest_task.get("Trạng thái")!=waiting_status:
-            st.error("Nhiệm vụ đã được thay đổi hoặc phân công; hãy tải lại.")
-            return
-        if not latest_team or latest_team.get("Trạng thái")!="Hoạt động" or (
-            latest_team.get("Mã dự án")!=latest_task.get("Mã dự án")
-            or latest_team.get("Loại nhiệm vụ") not in required_kinds):
-            st.error("Đội không hợp lệ với dự án hoặc chuyên môn; không ghi phân công.")
-            return
-        sheet(tab).update_cell(latest_task["_row"],7,latest_team["Mã đội"])
-        read_sheet.clear()
-        st.success("Đã gán đúng đội của dự án. Đội trưởng sẽ thấy nhiệm vụ "
-                   "sau khi được cấp tài khoản và đăng nhập.")
-        st.rerun()
+    group_site=st.checkbox("Gán tất cả SKU chưa gán tại điểm này cho cùng đội",
+                           value=True, key=f"assign_entire_point_{tab}")
+    try:
+        preview=assignment_rows(
+            all_tasks,selected_task,selected_team,task_key,team_key,
+            required_kinds,waiting_status,group_site)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+    st.write(f"**Dự kiến gán {len(preview)} dòng nhiệm vụ** cho "
+             f"{selected_team['Tên đội/đội trưởng']} tại "
+             f"{selected_task['Mã điểm']}.")
+    with st.expander("Xem các SKU và số lượng sẽ giao"):
+        for task in preview:
+            st.write(f"{task['SKU']}: "
+                     f"{task.get('SL giao' if tab=='VAN_CHUYEN' else 'SL lắp','')} "
+                     f"({task[task_key]})")
+    if st.button("✅ XÁC NHẬN GÁN ĐỘI", use_container_width=True):
+        try:
+            # Re-read live data to reject stale UI, other projects or wrong role.
+            read_sheet.clear()
+            latest_tasks=read_sheet(tab)
+            latest_team=lookup(read_sheet("QUAN_LY_DOI"),"Mã đội",
+                               selected_team["Mã đội"])
+            if not latest_team:
+                st.error("Đội không còn tồn tại.")
+                return
+            selected_live=lookup(latest_tasks,task_key,selected_task[task_key])
+            if not selected_live:
+                st.error("Không tìm thấy nhiệm vụ được chọn.")
+                return
+            now_rows=assignment_rows(
+                latest_tasks,selected_live,latest_team,task_key,team_key,
+                required_kinds,waiting_status,group_site)
+            if {x[task_key] for x in now_rows}!={x[task_key] for x in preview}:
+                st.error("Danh sách nhiệm vụ đã thay đổi; không gán. "
+                         "Vui lòng kiểm tra và xác nhận lại.")
+                return
+            batch=assignment_batch_requests(sheet(tab).id,now_rows,
+                                            latest_team["Mã đội"])
+            client()[0].batch_update({"requests":batch})
+            read_sheet.clear()
+            st.success(f"Đã gán {len(now_rows)} dòng cho đội "
+                       f"{latest_team['Mã đội']} tại {selected_task['Mã điểm']}. "
+                       "Chỉ đội trưởng được cấp tài khoản mới báo cáo được.")
+            st.rerun()
+        except Exception as exc:
+            read_sheet.clear()
+            st.error("Chưa xác nhận được kết quả ghi ("+type(exc).__name__+
+                     "). Không bấm lại ngay; cần kiểm tra sheet "+tab+".")
 
 def sync_progress(project_id, point_id):
     """Derived per-point summary; not a substitute for source task rows."""
