@@ -821,11 +821,20 @@ def allocate_bulk():
         if len(errors)>12:
             st.error(f"Còn {len(errors)-12} lỗi khác; phải xử lý trước khi ghi.")
         return
-    st.warning("Chỉ bấm XÁC NHẬN khi đã đối chiếu lượng hàng từng SKU và "
-               "các xã/đơn vị ngoại lệ. Không thể ghi trùng SKU tại cùng điểm.")
-    accepted = st.checkbox("Tôi đã kiểm tra định mức và tồn kho; đồng ý tạo "
-                           "nhiệm vụ vận chuyển, lắp đặt.",
-                           key=f"bulk_approved_{project}")
+    st.warning("Chỉ xác nhận khi bộ SKU, định mức của mỗi điểm và DANH SÁCH "
+               "địa điểm đã khớp hồ sơ thầu. Không cho phân bổ trùng SKU/điểm "
+               "hoặc vượt hàng thực nhập.")
+    if len(candidates)>1600:
+        st.info("Đợt lớn có thể tải lâu khi ghi nhiều dòng. "
+                "Chỉ bấm xác nhận một lần và đối soát mã đợt.")
+    basket_signature=hashlib.sha256(repr((
+        project,tuple(sorted(chosen_ids)),
+        tuple((r["Mã điểm"],tuple(sorted(r["quantities"].items()))) for r in plan)
+    )).encode("utf-8")).hexdigest()[:16]
+    accepted=st.checkbox(
+        f"Tôi đã kiểm tra {len(chosen_ids)} điểm, định mức SKU, tồn khả dụng "
+        "và xác nhận đúng hồ sơ thầu.",
+        key=f"bulk_approved_{basket_signature}")
     if not st.button("✅ XÁC NHẬN PHÂN BỔ HÀNG LOẠT",
                      key=f"bulk_confirm_{project}",type="primary",
                      use_container_width=True,disabled=not accepted):
