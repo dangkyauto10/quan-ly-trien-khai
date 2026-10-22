@@ -41,22 +41,26 @@ class ApprovalMappingTests(unittest.TestCase):
     def test_atomic_approve_new_team(self):
         team=["KTV-123","Đội trưởng thử","0912345678","KTV","","Hoạt động","DA-TEST01",""]
         requests=approval_requests(101,202,4,"Đã duyệt",team,"KTV-123","admin",46317.75)
-        self.assertEqual(len(requests),2)
+        self.assertEqual(len(requests),3)
         self.assertIn("appendCells",requests[0])
         self.assertEqual(requests[0]["appendCells"]["sheetId"],202)
         update=requests[1]["updateCells"]
         self.assertEqual(update["range"]["sheetId"],101)
         self.assertEqual(update["range"]["startRowIndex"],3)
         self.assertEqual(update["rows"][0]["values"][0]["userEnteredValue"]["stringValue"],"Đã duyệt")
+        fmt=requests[-1]["repeatCell"]
+        self.assertEqual(fmt["range"]["startColumnIndex"],10)
+        self.assertEqual(fmt["range"]["startRowIndex"],3)
+        self.assertEqual(fmt["cell"]["userEnteredFormat"]["numberFormat"]["pattern"],"dd/mm/yyyy hh:mm")
 
     def test_approve_existing_team_without_duplicate(self):
         requests=approval_requests(101,202,2,"Đã duyệt",None,"TQ-01","admin",46317.5)
-        self.assertEqual(len(requests),1)
+        self.assertEqual(len(requests),2)
         self.assertIn("updateCells",requests[0])
 
     def test_reject_without_team(self):
         requests=approval_requests(101,202,2,"Từ chối",None,"","admin",46317.5)
-        self.assertEqual(len(requests),1)
+        self.assertEqual(len(requests),2)
         values=requests[0]["updateCells"]["rows"][0]["values"]
         self.assertEqual(values[0]["userEnteredValue"]["stringValue"],"Từ chối")
         self.assertEqual(values[1]["userEnteredValue"]["stringValue"],"")
