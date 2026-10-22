@@ -1,7 +1,6 @@
-streamlit
-pandas
-requests
-gspread
-google-auth
-streamlit-geolocation
-Pillow
+streamlit>=1.40,<2
+gspread>=6,<7
+google-auth>=2,<3
+google-api-python-client>=2,<3
+streamlit-geolocation>=0.0.10
+Pillow>=10,<13
