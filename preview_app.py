@@ -28,6 +28,7 @@ from preview_registration import role_for_specialty, team_id_from_registration, 
 from preview_bulk_allocation import (
     inventory_by_sku, build_plan, verify_plan, atomic_requests
 )
+from preview_bulk_excel import parse_exception_excel
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
@@ -643,18 +644,35 @@ def allocate_bulk():
         st.info("Vui lòng chọn địa điểm cần phân bổ.")
         return
     st.markdown("#### 3. Điều chỉnh những đơn vị có định mức khác")
+    uploaded = st.file_uploader(
+        "Tùy chọn: nạp Excel các điểm ngoại lệ (cột Mã điểm và các cột SKU)",
+        type=["xlsx"], key=f"bulk_exc_upload_{project}")
+    imported, imported_points = {}, []
+    upload_fingerprint = "noexcel"
+    if uploaded is not None:
+        try:
+            import_data = uploaded.getvalue()
+            imported, imported_points = parse_exception_excel(
+                uploaded.name, import_data, chosen_ids, skus)
+            upload_fingerprint = hashlib.sha256(import_data).hexdigest()[:10]
+            st.success(f"Đã đọc {len(imported_points)} điểm ngoại lệ trong Excel. "
+                       "Chưa ghi vào Google Sheets.")
+        except Exception as exc:
+            st.error("Excel ngoại lệ không hợp lệ: " + str(exc))
+            return
     exceptions = st.multiselect("Chọn các điểm ngoại lệ (có thể nhiều hoặc ít hơn 15)",
-        chosen_ids, format_func=lambda pid:f"{names[pid]} • {pid}",
-        key=f"bulk_exception_{project}")
+        chosen_ids,default=imported_points,
+        format_func=lambda pid:f"{names[pid]} • {pid}",
+        key=f"bulk_exception_{project}_{upload_fingerprint}")
     overrides = {}
     if exceptions:
         source_rows = []
         for pid in exceptions:
             row = {"Mã điểm":pid,"Tên địa điểm":names[pid]}
-            row.update({sku:float(defaults[sku]) for sku in skus})
+            row.update({sku:float(imported.get((pid,sku), defaults[sku])) for sku in skus})
             source_rows.append(row)
         ui_key = hashlib.sha256(
-            repr((project, sorted(exceptions),
+            repr((project, upload_fingerprint, sorted(exceptions),
                   tuple((k,defaults[k]) for k in skus))).encode()
         ).hexdigest()[:16]
         edited = st.data_editor(
