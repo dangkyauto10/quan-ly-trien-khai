@@ -5,9 +5,42 @@ chooses approval status, and confirms. Job and site assignment remain separate.
 """
 import streamlit as st
 from preview_registration import (
-    role_for_specialty, team_id_from_registration,
-    matching_teams, approval_requests
+    role_for_specialty, team_id_from_registration, matching_teams
 )
+
+
+def approval_requests(registration_sheet_id, team_sheet_id, row_number,
+                      decision, team_row, team_id, approver, timestamp):
+    """Build one atomic Sheets batch for review and optional new team."""
+    if decision not in ("Đã duyệt", "Từ chối") or row_number < 2:
+        raise ValueError("Trạng thái hoặc dòng đăng ký không hợp lệ.")
+    if decision == "Đã duyệt" and not team_id:
+        raise ValueError("Duyệt phải có mã đội liên kết.")
+    if decision == "Từ chối" and (team_id or team_row):
+        raise ValueError("Không tạo đội khi từ chối.")
+    if team_row is not None and (
+        decision != "Đã duyệt" or len(team_row) != 8 or team_row[0] != team_id
+    ):
+        raise ValueError("Dữ liệu đội không khớp.")
+    def text_cell(value):
+        return {"userEnteredValue":{"stringValue":str(value if value is not None else "")}}
+    requests = []
+    if team_row is not None:
+        requests.append({"appendCells":{
+            "sheetId":team_sheet_id,
+            "rows":[{"values":[text_cell(value) for value in team_row]}],
+            "fields":"userEnteredValue"
+        }})
+    requests.append({"updateCells":{
+        "range":{"sheetId":registration_sheet_id,
+                 "startRowIndex":row_number-1,"endRowIndex":row_number,
+                 "startColumnIndex":7,"endColumnIndex":11},
+        "rows":[{"values":[text_cell(decision),text_cell(team_id),
+                           text_cell(approver),
+                           {"userEnteredValue":{"numberValue":float(timestamp)}}]}],
+        "fields":"userEnteredValue"
+    }})
+    return requests
 
 
 def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
