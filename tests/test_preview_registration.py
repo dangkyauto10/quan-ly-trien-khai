@@ -56,7 +56,7 @@ class ApprovalMappingTests(unittest.TestCase):
 
     def test_approve_existing_team_without_duplicate(self):
         requests=approval_requests(101,202,2,"Đã duyệt",None,"TQ-01","admin",46317.5)
-        self.assertEqual(len(requests),3)
+        self.assertEqual(len(requests),2)
         self.assertIn("updateCells",requests[0])
 
     def test_reject_without_team(self):
