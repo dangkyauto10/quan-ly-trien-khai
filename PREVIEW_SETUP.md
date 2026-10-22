@@ -50,3 +50,17 @@
 - Không chọn trên máy dùng chung; bấm Đăng xuất sẽ xóa cookie của thiết bị này.
 - Thay đổi PIN/hash, quyền vai trò, mã đội hoặc khóa ký phiên sẽ làm cookie ghi nhớ cũ mất hiệu lực khi kiểm tra.
 - Đây là lưu đăng nhập tùy chọn trong PREVIEW, cần kiểm thử thực tế trên Android/iOS/Chrome, đặc biệt việc tự khôi phục phiên sau tải lại trang.
+
+
+## Phân bổ hàng loạt đa SKU — PREVIEW
+- Mở `📦 Phân bổ`, chọn `Hàng loạt – định mức chung + ngoại lệ`.
+- SKU tự nhận từ `NHAP_KHO` của dự án. Mỗi SKU có định mức chung riêng.
+- Mặc định chọn tất cả địa điểm hoạt động của dự án; bỏ bớt nếu chỉ cần phân bổ một phần.
+- Chọn các địa điểm ngoại lệ rồi sửa **từng SKU** trong bảng, hoặc tải file Excel .xlsx với `Mã điểm` và các cột có tiêu đề là mã SKU chính xác. Ô Excel trống giữ định mức chung; ô `0` nghĩa là không cấp SKU đó.
+- Phần `Đối soát` hiện tổng dự kiến và tồn còn lại theo SKU, kèm toàn bộ ma trận và nút tải Excel xem trước.
+- Chỉ sau khi ADMIN đánh dấu xác nhận, ứng dụng mới đọc lại dữ liệu trực tiếp và đối chiếu kho. Một lần gọi Google Sheets `spreadsheets.batchUpdate` ghi đồng thời `DM_CHUAN`, `KHO_PHAN_BO`, `VAN_CHUYEN`, `LAP_DAT`, `TIEN_DO` và `NHAT_KY_HE_THONG`.
+- `DM_CHUAN` giữ **nhật ký phân bổ chuẩn hóa (mỗi địa điểm × SKU một dòng)**, còn ma trận đa SKU cho phép chỉnh và xem trước ở app/Excel. Không thay đổi tiêu đề cột của các sheet đã có.
+- Một SKU tại cùng địa điểm không được phân bổ lại bằng chức năng này. Nếu cần cấp bổ sung SKU đã có, phải có quy trình bổ sung riêng.
+- Không cho ghi vượt tồn kho, số lượng âm, trùng điểm/SKU, hoặc vượt 1.800 dòng/đợt. Với dự án rất lớn có thể chọn địa điểm theo nhiều đợt khác nhau.
+- Kiểm thử thực tế tối thiểu: 2 bộ TB-TEST01, chọn 1 địa điểm và phân bổ 1 bộ, đối chiếu 6 sheet; khi đã nghiệm thu thì kiểm tra các bộ SKU phức tạp trên dữ liệu giả trước khi dùng thật.
+- Trước khi xác nhận, yêu cầu **chỉ một Admin thao tác phân bổ mỗi lúc**, vì Google Sheets không phải cơ sở dữ liệu khóa giao dịch đồng thời. Nếu xảy ra lỗi không rõ kết quả, không bấm lại liên tục; đối chiếu mã đợt trong các sheet.
