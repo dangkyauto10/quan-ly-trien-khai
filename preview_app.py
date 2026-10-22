@@ -291,7 +291,7 @@ def menu():
         opts = ["🔐 Đăng nhập", "📝 Đăng ký tham gia"]
     elif a["role"] == "ADMIN":
         opts = ["📊 Điều hành", "📁 Dự án/Điểm/Nhập kho", "📦 Phân bổ",
-                "👥 Đăng ký & quản lý đội", "📝 Đăng ký hộ thành viên",
+                "👥 Đăng ký & quản lý đội", "📝 Đăng ký hộ đội trưởng",
                 "📋 Báo cáo nhiệm vụ", "🗺️ Tìm đường"]
     elif a["role"] == "LANH_DAO":
         opts = ["📊 Điều hành", "🗺️ Tìm đường"]
@@ -305,12 +305,20 @@ def menu():
             st.session_state.pop("auth", None)
             st.session_state["_remember_action"] = "remove"
             st.rerun()
-    return st.selectbox("CHỌN CHỨC NĂNG", opts)
+    if a and a["role"] == "ADMIN":
+        pending_count=sum(x.get("Trạng thái duyệt")=="Chờ duyệt"
+                          for x in read_sheet("DANG_KY_THANH_VIEN"))
+        if pending_count:
+            st.info(f"📩 Có {pending_count} hồ sơ đội trưởng CHỜ DUYỆT.")
+            if st.button("📩 MỞ DANH SÁCH CHỜ DUYỆT", use_container_width=True):
+                st.session_state["preview_menu"] = "👥 Đăng ký & quản lý đội"
+                st.rerun()
+    return st.selectbox("CHỌN CHỨC NĂNG", opts, key="preview_menu")
 
 def register(on_behalf=False):
     """Public registration and Admin-assisted registration use the same pending queue."""
     acting_admin = require_role("ADMIN") if on_behalf else None
-    st.subheader("📝 " + ("ADMIN đăng ký hộ thành viên" if on_behalf else "Đăng ký tham gia dự án"))
+    st.subheader("📝 " + ("ADMIN đăng ký hộ đội trưởng" if on_behalf else "Đội trưởng đăng ký tham gia dự án"))
     st.caption("Khai khu vực đã hợp đồng với công ty. Đây là thông tin đăng ký, "
                "không tự cấp quyền báo cáo; ADMIN sẽ xét duyệt và giao nhiệm vụ.")
     saved_notice = st.session_state.pop("registered_notice", None)
@@ -344,7 +352,7 @@ def register(on_behalf=False):
             max_chars=1200, height=84)
         specialty = st.selectbox("Chuyên môn / Nhiệm vụ *",
             ["Vận chuyển / Giao nhận", "KTV lắp đặt",
-             "Điều phối / Giám sát", "Kho vận / Hậu cứ"])
+             "Vận chuyển & Lắp đặt", "Điều phối / Giám sát", "Kho vận / Hậu cứ"])
         vehicle = st.selectbox("Phương tiện", ["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
         st.caption("Khu vực tự khai chỉ để ADMIN tham khảo khi phân công. "
                    "Chỉ điểm được giao chính thức mới có thể báo cáo.")
@@ -1155,7 +1163,7 @@ def main():
         view=menu()
         if view=="🔐 Đăng nhập":login()
         elif view=="📝 Đăng ký tham gia":register()
-        elif view=="📝 Đăng ký hộ thành viên":register(on_behalf=True)
+        elif view=="📝 Đăng ký hộ đội trưởng":register(on_behalf=True)
         elif view=="🗺️ Tìm đường":directions()
         elif view=="📁 Dự án/Điểm/Nhập kho":projects_and_inventory()
         elif view=="📦 Phân bổ":allocate()
