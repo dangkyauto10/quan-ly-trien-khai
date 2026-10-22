@@ -47,6 +47,7 @@ class ApprovalMappingTests(unittest.TestCase):
         update=requests[1]["updateCells"]
         self.assertEqual(update["range"]["sheetId"],101)
         self.assertEqual(update["range"]["startRowIndex"],3)
+        self.assertEqual(requests[-1]["repeatCell"]["cell"]["userEnteredFormat"]["numberFormat"]["pattern"],"dd/mm/yyyy hh:mm")
         self.assertEqual(update["rows"][0]["values"][0]["userEnteredValue"]["stringValue"],"Đã duyệt")
         fmt=requests[-1]["repeatCell"]
         self.assertEqual(fmt["range"]["startColumnIndex"],10)
@@ -55,7 +56,7 @@ class ApprovalMappingTests(unittest.TestCase):
 
     def test_approve_existing_team_without_duplicate(self):
         requests=approval_requests(101,202,2,"Đã duyệt",None,"TQ-01","admin",46317.5)
-        self.assertEqual(len(requests),2)
+        self.assertEqual(len(requests),3)
         self.assertIn("updateCells",requests[0])
 
     def test_reject_without_team(self):
