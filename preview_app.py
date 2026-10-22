@@ -34,6 +34,9 @@ from preview_bulk_allocation import (
     inventory_by_sku, build_plan, verify_plan, atomic_requests
 )
 from preview_bulk_excel import parse_exception_excel
+from preview_allocation_groups import (
+    match_contract_locations, read_contract_locations_excel, preview_basket
+)
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
@@ -611,21 +614,26 @@ def bulk_matrix_xlsx(plan, sku_list):
 
 def allocate_bulk():
     require_role("ADMIN")
-    st.subheader("📦 Phân bổ hàng loạt – đa mặt hàng")
-    st.caption("SKU tự lấy từ NHAP_KHO của từng dự án. Số lượng 0 nghĩa là "
-               "điểm đó không nhận mặt hàng. Chỉ ADMIN xác nhận mới ghi dữ liệu.")
-    prows = read_sheet("DANH_SACH_DU_AN")
-    projects = [r["Mã dự án"] for r in prows if r.get("Mã dự án")]
+    st.subheader("📦 Phân bổ theo nhóm địa điểm – bộ định mức hồ sơ thầu")
+    st.caption("Khai một bộ SKU và số lượng cấp cho MỖI ĐIỂM, sau đó chọn "
+               "nhiều xã/đơn vị cùng nhận bộ hàng đó. Nhóm có định mức khác "
+               "thực hiện ở đợt riêng hoặc chỉnh ngoại lệ. "
+               "PHÂN BỔ không phải XUẤT KHO.")
+    prows=read_sheet("DANH_SACH_DU_AN")
+    projects=[r["Mã dự án"] for r in prows if r.get("Mã dự án")]
     if not projects:
         st.warning("Cần tạo dự án trước.")
         return
-    project = st.selectbox("Dự án", projects, key="bulk_project")
-    points = [r for r in read_sheet("DANH_SACH_DIEM")
-              if r.get("Mã dự án") == project and r.get("Mã điểm")
-              and r.get("Trạng thái") == "Hoạt động"]
-    imports = read_sheet("NHAP_KHO")
-    allocations = read_sheet("KHO_PHAN_BO")
-    inventory, inventory_issues = inventory_by_sku(project, imports, allocations)
+    project=st.selectbox("Dự án",projects,key="bulk_project")
+    points=[r for r in read_sheet("DANH_SACH_DIEM")
+            if r.get("Mã dự án")==project and r.get("Mã điểm")
+            and r.get("Trạng thái")=="Hoạt động"]
+    if len(points)!=len({r["Mã điểm"] for r in points}):
+        st.error("Danh sách địa điểm có mã trùng. Cần ADMIN đối soát trước.")
+        return
+    imports=read_sheet("NHAP_KHO")
+    allocations=read_sheet("KHO_PHAN_BO")
+    inventory,inventory_issues=inventory_by_sku(project,imports,allocations)
     if inventory_issues:
         for issue in inventory_issues:
             st.error(issue)
@@ -634,28 +642,105 @@ def allocate_bulk():
     if not points or not inventory:
         st.warning("Dự án cần có danh sách địa điểm và ít nhất một SKU trong NHAP_KHO.")
         return
-    point_by_id = {r["Mã điểm"]:r for r in points}
-    point_ids = list(point_by_id)
-    names = {pid:point_by_id[pid]["Tên xã/phường/đơn vị"] for pid in point_ids}
-    skus = list(inventory)
-    st.write(f"**{len(point_ids)} điểm** • **{len(skus)} SKU** có trong dự án")
-    st.markdown("#### 1. Định mức chung cho từng SKU")
-    defaults = {}
+    point_by_id={r["Mã điểm"]:r for r in points}
+    point_ids=list(point_by_id)
+    names={pid:point_by_id[pid]["Tên xã/phường/đơn vị"] for pid in point_ids}
+    skus=list(inventory)
+    st.write(f"**{len(point_ids)} địa điểm** · **{len(skus)} SKU nhập kho** "
+             "· Có thể chia thành nhiều nhóm định mức theo hồ sơ thầu.")
+
+    st.markdown("#### 1. Bộ mặt hàng và định mức cho mỗi điểm")
+    st.caption("Nhập số lượng **mỗi địa điểm được cấp**, KHÔNG phải tổng "
+               "của cả nhóm. Ví dụ 12 bộ/điểm × 20 điểm = 240 bộ. "
+               "SKU nào không cấp trong nhóm này thì để 0.")
+    defaults={}
     for sku in skus:
-        itm = inventory[sku]
-        st.caption(f"{sku} — {itm['name']} • Tồn khả dụng: "
-                   f"{itm['remaining']:g} {itm['unit']}")
-        defaults[sku] = st.number_input(
-            f"Định mức {sku} / điểm ({itm['unit']})", min_value=0.0,
-            value=0.0, step=1.0, format="%.3f",
+        item=inventory[sku]
+        st.caption(f"**{sku}** — {item['name']} ({item['unit']}) · "
+                   f"Kho còn khả dụng để phân bổ: {item['remaining']:g}")
+        defaults[sku]=st.number_input(
+            f"Số lượng {sku} / mỗi điểm ({item['unit']})",
+            min_value=0.0,value=0.0,step=1.0,format="%.3f",
             key=f"bulk_default_{project}_{sku}")
-    chosen_ids = st.multiselect("2. Điểm được đưa vào đợt phân bổ",
-        point_ids, default=point_ids,
-        format_func=lambda pid: f"{names[pid]} • {pid}",
-        key=f"bulk_points_{project}")
-    if not chosen_ids:
-        st.info("Vui lòng chọn địa điểm cần phân bổ.")
+
+    st.markdown("#### 2. Chọn nhóm xã/đơn vị có cùng định mức")
+    method=st.radio("Cách chọn danh sách điểm theo hồ sơ thầu",
+        ["🔎 Gõ tìm tên / mã điểm", "📋 Dán danh sách từ hợp đồng",
+         "📄 Nạp danh sách Excel", "☑️ Chọn tất cả điểm chưa phân bổ"],
+        key=f"bulk_method_{project}")
+    issues=[]
+    if method.startswith("🔎"):
+        chosen_ids=st.multiselect(
+            "Địa điểm nhận bộ hàng hóa trên",
+            point_ids, default=[],
+            format_func=lambda pid:f"{names[pid]} • {pid}",
+            placeholder="Gõ tên xã, đơn vị hoặc mã điểm để tìm...",
+            key=f"bulk_points_{project}")
+        st.caption("Chọn liên tiếp các điểm trong cùng một nhóm. "
+                   "Không phải kéo qua cả 136 hay 500 điểm.")
+    elif method.startswith("📋"):
+        text_list=st.text_area(
+            "Dán danh sách địa điểm đã ký hợp đồng",
+            placeholder="Mỗi dòng một tên xã/đơn vị hoặc một Mã điểm. "
+                        "Ví dụ:\nPhường Minh Xuân\nDD-TEST-127",
+            key=f"bulk_contract_text_{project}",height=170)
+        chosen_ids,issues=match_contract_locations(
+            project,points,text_list.splitlines())
+    elif method.startswith("📄"):
+        upload=st.file_uploader(
+            "Nạp Excel danh sách điểm cùng định mức "
+            "(cột Mã điểm hoặc Tên xã/phường/đơn vị)",
+            type=["xlsx"],key=f"bulk_group_excel_{project}")
+        chosen_ids=[]
+        if upload:
+            try:
+                raw_names=read_contract_locations_excel(
+                    upload.name,upload.getvalue())
+                chosen_ids,issues=match_contract_locations(
+                    project,points,raw_names)
+            except ValueError as exc:
+                issues=[str(exc)]
+    else:
+        has_any={r.get("Mã điểm") for r in allocations
+                 if r.get("Mã dự án")==project and r.get("SKU")}
+        chosen_ids=[pid for pid in point_ids if pid not in has_any]
+        st.caption("Chỉ chọn điểm chưa có SKU nào được phân bổ. "
+                   "Điểm đã phân bổ một phần phải kiểm tra riêng.")
+
+    for issue in issues[:10]:
+        st.error(issue)
+    if len(issues)>10:
+        st.error(f"Còn {len(issues)-10} địa điểm không khớp. "
+                 "Hãy sửa danh sách, không thể ghi.")
+    st.write(f"**Nhóm hiện chọn: {len(chosen_ids)} địa điểm** "
+             f"trong tổng số {len(point_ids)} điểm của dự án.")
+    if chosen_ids:
+        with st.expander("Xem tên và mã điểm đã chọn"):
+            st.dataframe([{"Mã điểm":pid,"Xã/phường/đơn vị":names[pid]}
+                          for pid in chosen_ids],
+                         hide_index=True,use_container_width=True)
+    if issues:
         return
+    if not chosen_ids:
+        st.info("Vui lòng chọn ít nhất một địa điểm để lập phương án phân bổ.")
+        return
+
+    # Basket totals here are a preview, not a record of a warehouse issue.
+    basket_totals=preview_basket(skus,defaults,len(chosen_ids))
+    st.markdown("#### Đối chiếu nhanh bộ định mức × số điểm")
+    st.dataframe([{
+        "SKU":sku,"Hàng hóa":inventory[sku]["name"],
+        "ĐVT":inventory[sku]["unit"],
+        "SL/điểm":float(defaults[sku]),
+        "Số điểm":len(chosen_ids),
+        "Tổng dự kiến":float(basket_totals[sku]),
+        "Tồn có thể phân bổ":float(inventory[sku]["remaining"])
+    } for sku in skus if basket_totals[sku]>0],
+        hide_index=True,use_container_width=True)
+    st.caption("Đây là bảng rà soát theo định mức ADMIN vừa nhập; "
+               "chưa có dữ liệu định mức thầu độc lập để tự so sánh với "
+               "hồ sơ gốc. ADMIN cần kiểm tra định mức trước khi xác nhận.")
+
     st.markdown("#### 3. Điều chỉnh những đơn vị có định mức khác")
     uploaded = st.file_uploader(
         "Tùy chọn: nạp Excel các điểm ngoại lệ (cột Mã điểm và các cột SKU)",
