@@ -17,7 +17,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from PIL import Image
 from streamlit_geolocation import streamlit_geolocation
-from preview_registration import role_for_specialty, team_id_from_registration
+from preview_registration import role_for_specialty, team_id_from_registration, matching_teams
 from preview_import_locations import (read_location_file, candidate_names,
     column_choice, is_header, normalize_name, blank_excel_template)
 
@@ -524,11 +524,21 @@ def teams_and_approval():
             if chosen_project not in [r["Mã dự án"] for r in read_sheet("DANH_SACH_DU_AN")]:
                 st.error("Dự án không còn tồn tại, chưa ghi dữ liệu.")
                 st.stop()
-            tid=team_id_from_registration(rid,kind)
-            existing=lookup(read_sheet("QUAN_LY_DOI"),"Mã đội",tid)
+            teams_now=read_sheet("QUAN_LY_DOI")
+            matches=matching_teams(teams_now,name=live["Họ tên"],
+                phone=live["Số điện thoại"],kind=kind,project=chosen_project)
+            if len(matches)>1:
+                st.error("Có nhiều đội trùng người và dự án; cần Admin xử lý trước khi duyệt.")
+                st.stop()
+            tid=(matches[0]["Mã đội"] if matches else
+                 team_id_from_registration(rid,kind))
+            existing=lookup(teams_now,"Mã đội",tid)
             if existing and (existing.get("Tên đội/đội trưởng")!=live["Họ tên"]
-                             or existing.get("Mã dự án")!=chosen_project):
-                st.error("Mã đội đã tồn tại nhưng thông tin khác. Cần Admin đối soát.")
+                             or existing.get("SĐT đội trưởng")!=live["Số điện thoại"]
+                             or existing.get("Loại nhiệm vụ")!=kind
+                             or existing.get("Mã dự án")!=chosen_project
+                             or existing.get("Trạng thái")!="Hoạt động"):
+                st.error("Đội đã có nhưng thông tin hoặc trạng thái chưa khớp. Cần Admin đối soát.")
                 st.stop()
             try:
                 if not existing:
@@ -540,7 +550,8 @@ def teams_and_approval():
                     [["Đã duyệt",tid,auth()["username"],now()]],value_input_option="RAW")
                 read_sheet.clear()
                 audit(auth()["username"],"DUYỆT & TẠO ĐỘI","QUAN_LY_DOI",tid,"OK",rid)
-                st.success("Đã duyệt và tạo đội "+tid+" trong QUAN_LY_DOI. "
+                st.success(("Đã duyệt và liên kết đội có sẵn " if matches else
+                            "Đã duyệt và tạo đội ") + tid + ". "
                            "Chưa cấp quyền đăng nhập hoặc phân công điểm.")
                 st.rerun()
             except Exception as exc:
