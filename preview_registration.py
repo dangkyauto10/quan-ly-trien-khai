@@ -39,3 +39,43 @@ def matching_teams(rows, *, name: str, phone: str, kind: str, project: str):
         and row.get("Loại nhiệm vụ") == kind
         and row.get("Mã dự án") == project
     ]
+
+
+def approval_requests(registration_sheet_id, team_sheet_id, row_number,
+                      decision, team_row, team_id, approver, timestamp):
+    """One atomic spreadsheets.batchUpdate for approval/rejection.
+
+    team_row must be a complete list of 8 columns for a new approved team,
+    or None for a linked existing team or rejected registration.
+    """
+    if decision not in ("Đã duyệt", "Từ chối") or row_number < 2:
+        raise ValueError("Trạng thái hoặc dòng đăng ký không hợp lệ.")
+    if decision == "Đã duyệt" and not team_id:
+        raise ValueError("Duyệt phải có mã đội liên kết.")
+    if decision == "Từ chối" and (team_id or team_row):
+        raise ValueError("Từ chối không được tạo đội.")
+    if team_row and (decision != "Đã duyệt" or len(team_row) != 8 or
+                     team_row[0] != team_id):
+        raise ValueError("Dữ liệu đội không khớp.")
+    def cell_text(value):
+        return {"userEnteredValue":{"stringValue":str(value if value is not None else "")}}
+    req = []
+    if team_row:
+        req.append({"appendCells":{
+            "sheetId":team_sheet_id,
+            "rows":[{"values":[cell_text(x) for x in team_row]}],
+            "fields":"userEnteredValue"
+        }})
+    req.append({"updateCells":{
+        "range":{"sheetId":registration_sheet_id,
+                 "startRowIndex":row_number-1,"endRowIndex":row_number,
+                 "startColumnIndex":7,"endColumnIndex":11},
+        "rows":[{"values":[
+            cell_text(decision),
+            cell_text(team_id),
+            cell_text(approver),
+            {"userEnteredValue":{"numberValue":float(timestamp)}}
+        ]}],
+        "fields":"userEnteredValue"
+    }})
+    return req
