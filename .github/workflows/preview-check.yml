@@ -13,5 +13,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install import parser dependencies
+        run: python -m pip install 'openpyxl>=3.1,<4' 'python-docx>=1.1,<2'
       - name: Check syntax
-        run: python -m py_compile preview_app.py generate_preview_hash.py
+        run: python -m py_compile preview_app.py preview_import_locations.py generate_preview_hash.py
+      - name: Test location imports
+        run: python -m unittest discover -s tests -v
