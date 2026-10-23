@@ -107,8 +107,11 @@ class DeletingTeamBusinessTests(unittest.TestCase):
             "Tên đội VC giao":"Một người vận chuyển chưa định danh"
         }
         result=plan(vc_rows=[vc("P1")],hub_rows=[unsigned_origin])
-        # Existing historical proofs without team ID require manual audit.
+        # Legacy proof without ID is ambiguous: hold, do not reassign VC.
         self.assertEqual(result["vc_hub_sites"],0)
+        self.assertEqual(result["unknown_hub_sites"],1)
+        self.assertEqual(result["pending_tasks"],[])
+        self.assertTrue(result["review"])
 
     def test_partial_transport_is_protected_and_not_reassigned_as_full(self):
         result=plan(vc_rows=[{**vc("P1"),
