@@ -2104,7 +2104,7 @@ def hub_admin():
                           key="hub_name")
         address=st.text_input("Địa chỉ điểm tập kết",
                               key="hub_address")
-                giver=st.text_input(
+                        (
             "Họ tên người/đội VC bàn giao trên biên bản",
             value=vc_team.get("Tên đội/đội trưởng", ""),
             key=f"hub_giver_{project}_{vc_team['Mã đội']}"
