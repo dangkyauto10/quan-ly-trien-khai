@@ -1745,36 +1745,11 @@ def teams_and_approval():
         options=sorted(catalog,key=lambda pid:(
             catalog[pid][1]!="Sẵn sàng giao",
             (catalog[pid][0].get("Tên xã/phường/đơn vị","") or pid).casefold()))
-        choice_key=f"site_assign_multi_{project}_{selected_team['Mã đội']}_{role_mode}"
-        # Only auto-select contract sites from THIS team's approved registration.
-        approved_ids={
-            link.get("Mã đăng ký") for link in read_sheet("LIEN_KET_DANG_KY_DOI")
-            if link.get("Mã đội")==selected_team["Mã đội"]
-            and link.get("Mã dự án")==project
-            and link.get("Trạng thái liên kết")=="Đang liên kết"}
-        approved_names={
-            normalized_name(part)
-            for reg in read_sheet("DANG_KY_THANH_VIEN")
-            if reg.get("Mã đăng ký") in approved_ids
-            and reg.get("Trạng thái duyệt")=="Đã duyệt"
-            and reg.get("Mã đội được gán")==selected_team["Mã đội"]
-            and reg.get("Mã dự án đăng ký")==project
-            for part in str(reg.get("Địa bàn đề xuất","")).split(",")
-            if part.strip()}
-        matched_sites=[pid for pid in options if pid in eligible
-                       and normalized_name(
-                           catalog[pid][0].get("Tên xã/phường/đơn vị"))
-                       in approved_names]
-        if st.button(f"☑️ TỰ CHỌN {len(matched_sites)} ĐỊA ĐIỂM ĐÃ ĐĂNG KÝ",
-                     key=f"site_auto_select_{project}_{selected_team['Mã đội']}_{role_mode}",
-                     disabled=not matched_sites,use_container_width=True):
-            st.session_state[choice_key]=matched_sites
-            st.rerun()
         chosen=st.multiselect(
             "4. 🔎 Tìm và chọn nhiều địa điểm theo hợp đồng",
             options,format_func=site_name,
             placeholder="Gõ tên xã, đơn vị hoặc mã điểm để tìm...",
-            key=choice_key)
+            key=f"site_assign_multi_{project}_{selected_team['Mã đội']}_{role_mode}")
         st.caption("Gõ tên hoặc mã điểm để lọc gợi ý. "
                    "Danh sách không biến mất khi chọn xong một điểm. "
                    "Chỉ điểm 'Sẵn sàng giao' mới được xác nhận phân công.")
