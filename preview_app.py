@@ -1586,8 +1586,10 @@ def teams_and_approval():
                           len(impact["protected_tasks"]))
                 st.caption(f"Địa điểm có việc trả về: "
                            f"{impact['released_sites']} • "
-                           f"Địa điểm có hàng KTV giữ tại tập kết: "
-                           f"{impact['custody_sites']}")
+                           f"KTV còn giữ hàng tập kết: "
+                           f"{impact['custody_sites']} • "
+                           f"VC đã bàn giao ở tập kết: "
+                           f"{impact['vc_hub_sites']}")
                 if impact["protected_details"]:
                     st.warning("Có hàng đã nhận, báo cáo hoặc chứng từ "
                                "cần xử lý bàn giao. Không tự giải phóng "
