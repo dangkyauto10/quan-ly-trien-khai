@@ -49,6 +49,10 @@ from preview_credential_accounts import (
     new_password, create_hash, validate_custom_password
 )
 from preview_signup_credentials import registration_requests, pending_row
+from preview_team_detach import (
+    lost_registrations, revoked_team_ids, plan_detach,
+    detach_requests, ACTIVE as LINK_ACTIVE
+)
 from preview_remember import account_fingerprint
 from preview_handover import installer_handover, site_may_complete_installation
 from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label
@@ -305,11 +309,22 @@ def effective_accounts():
     """
     secrets_accounts = st.secrets.get("accounts", {})
     try:
-        return team_accounts(secrets_accounts,
-                             read_sheet("TAI_KHOAN_DOI"),
-                             read_sheet("QUAN_LY_DOI"))
+        rows=read_sheet("QUAN_LY_DOI")
+        accounts=team_accounts(secrets_accounts,
+                               read_sheet("TAI_KHOAN_DOI"),rows)
+        # Fail closed immediately for an externally deleted registration,
+        # even before ADMIN reconciles site and account references.
+        denied=revoked_team_ids(
+            read_sheet("DANG_KY_THANH_VIEN"),
+            read_sheet("LIEN_KET_DANG_KY_DOI"))
+        return {name:info for name,info in accounts.items() if not (
+            str(info.get("role","")).upper()=="DOI_TRUONG"
+            and str(info.get("team_id","")) in denied)}
     except Exception:
-        return dict(secrets_accounts)
+        # Credential/source outage must never expose a deleted captain.
+        # Keep privileged accounts in Secrets available for recovery.
+        return {name:info for name,info in secrets_accounts.items()
+                if str(info.get("role","")).upper() in ("ADMIN","LANH_DAO")}
 
 
 def valid_login(username, pin):
@@ -509,6 +524,10 @@ def require_role(*roles):
 def menu():
     sync_remembered_login()
     a = auth()
+    if a and a.get("role")=="ADMIN":
+        # ADMIN opens/refreshes the app: detect new registrations deleted
+        # directly in Sheets, then revoke associated team and pending tasks.
+        reconcile_deleted_captains()
     if not a:
         if st.session_state.get("leader_login_open"):
             return "__LEADERSHIP_LOGIN__"
@@ -901,6 +920,70 @@ def read_sheet_live(name):
     headers = values[0]
     return [dict(zip(headers, row + [""] * (len(headers)-len(row))), _row=i)
             for i, row in enumerate(values[1:], 2) if any(str(x).strip() for x in row)]
+
+
+def reconcile_deleted_captains():
+    """ADMIN-triggered automatic cleanup of externally deleted profiles.
+
+    No background Google Sheets trigger exists: runs when logged-in ADMIN
+    opens or refreshes the PREVIEW app, without a separate deletion button.
+    Legacy/manual teams not linked in LIEN_KET_DANG_KY_DOI are untouched.
+    """
+    who=st.session_state.get("auth",{})
+    if who.get("role")!="ADMIN":
+        return
+    try:
+        # No external reads/writes until at least one new tracked link exists.
+        links=read_sheet("LIEN_KET_DANG_KY_DOI")
+        if not any(r.get("Trạng thái liên kết")==LINK_ACTIVE for r in links):
+            return
+        fresh_links=read_sheet_live("LIEN_KET_DANG_KY_DOI")
+        fresh_regs=read_sheet_live("DANG_KY_THANH_VIEN")
+        orphaned=lost_registrations(fresh_regs,fresh_links)
+        if not orphaned:
+            return
+        total_tasks=0
+        reviewed=0
+        processed=0
+        for link in orphaned:
+            # Each linked team is reconciled against fresh data before
+            # applying a single atomic batch across the related worksheets.
+            teams=read_sheet_live("QUAN_LY_DOI")
+            creds=read_sheet_live("TAI_KHOAN_DOI")
+            tasks_vc=read_sheet_live("VAN_CHUYEN")
+            tasks_ld=read_sheet_live("LAP_DAT")
+            reports=read_sheet_live("BAO_CAO_TRIEN_KHAI")
+            hub=read_sheet_live("BAN_GIAO_TAP_KET")
+            plan=plan_detach(link,teams,creds,tasks_vc,tasks_ld,reports,hub)
+            keys=("QUAN_LY_DOI","TAI_KHOAN_DOI","VAN_CHUYEN",
+                  "LAP_DAT","LIEN_KET_DANG_KY_DOI")
+            ids={n:sheet(n).id for n in keys}
+            changes=detach_requests(plan,ids,now())
+            client()[0].batch_update({"requests":changes})
+            read_sheet.clear()
+            processed+=1
+            total_tasks+=len(plan["pending_tasks"])
+            reviewed+=int(plan["review"])
+            audit(who["username"],"TỰ GỠ ĐỘI SAU XÓA ĐĂNG KÝ",
+                  "LIEN_KET_DANG_KY_DOI",
+                  str(link.get("Mã đăng ký","")),"OK",
+                  f"Đội: {plan['team_id']} • Nhiệm vụ trả về: "
+                  f"{len(plan['pending_tasks'])} • Cần đối soát: {plan['review']}")
+        if processed:
+            st.success(f"Đã đối chiếu hồ sơ bị xóa: gỡ {processed} đội "
+                       f"và trả {total_tasks} nhiệm vụ/SKU chưa thực hiện "
+                       "về chờ phân công lại.")
+            if reviewed:
+                st.warning(f"{reviewed} đội có báo cáo, chứng từ tập kết "
+                           "hoặc nhiệm vụ đã thực hiện: đã khóa quyền, "
+                           "giữ chứng từ cũ để ADMIN đối soát.")
+    except Exception as exc:
+        read_sheet.clear()
+        st.warning("Không hoàn tất được đồng bộ xóa đăng ký ("+
+                   type(exc).__name__+"). Không xóa thủ công nhiệm vụ, "
+                   "hãy vào Quản lý đội để đối soát. "
+                   "Các tài khoản thuộc hồ sơ đã mất vẫn bị khóa "
+                   "khi xác thực lại.")
 
 
 def bulk_matrix_xlsx(plan, sku_list):
@@ -1457,9 +1540,11 @@ def teams_and_approval():
         st.info("📋 Bảng DANG_KY_THANH_VIEN đã trống. "
                 "Các tên trong mục CẤP / ĐẶT LẠI MẬT KHẨU là đội trưởng "
                 "đang còn ở bảng QUAN_LY_DOI, KHÔNG phải hồ sơ chờ duyệt. "
-                "Xóa đăng ký không tự xóa đội, tài khoản hay nhiệm vụ "
-                "đã gán để tránh mất dữ liệu. Nếu muốn làm sạch toàn bộ "
-                "dữ liệu TEST cần đối soát các bảng liên quan.")
+                "Các đội cũ/tạo thủ công chưa có liên kết hồ sơ "
+                "sẽ được giữ nguyên để tránh xóa nhầm. "
+                "Với đội mới có liên kết, khi xóa hồ sơ app sẽ tự ngừng "
+                "tài khoản và gỡ các nhiệm vụ CHƯA thực hiện lúc ADMIN "
+                "mở/làm mới app. Phân bổ kho cho xã vẫn giữ nguyên.")
     render_pending_approvals(
         read_sheet=read_sheet, sheet=sheet, client=client, auth=auth,
         audit=audit, lookup=lookup, sheet_datetime_serial=sheet_datetime_serial,
