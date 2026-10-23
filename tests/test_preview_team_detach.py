@@ -103,7 +103,8 @@ class CascadeTests(unittest.TestCase):
         self.assertEqual(len(plan["protected_tasks"]),1)
         changes=detach_requests(plan,SHEETS,"2026-10-23")
         team_change=next(x["updateCells"] for x in changes
-                         if x["updateCells"]["range"]["sheetId"]==
+                         if "updateCells" in x and
+                         x["updateCells"]["range"]["sheetId"]==
                          SHEETS["QUAN_LY_DOI"])
         self.assertEqual(team_change["rows"][0]["values"][0]
                          ["userEnteredValue"]["stringValue"],NEEDS_REVIEW)
