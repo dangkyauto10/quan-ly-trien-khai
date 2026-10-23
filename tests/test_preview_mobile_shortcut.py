@@ -18,7 +18,7 @@ class MobileHomeShortcutTests(unittest.TestCase):
         self.assertIn('Thêm vào Màn hình chính',source)
         self.assertIn('Cài đặt và tạo lối tắt',source)
         self.assertIn('Mở bằng trình duyệt',source)
-        self.assertIn('bản PREVIEW chưa bảo đảm logo riêng',source)
+        self.assertIn('Biểu tượng khi ghim lên iPhone/Android vẫn phụ thuộc',source)
 
     def test_registration_success_displays_expanded_guide(self):
         func=next(n for n in self.tree.body if isinstance(n,ast.FunctionDef)
