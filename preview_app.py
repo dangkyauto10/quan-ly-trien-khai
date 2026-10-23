@@ -1214,7 +1214,6 @@ def teams_and_approval():
             return
         selected_team=st.selectbox("2. Đội trưởng nhận địa bàn",teams,
             format_func=lambda t:(t.get("Tên đội/đội trưởng","")+
-                                  " • "+t.get("Mã đội","")+
                                   " • "+t.get("Loại nhiệm vụ","")),
             key=f"site_assign_team_{project}")
         mode_labels={"VC":"Vận chuyển (VC)", "LD":"Lắp đặt (LĐ)",
@@ -1373,7 +1372,7 @@ def teams_and_approval():
         st.warning("Chưa có đội hoạt động đúng chuyên môn TRONG CÙNG DỰ ÁN.")
         return
     selected_team=st.selectbox("Đội trưởng nhận nhiệm vụ",teams,
-        format_func=lambda x:f"{x['Mã đội']} • {x['Tên đội/đội trưởng']}")
+        format_func=lambda x:x['Tên đội/đội trưởng'])
     group_site=st.checkbox("Gán tất cả SKU chưa gán tại điểm này cho cùng đội",
                            value=True, key=f"assign_entire_point_{tab}")
     try:
@@ -1520,6 +1519,21 @@ def report():
                 key="team_handover_details")
             info=shown[detail]
             st.write("**"+info["name"]+"** • "+info["project"])
+            # Fallback Maps search is only a candidate, not a verified pin.
+            dest=next((p for p in read_sheet("DANH_SACH_DIEM")
+                       if p.get("Mã dự án")==info["project"] and
+                       p.get("Mã điểm")==info["point_id"]),{})
+            if dest.get("Vĩ độ") and dest.get("Kinh độ"):
+                query=dest["Vĩ độ"]+","+dest["Kinh độ"]
+            else:
+                query=", ".join(filter(None,[
+                    info["name"],dest.get("Địa chỉ chi tiết",""),
+                    dest.get("Tỉnh/Thành","")]))
+                st.caption("Chưa có GPS đã xác minh: cần kiểm tra đúng đích "
+                           "trên Google Maps trước khi đi.")
+            st.link_button("🧭 Xem địa điểm trên Google Maps",
+                "https://www.google.com/maps/search/?api=1&query="+quote(query),
+                use_container_width=True)
             st.dataframe([{
                 "SKU":v["sku"],"Cần lắp":v["need"],
                 "VC thực giao":v["delivered"],"LĐ đã lắp":v["installed"],
