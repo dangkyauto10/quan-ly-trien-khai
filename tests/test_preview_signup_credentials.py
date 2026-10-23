@@ -39,6 +39,36 @@ class SignupCredentialTests(unittest.TestCase):
         self.assertIsNotNone(validate_custom_password("XuanHa-0912345678","Nguyễn Văn A","0912345678"))
         self.assertIsNotNone(validate_custom_password("aBcdEfgHiJKL123 ","Nguyễn Văn A","0912345678"))
 
+    def test_memorable_ten_character_password_is_supported(self):
+        valid="HoaNha8!xY"
+        self.assertEqual(len(valid),10)
+        self.assertIsNone(validate_custom_password(
+            valid,"Nguyễn Văn A","0912345678"))
+        salt,digest=create_hash(valid)
+        self.assertEqual(len(salt),32)
+        self.assertEqual(len(digest),64)
+        self.assertIsNotNone(validate_custom_password(
+            "Abc12Xyz","Nguyễn Văn A","0912345678"))
+        self.assertIsNotNone(validate_custom_password(
+            "1234567890","Nguyễn Văn A","0912345678"))
+        self.assertIsNotNone(validate_custom_password(
+            "NguyenVanA26","Nguyễn Văn A","0912345678"))
+
+    def test_manual_admin_choice_is_available_and_checked(self):
+        source=(ROOT/"preview_app.py").read_text(encoding="utf-8")
+        func=next(n for n in ast.parse(source).body
+                  if isinstance(n,ast.FunctionDef)
+                  and n.name=="provision_team_password")
+        snippet=ast.get_source_segment(source,func)
+        self.assertIn('"Đội trưởng đề nghị / ADMIN nhập hộ"',snippet)
+        self.assertIn('"Hệ thống tự tạo mật khẩu"',snippet)
+        self.assertIn('custom_password=st.text_input(',snippet)
+        self.assertIn('confirm_custom=st.text_input(',snippet)
+        self.assertIn('custom_password!=confirm_custom',snippet)
+        self.assertIn('validate_custom_password(',snippet)
+        self.assertIn('password=(custom_password if method.startswith("Đội trưởng")',snippet)
+        self.assertIn('salt,digest=create_hash(password)',snippet)
+
     def test_registration_batch_is_atomic_and_never_contains_plaintext(self):
         reg=[RID,123,"Nguyễn Văn A","0912345678","Xã A",
              "KTV lắp đặt","Xe máy","Chờ duyệt","","","",PROJECT,"Tự đăng ký"]
