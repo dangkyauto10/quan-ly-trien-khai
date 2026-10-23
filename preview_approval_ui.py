@@ -225,7 +225,8 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
             # Never guess that pre-existing/manual teams came from the
             # registration being reviewed (old deleted registrations are many).
             link_request=None
-            if decision=="Đã duyệt" and new_team is not None:
+            if (decision=="Đã duyệt" and new_team is not None
+                    and registered_now==project):
                 link_request=approval_link_request(
                     sheet("LIEN_KET_DANG_KY_DOI").id,
                     rid,tid,project,current_time())
