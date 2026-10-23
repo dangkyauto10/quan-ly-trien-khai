@@ -145,8 +145,12 @@ class DeletingTeamBusinessTests(unittest.TestCase):
         self.assertIn("impact=plan_detach(",text)
         self.assertIn('read_sheet("BAN_GIAO_TAP_KET")',text)
         self.assertIn('impact["pending_details"]+impact["protected_details"]',text)
-        self.assertNotIn('detach_requests(',text)
-        self.assertNotIn('batch_update(',text)
+        # The team-admin function also contains legitimate edit controls.
+        # Validate only the read-only impact preview branch.
+        impact_branch=text.split('with st.expander("🔎 XEM ẢNH HƯỞNG')[1].split(
+            '    provision_team_password()')[0]
+        self.assertNotIn('detach_requests(',impact_branch)
+        self.assertNotIn('batch_update(',impact_branch)
 
 
 if __name__=="__main__":
