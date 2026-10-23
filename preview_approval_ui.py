@@ -168,8 +168,11 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
                       f"{decision}/{tid}/{project}")
                 if decision=="Đã duyệt":
                     st.session_state["approval_notice"]=(
-                        f"Đã duyệt hồ sơ và liên kết mã đội {tid}. "
-                        "Chưa tự gán điểm, SKU, số lượng hoặc cấp tài khoản.")
+                        f"Đã duyệt hồ sơ đội trưởng {live.get('Họ tên','')}. "
+                        "Mã đội đã được lưu nội bộ để gán nhiệm vụ. "
+                        "Đội trưởng đăng nhập bằng HỌ TÊN + mật khẩu riêng "
+                        "sau khi ADMIN cấp tài khoản; chưa tự gán điểm, "
+                        "SKU hoặc số lượng.")
                 else:
                     st.session_state["approval_notice"]=(
                         f"Đã cập nhật hồ sơ {rid} thành TỪ CHỐI. Không tạo đội.")
