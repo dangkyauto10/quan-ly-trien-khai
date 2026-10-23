@@ -116,6 +116,28 @@ def build_progress(project_id, projects, sites, receipts, allocations,
 
     vci=task_index(vc,"Mã nhiệm vụ VC","Mã đội VC",VC_DONE)
     ldi=task_index(ld,"Mã nhiệm vụ LD","Mã đội KTV",LD_DONE)
+    # Proven signed VC -> KTV handovers are separately completed VC work,
+    # not "VC delivered to each commune". Only count an unambiguous assigned
+    # transport crew with a real paper/photo receipt.
+    hub_vc_index=defaultdict(Decimal)
+    for receipt in hub_rows:
+        if (receipt.get("Trạng thái")!="KTV đã nhận tại tập kết"
+                or not receipt.get("Số biên bản giấy")
+                or not receipt.get("Link ảnh biên bản ký")
+                or not receipt.get("Mã đội VC giao")):
+            continue
+        key=(receipt.get("Mã dự án"),receipt.get("Mã điểm"),receipt.get("SKU"))
+        if not all(key):
+            continue
+        transport_tasks=vci.get(key,[])
+        if (len(transport_tasks)!=1 or
+            transport_tasks[0].get("Mã đội VC")!=receipt.get("Mã đội VC giao")):
+            anomalies.append("Biên bản tập kết không khớp đội VC được gán: "+str(key))
+            continue
+        try:
+            hub_vc_index[key]+=qty(receipt.get("SL KTV thực nhận"))
+        except ValueError:
+            anomalies.append("Biên bản tập kết có SL nhận không hợp lệ: "+str(key))
     hub_index=defaultdict(Decimal)
     for t in team_rows:
         teamid=t.get("Mã đội")
@@ -153,6 +175,7 @@ def build_progress(project_id, projects, sites, receipts, allocations,
         installed=accomplished(lrows,LD_DONE)
         hub_total=sum((hub_index.get((project,pid,sku,r.get("Mã đội KTV")),
                                       Decimal("0")) for r in lrows),Decimal("0"))
+        vc_hub=hub_vc_index.get(key,Decimal("0"))
         totals[(project,sku)]["allocated"]+=amount
         totals[(project,sku)]["vc"]+=delivered
         totals[(project,sku)]["hub"]+=hub_total
@@ -160,7 +183,8 @@ def build_progress(project_id, projects, sites, receipts, allocations,
         if amount>0:
             by_point[(project,pid)].append({
                 "sku":sku, "planned":amount,
-                "delivered":delivered, "hub":hub_total, "installed":installed,
+                "delivered":delivered, "hub":hub_total,
+                "vc_hub":vc_hub, "installed":installed,
                 "vc_count":len(vrows),"ld_count":len(lrows),
                 "vc_assigned":any(r.get("Mã đội VC") for r in vrows),
                 "ld_assigned":any(r.get("Mã đội KTV") for r in lrows),
@@ -169,7 +193,8 @@ def build_progress(project_id, projects, sites, receipts, allocations,
                 "ld_team_names":sorted({name_by_team.get(r.get("Mã đội KTV"),r.get("Mã đội KTV"))
                                         for r in lrows if r.get("Mã đội KTV")})
             })
-        if (delivered>amount or hub_total>amount or installed>amount or
+        if (delivered>amount or hub_total>amount or vc_hub>amount
+                or installed>amount or
                 (delivered>0 and hub_total>0) or
                 (installed>max(delivered,hub_total))):
             anomalies.append("Đối soát giao trực tiếp/tập kết/lắp: "+str(key))
@@ -182,6 +207,9 @@ def build_progress(project_id, projects, sites, receipts, allocations,
         full_vc=allocated and all(x["vc_count"] and
                                   x["delivered"]>=x["planned"] for x in skus)
         full_hub=allocated and all(x["hub"]>=x["planned"] for x in skus)
+        full_vc_hub=allocated and all(
+            x["vc_hub"]>=x["planned"] and x["hub"]>=x["planned"]
+            for x in skus)
         full_supply=allocated and all(
             (x["delivered"]>=x["planned"] or x["hub"]>=x["planned"])
             and not (x["delivered"]>0 and x["hub"]>0) for x in skus)
@@ -214,6 +242,7 @@ def build_progress(project_id, projects, sites, receipts, allocations,
             "project":key[0],"point_id":key[1],"name":site_label(site),
             "status":status,"skus":skus,"sku_count":len(skus),
             "delivery_full":bool(full_vc),"hub_received_full":bool(full_hub),
+            "vc_hub_full":bool(full_vc_hub),
             "supply_full":bool(full_supply),
             "installation_full":bool(full_ld),
             "has_partial_delivery":bool(some_vc and not full_vc),
@@ -247,6 +276,7 @@ def build_progress(project_id, projects, sites, receipts, allocations,
     vc_complete=sum(p["delivery_full"] for p in result_sites)
     ld_complete=sum(p["installation_full"] for p in result_sites)
     hub_complete=sum(p["hub_received_full"] for p in result_sites)
+    vc_hub_complete=sum(p["vc_hub_full"] for p in result_sites)
     unassigned_vc=sum(1 for row in vc if not row.get("Mã đội VC"))
     unassigned_ld=sum(1 for row in ld if not row.get("Mã đội KTV"))
     delivery_tasks=sum(r.get("Trạng thái")==VC_DONE for r in vc)
@@ -261,6 +291,7 @@ def build_progress(project_id, projects, sites, receipts, allocations,
             "sites_allocated":sum(bool(p["sku_count"]) for p in result_sites),
             "sites_delivered":vc_complete,
             "sites_at_hub":hub_complete,
+            "sites_vc_hub_done":vc_hub_complete,
             "sites_installed":ld_complete,
             "sites_ready_install":sum(p["supply_full"] and
                                        not p["installation_full"] for p in result_sites),
