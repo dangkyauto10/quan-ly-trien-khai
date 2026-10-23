@@ -2014,7 +2014,7 @@ def hub_admin():
         if not points:
             waiting={r.get("Mã điểm") for r in ld_rows
                      if r.get("Mã dự án")==project and r.get("Mã điểm")
-                     giver=st.text_input(
+                     and r.get("Trạng thái")=="Chưa lắp"
                      and not r.get("Mã đội KTV")}
             st.warning(
                 f"Đội KTV **{team.get('Tên đội/đội trưởng','')}** "
@@ -2104,7 +2104,7 @@ def hub_admin():
                           key="hub_name")
         address=st.text_input("Địa chỉ điểm tập kết",
                               key="hub_address")
-                        (
+        giver=st.text_input(
             "Họ tên người/đội VC bàn giao trên biên bản",
             value=vc_team.get("Tên đội/đội trưởng", ""),
             key=f"hub_giver_{project}_{vc_team['Mã đội']}"
