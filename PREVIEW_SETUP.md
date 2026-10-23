@@ -101,3 +101,11 @@
 - **Bắt buộc nghiệp vụ**: biên bản giấy ký cả hai bên mới là chứng cứ nhận hàng. Nếu thiếu, mất, sửa chứng từ hoặc thực nhận lệch định mức phải đối soát, không giả tạo trạng thái hoàn tất. Khi vận hành thật cần thêm phiếu xuất kho vật lý, sổ hàng KTV chuyển từ điểm tập kết tới từng xã và xử lý bồi hoàn/thiếu hàng.
 - PREVIEW mới chỉ qua unit test/compile GitHub Actions. Chưa nghiệm thu trực tiếp trên iPhone/Android hay luồng ảnh ký nhận ngoài thực địa; tuyệt đối không đổi PRODUCTION.
 
+
+## Biểu tượng app trên màn hình điện thoại (PREVIEW)
+
+- Trên trang công khai có phần thu gọn **📲 ĐƯA APP RA MÀN HÌNH ĐIỆN THOẠI**; ngay sau khi người dùng tự gửi đăng ký thành công, phần hướng dẫn được mở sẵn (iPhone và Android ở hai thẻ riêng).
+- iPhone: mở URL app bằng **Safari** (không dùng trình duyệt nhúng Zalo), chọn **Chia sẻ → Thêm vào Màn hình chính → Thêm**; bật **Mở dưới dạng ứng dụng web** nếu khả dụng. Android: mở bằng **Chrome → ⋮ → Cài đặt và tạo lối tắt / Thêm vào màn hình chính → Tạo lối tắt / Thêm** (tên menu tùy phiên bản).
+- Chỉ chính người dùng có thể xác nhận việc thêm biểu tượng; app không có quyền tự động cài biểu tượng sau đăng ký. Biểu tượng tạo ra là lối tắt web hoặc web app tùy hệ điều hành, **không phải app phát hành qua App Store/Google Play**. Hiện logo/tên khi ghim từ Streamlit Cloud có thể vẫn chịu định dạng/biểu tượng mặc định, cần kiểm thử trên thiết bị thật trước khi hứa logo riêng.
+- Lối tắt không có nghĩa đã duyệt hay có quyền báo cáo. ADMIN vẫn duyệt, cấp mật khẩu và gán nhiệm vụ. Tài khoản đã cấp có thể chọn **Ghi nhớ đăng nhập (30 ngày)** trên thiết bị cá nhân, không lưu mật khẩu trong cookie.
+- Chỉ cập nhật mã nguồn PREVIEW và hướng dẫn sau khi đăng ký. Không thay đổi dữ liệu dự án, quyền, Secrets, đường dẫn hay app production.
