@@ -74,19 +74,22 @@ def render_guide():
             st.write("Điền **Họ và tên**, **Điện thoại liên hệ (Zalo)**; "
                      "chọn các xã/đơn vị thuộc **khu vực đã hợp đồng**, "
                      "hoặc ghi địa bàn bổ sung; chọn **Chuyên môn / Nhiệm vụ** "
-                     "và **Phương tiện**. Kiểm tra kỹ trước khi gửi.")
+                     "và **Phương tiện**. Tiếp đó nhập **mật khẩu tự chọn** "
+                     "(ít nhất 14 ký tự có chữ và số) và **nhập lại để xác nhận**. "
+                     "Không dùng mật khẩu Zalo, ngày sinh hoặc số điện thoại.")
         with st.expander("Bước 3 • Gửi và chờ duyệt", expanded=True):
             st.write("Bấm **GỬI ĐĂNG KÝ** một lần; chờ thông báo "
                      "**đã nhận hồ sơ**. ADMIN kiểm tra và duyệt, "
-                     "sau đó **cấp mật khẩu riêng và gán nhiệm vụ**. "
-                     "Chưa có tài khoản/nhiệm vụ thì chưa báo cáo được.")
+                     "khi duyệt sẽ **tự kích hoạt mật khẩu vừa đăng ký**. "
+                     "ADMIN gán địa bàn sau khi duyệt. "
+                     "Trước khi được duyệt vẫn chưa đăng nhập báo cáo được.")
         st.warning("Không gửi lại nhiều lần nếu chưa chắc hồ sơ đã lưu. "
                    "Hỏi ADMIN khi hồ sơ trùng hoặc chờ lâu.")
 
     elif topic == TOPICS[1]:
         st.markdown("#### 2. Đăng nhập và lưu biểu tượng app")
         with st.expander("Đăng nhập bằng HỌ TÊN", expanded=True):
-            st.write("Sau khi được ADMIN cấp tài khoản, bấm "
+            st.write("Sau khi ADMIN duyệt, bấm "
                      "**👷 ĐỘI TRƯỞNG – BÁO CÁO** → nhập **họ tên đã đăng ký** "
                      "và **mật khẩu riêng** → bấm **VÀO BÁO CÁO**. "
                      "Mã đội nội bộ không cần nhớ.")
@@ -97,15 +100,17 @@ def render_guide():
                      "(30 ngày)** nếu chức năng được ADMIN cấu hình. "
                      "Chỉ dùng trên điện thoại cá nhân; khi chọn ĐĂNG XUẤT "
                      "sẽ xóa phiên ghi nhớ.")
+        st.info("📲 **Chỉ cần thêm biểu tượng một lần**. Nếu nhận link qua "
+                "Zalo, mở bằng Safari (iPhone) hoặc Chrome (Android) trước.")
         iphone, android = st.tabs(["🍎 iPhone", "🤖 Android"])
         with iphone:
-            st.write("Mở app bằng **Safari** (không ở trình duyệt nhúng Zalo) "
-                     "→ bấm **Chia sẻ** → **Thêm vào Màn hình chính** "
-                     "→ bấm **Thêm**. Từ lần sau chạm biểu tượng để mở.")
+            st.write("**Safari → Chia sẻ (⬆️) → Thêm vào Màn hình chính "
+                     "→ Thêm.** Nếu có công tắc Mở dưới dạng ứng dụng web "
+                     "thì bật. Sau đó chạm icon TV để mở app.")
         with android:
-            st.write("Mở app bằng **Chrome** → bấm **⋮** → chọn "
-                     "**Thêm vào màn hình chính** hoặc **Cài đặt và tạo "
-                     "lối tắt** → **Thêm**.")
+            st.write("**Chrome → ⋮ → Cài đặt và tạo lối tắt** "
+                     "(hoặc Thêm vào màn hình chính) **→ Thêm**. "
+                     "Sau đó chạm icon TV để mở app.")
         st.caption("Biểu tượng trên màn hình chính là lối tắt/web app; "
                    "việc thêm cần chính người dùng xác nhận.")
 
@@ -188,13 +193,13 @@ def render_guide():
                      "Bấm **CẬP NHẬT SỐ LIỆU** khi cần số liệu mới.")
         with st.expander("ADMIN xét duyệt và cấp quyền", expanded=True):
             st.write("ADMIN đăng nhập → mở **👥 Đăng ký & quản lý đội** "
-                     "→ duyệt hồ sơ → mở mục **🔐 CẤP / ĐẶT LẠI "
-                     "MẬT KHẨU ĐỘI TRƯỞNG** → chọn tên người đã duyệt "
-                     "→ xác nhận **CẤP MẬT KHẨU**. Mật khẩu mạnh "
-                     "chỉ hiện một lần: ADMIN sao chép và gửi riêng "
-                     "cho người nhận (không đăng nhóm Zalo). "
-                     "Sau đó gán địa bàn. Quyền xem **📊 Báo cáo tiến độ** "
-                     "toàn dự án chỉ dành cho ADMIN và LÃNH ĐẠO.")
+                     "→ kiểm tra hồ sơ → **Đã duyệt**. Với hồ sơ mới "
+                     "do đội trưởng tự đăng ký, **mật khẩu họ đã chọn được "
+                     "kích hoạt tự động**; ADMIN không phải cấp lại. "
+                     "Sau đó ADMIN gán địa bàn. Với hồ sơ cũ hoặc do "
+                     "ADMIN đăng ký hộ chưa có mật khẩu, dùng mục "
+                     "**🔐 CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG**. "
+                     "Chỉ ADMIN và LÃNH ĐẠO được xem báo cáo tổng hợp.")
         st.info("Đội trưởng không xem báo cáo tiến độ tổng hợp của các đội khác.")
 
     else:
