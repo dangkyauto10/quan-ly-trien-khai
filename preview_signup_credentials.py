@@ -88,12 +88,15 @@ def approval_credential_requests(pending_sheet_id,credential_sheet_id,
             "rows":[{"values":[text_cell(v) for v in credential_row]}],
             "fields":"userEnteredValue"
         }})
+    # Copy to an active team credential ONLY after approval, then remove
+    # duplicate pending hashes. Rejected requests discard the hash too.
     requests.append({"updateCells":{
         "range":{"sheetId":pending_sheet_id,
                  "startRowIndex":pending_record["_row"]-1,
                  "endRowIndex":pending_record["_row"],
-                 "startColumnIndex":4,"endColumnIndex":5},
-        "rows":[{"values":[text_cell(REJECTED if rejected else ACTIVATED)]}],
+                 "startColumnIndex":2,"endColumnIndex":5},
+        "rows":[{"values":[text_cell(""),text_cell(""),
+                           text_cell(REJECTED if rejected else ACTIVATED)]}],
         "fields":"userEnteredValue"
     }})
     return requests
