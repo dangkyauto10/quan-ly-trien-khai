@@ -149,3 +149,16 @@
 - Khi đội trưởng đăng ký mới trên điện thoại, nhập mật khẩu **tự chọn từ 10–128 ký tự, có chữ và số**, nhập lần hai để xác nhận. Mật khẩu bị từ chối nếu quá ngắn, trùng họ tên/số điện thoại hoặc chứa các mẫu dễ đoán. Hệ thống không ép dùng mã ngẫu nhiên 18 ký tự.
 - Với người **đã đăng ký / đã được duyệt trước phiên bản này**, không cho nộp lại hồ sơ để đổi mật khẩu. ADMIN vào **👥 Đăng ký & quản lý đội → 🔐 CẤP / ĐẶT LẠI MẬT KHẨU**, chọn người, chọn **Đội trưởng đề nghị / ADMIN nhập hộ** (hoặc **Hệ thống tự tạo**), nhập mật khẩu theo đề nghị hai lần rồi xác nhận. Mật khẩu cũ và phiên ghi nhớ cũ bị vô hiệu hóa sau thay đổi.
 - Chỉ mã băm/salt được lưu ở TAI_KHOAN_DOI. Mật khẩu rõ không gửi lên Google Sheets, không ghi nhật ký, không nhúng mã nguồn. Giữ kiểm tra quyền ADMIN và trạng thái đội đã duyệt.
+
+
+## Tự thu hồi quyền/địa bàn khi xóa hồ sơ đăng ký đội trưởng (PREVIEW)
+
+- Bảng LIEN_KET_DANG_KY_DOI ghi **Mã đăng ký → Mã đội → Dự án** trong **cùng giao dịch xét duyệt** khi app TẠO một đội mới từ hồ sơ. Đội đã có sẵn/tạo tay, hoặc hồ sơ cũ thiếu mã dự án, KHÔNG được suy đoán liên kết và không bị xóa tự động. Điều này tránh xóa nhầm 7 đội thử nghiệm còn trong QUAN_LY_DOI khi V xóa sạch DANG_KY_THANH_VIEN trước ngày bổ sung chức năng.
+- Khi một hồ sơ đã duyệt có liên kết bị xóa khỏi DANG_KY_THANH_VIEN trực tiếp bằng Google Sheets, **người dùng đội đó bị từ chối đăng nhập ở lần xác thực tiếp theo**. ADMIN mở/tải lại PREVIEW sẽ tự đối chiếu bản ghi liên kết và thực hiện gỡ các quan hệ, không cần nhấn nút xóa riêng.
+- Trường hợp chưa có báo cáo thực: QUAN_LY_DOI đổi Trạng thái sang Đã gỡ (không hard-delete dòng để giữ lịch sử), TAI_KHOAN_DOI đổi sang Đã gỡ, các nhiệm vụ VAN_CHUYEN/LAP_DAT còn Chưa giao/Chưa lắp và chưa có chứng từ sẽ được xóa **Mã đội VC/Mã đội KTV** (trả về Chờ phân công). Số lượng SKU tại mỗi điểm vẫn còn trong nhiệm vụ để giao cho đội mới.
+- Trường hợp có báo cáo, phiếu giao/lắp, hoặc biên bản KTV đã ký tại điểm tập kết: tài khoản bị khóa, đội chuyển Cần đối soát; nhiệm vụ chưa thực hiện được thu hồi, nhưng nhiệm vụ đã làm và chứng từ **KHÔNG bị xóa hay đổi số lượng**.
+- KHO_PHAN_BO là **phân bổ HÀNG CHO XÃ theo hợp đồng**, không phải cho đội trưởng. Xóa người phụ trách **không được hoàn kho** hay xóa định mức phân bổ của xã, không đổi NHAP_KHO, BAO_CAO_TRIEN_KHAI hoặc chứng cứ giao nhận; chỉ thay đổi phân công nhiệm vụ.
+- Đối soát tự động là **event-driven theo lượt mở/tải lại app ADMIN**, chưa có trigger Google Sheets độc lập chạy ngay tức thì khi một ô/row bị xóa lúc app không hoạt động. Tối đa khoảng 15 giây TTL cache ở bước đăng nhập; khi ADMIN mở app có đọc trực tiếp Sheets và thực hiện batch update. Nếu Google Sheets mất kết nối, phải kiểm tra lại sau, không hứa gỡ tức thì.
+- Đội test cũ đã mất hồ sơ đăng ký trước khi liên kết được thiết lập **giữ nguyên để bảo vệ dự án DA880/DA-TEST01**. Muốn dọn lịch sử cũ cần quyết định riêng và đối soát trước. Không dùng thao tác xóa toàn bộ hàng để đặt lại nhân sự.
+- Chỉ PREVIEW được cập nhật; không ghi vào sheet production. CI kiểm thử gắn mã đội, thu hồi quyền, thu hồi nhiệm vụ chưa làm, bảo toàn chứng từ và số liệu kho. Cần V nghiệm thu trên bản thử với một đăng ký mới có liên kết.
+
