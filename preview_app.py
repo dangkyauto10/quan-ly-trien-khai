@@ -45,6 +45,7 @@ from preview_leader_access import leadership_username
 from preview_team_access import resolve_login_username, friendly_account_name
 from preview_handover import installer_handover, site_may_complete_installation
 from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label
+from preview_user_guide import GUIDE_URL, render_guide
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
@@ -542,6 +543,8 @@ def register(on_behalf=False):
     if saved_notice:
         st.success(saved_notice)
         if not on_behalf:
+            st.link_button("📖 XEM HƯỚNG DẪN & THỰC HÀNH THỬ",
+                           GUIDE_URL,use_container_width=True)
             home_screen_guide(expanded=True)
     projects = [p for p in read_sheet("DANH_SACH_DU_AN")
                 if p.get("Mã dự án") and p.get("Tên dự án")]
@@ -2147,6 +2150,19 @@ def dashboard():
 
 def main():
     try:
+        # Public help is a separate bookmarkable page inside the PREVIEW app.
+        # It has no backend reads/writes and does not bypass role permissions.
+        if st.query_params.get("guide") == "1":
+            render_guide()
+            return
+        _, guide_col = st.columns([2.5, 1.5])
+        with guide_col:
+            if st.button("📖 Hướng dẫn sử dụng",
+                         key="open_help_from_home",
+                         help="Xem cách đăng ký, giao hàng, lắp đặt và thực hành thử",
+                         use_container_width=True):
+                st.query_params["guide"] = "1"
+                st.rerun()
         view=menu()
         if view=="__LEADERSHIP_LOGIN__":leadership_login()
         elif view=="__TEAM_LOGIN__":login(team_only=True)
