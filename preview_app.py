@@ -2458,6 +2458,9 @@ def dashboard():
     h1,h2=st.columns(2)
     h1.metric("VC bàn giao tập kết đủ",m["sites_vc_hub_done"])
     h2.metric("KTV nhận tập kết đủ",m["sites_at_hub"])
+    st.caption("Hai số tập kết tính theo SỐ XÃ có đủ SKU; "
+               "một biên bản ký tại một điểm tập kết có thể gồm nhiều xã. "
+               "Không phải số chuyến xe hay số điểm giao tận xã.")
     st.metric("Đủ hàng, chờ/đang lắp",m["sites_ready_install"])
     if total:
         st.write(f"**VC giao TẬN XÃ đủ: {m['sites_delivered']}/{total} điểm** "
