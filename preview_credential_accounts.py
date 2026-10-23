@@ -28,6 +28,47 @@ def new_password(length=18):
     return "".join(secrets.choice(ALPHABET) for _ in range(length))
 
 
+def validate_custom_password(password, full_name="", phone=""):
+    """Validate memorable user-requested passphrase without storing it.
+
+    Unicode letters are permitted, including Vietnamese. Long phrases with
+    mixed words and digits are easier to remember than short PINs.
+    """
+    if not isinstance(password, str):
+        return "Mật khẩu chưa hợp lệ."
+    if len(password)<14 or len(password)>128:
+        return "Mật khẩu cần từ 14 đến 128 ký tự (nên dùng một cụm từ dễ nhớ)."
+    if password != password.strip():
+        return "Không nhập khoảng trắng ở đầu hoặc cuối mật khẩu."
+    if any(ord(ch)<32 or ord(ch)==127 for ch in password):
+        return "Mật khẩu không được chứa ký tự điều khiển/xuống dòng."
+    if not any(ch.isalpha() for ch in password):
+        return "Mật khẩu phải có chữ cái."
+    if not any(ch.isdigit() for ch in password):
+        return "Mật khẩu cần có ít nhất một chữ số."
+    compact="".join(ch for ch in password.casefold() if ch.isalnum())
+    if (len(set(password.casefold()))<7 or
+            any(x in compact for x in ("123456","654321","password",
+                                       "matkhau","qwerty","abcdef",
+                                       "admin123","111111","000000"))):
+        return "Mật khẩu quá dễ đoán hoặc có chuỗi đơn giản. Hãy chọn cụm từ khác."
+    # Block name/phone substring in both accented and unaccented forms.
+    from unicodedata import normalize
+    def fold(value):
+        return "".join(
+            c for c in normalize("NFKD", str(value).casefold())
+            if c.isalnum() and not (0x300 <= ord(c) <= 0x36f)
+        ).replace("đ","d")
+    candidate=fold(password)
+    fullname=fold(full_name)
+    if len(fullname)>=5 and fullname in candidate:
+        return "Không dùng họ và tên đội trưởng làm một phần của mật khẩu."
+    phone_digits="".join(c for c in str(phone) if c.isdigit())
+    if len(phone_digits)>=6 and phone_digits[-6:] in "".join(c for c in password if c.isdigit()):
+        return "Không dùng số điện thoại làm mật khẩu."
+    return None
+
+
 def create_hash(password, salt=None):
     if not isinstance(password, str) or len(password) < 12:
         raise ValueError("Password too short.")
