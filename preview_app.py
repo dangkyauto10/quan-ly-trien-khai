@@ -1542,7 +1542,7 @@ def hub_admin():
                      "đã nhận tại điểm tập kết. Chưa thể ghi đúp.")
             return
     with st.expander("2. Đối chiếu đủ số hàng trong chuyến giao",
-                     expanded=True):
+                     expanded=False):
         st.caption("Số thực nhận chỉ xác nhận khi KTV đã kiểm đếm và hai "
                    "bên đã ký biên bản giấy. Trường hợp thiếu hàng hãy "
                    "tách chuyến/xã và báo ADMIN đối soát.")
@@ -1563,7 +1563,7 @@ def hub_admin():
                       for r in lines],hide_index=True,use_container_width=True,
                      height=180)
     with st.expander("3. Điểm tập kết và BIÊN BẢN GIẤY có ký nhận",
-                     expanded=True):
+                     expanded=False):
         area=st.text_input("Khu vực hợp đồng (địa danh cũ)",
                            placeholder="Ví dụ: Đồng Văn, Yên Minh, Quản Bạ",
                            key="hub_area")
