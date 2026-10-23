@@ -8,7 +8,7 @@ import hashlib
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import gspread
 import streamlit as st
@@ -1580,8 +1580,55 @@ def dashboard():
             "Nội dung":r.get("Loại báo cáo",""),
             "Đồng bộ":r.get("Trạng thái đồng bộ","")
         } for r in activity],hide_index=True,use_container_width=True)
-        st.caption("Bảng tóm tắt 40 báo cáo mới nhất. Ảnh và check-in "
-                   "được lưu theo mã báo cáo gốc.")
+        st.caption("Bảng tóm tắt 40 báo cáo mới nhất. Bấm chọn "
+                   "một báo cáo dưới đây để xem bằng chứng kèm theo.")
+        index=st.selectbox(
+            "Xem chi tiết một báo cáo hiện trường",
+            list(range(len(activity))),
+            format_func=lambda i:(
+                str(activity[i].get("Thời gian máy chủ",""))[:19].replace("T"," ")
+                +" • "+str(activity[i].get("Loại báo cáo",""))
+                +" • "+str(activity[i].get("Mã báo cáo",""))),
+            key="leadership_report_detail"
+        )
+        record=activity[index]
+        with st.container(border=True):
+            st.write("**Báo cáo:** "+str(record.get("Mã báo cáo","")))
+            st.write("**Đội:** "+str(record.get("Mã đội","")))
+            st.write("**Dự án/điểm:** "+str(record.get("Mã dự án",""))+
+                     " / "+str(record.get("Mã điểm","")))
+            st.write("**Nội dung:** "+str(record.get("Loại báo cáo","")))
+            st.write("**SKU và SL thực tế:** "+
+                     str(record.get("Danh sách SKU:SL thực tế") or "Chưa ghi"))
+            st.write("**Kết quả đối soát:** "+
+                     str(record.get("Kết quả đối soát") or "Chưa ghi"))
+            st.write("**Trạng thái đồng bộ:** "+
+                     str(record.get("Trạng thái đồng bộ") or "Chưa ghi"))
+            if record.get("Ghi chú"):
+                st.caption("Ghi chú: "+str(record.get("Ghi chú")))
+            def safe_evidence_url(raw,kind="image"):
+                parsed=urlparse(str(raw).strip())
+                hosts=({"drive.google.com","docs.google.com",
+                         "lh3.googleusercontent.com","storage.googleapis.com"}
+                       if kind=="image" else
+                       {"www.google.com","google.com","maps.google.com"})
+                return str(raw).strip() if (parsed.scheme=="https" and
+                                            parsed.hostname in hosts) else ""
+            photos=str(record.get("Link ảnh") or "").split(",")
+            image_links=[safe_evidence_url(x) for x in photos]
+            image_links=[x for x in image_links if x][:10]
+            if image_links:
+                for i,photo in enumerate(image_links,1):
+                    st.link_button(f"📷 Xem ảnh hiện trường {i}",photo,
+                                   use_container_width=True)
+            else:
+                st.caption("Báo cáo chưa có liên kết ảnh được xác minh.")
+            url=safe_evidence_url(record.get("Link Google Maps"),"map")
+            if url:
+                st.link_button("📍 Xem vị trí báo cáo trên Maps",url,
+                               use_container_width=True)
+            st.caption("Ảnh Drive có thể yêu cầu quyền xem riêng. "
+                       "Không có nút sửa/xóa hoặc duyệt từ màn hình này.")
     else:
         st.info("Chưa có báo cáo hiện trường. "
                 "Phân bổ và gán đội không được tính là đã giao/lắp.")
