@@ -1512,14 +1512,17 @@ def hub_admin():
             return
         lookup_names={p["Mã điểm"]:p.get("Tên xã/phường/đơn vị","")
                       for p in points}
-        full=st.checkbox("Chọn tất cả xã đã giao cho đội KTV này",
-                         key="hub_all_sites")
+        options=sorted(lookup_names,key=lambda k:lookup_names[k].casefold())
+        selection_key=f"hub_selected_sites_{project}_{team['Mã đội']}"
+        if st.button("☑️ CHỌN TẤT CẢ XÃ ĐƯỢC GIAO",
+                     key=f"hub_select_all_{project}_{team['Mã đội']}",
+                     use_container_width=True):
+            st.session_state[selection_key]=list(options)
         selected=st.multiselect(
             "🔎 Tìm và chọn các xã trong chuyến bàn giao",
-            sorted(lookup_names,key=lambda k:lookup_names[k].casefold()),
-            default=sorted(lookup_names) if full else [],
-            format_func=lambda k:lookup_names[k],
-            key="hub_selected_sites"
+            options,format_func=lambda k:lookup_names[k],
+            placeholder="Gõ tên xã; chọn một hoặc nhiều điểm...",
+            key=selection_key
         )
         if not selected:
             st.info("Chọn các xã theo hợp đồng của đội trưởng KTV.")
