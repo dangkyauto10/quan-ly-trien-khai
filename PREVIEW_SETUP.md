@@ -162,3 +162,25 @@
 - Bảng DANG_KY_THANH_VIEN đã được người dùng phục hồi từ lịch sử, hiện có 9 hồ sơ (6 đã duyệt, 3 từ chối). Ngày 23/10/2026 đã **đối chiếu lại chính xác 5 liên kết cũ** bằng mã hồ sơ + mã đội + dự án + họ tên + điện thoại + chuyên môn + ghi chú `Duyệt từ <mã đăng ký>` và lưu vào LIEN_KET_DANG_KY_DOI. Không xóa đội hay nhiệm vụ trong bước này. Hai đội còn lại không đủ dữ liệu gắn liên kết chắc chắn (trong đó một hồ sơ cũ thiếu mã dự án), nên tiếp tục được giữ để đối soát khi dọn TEST. Không dùng thao tác xóa toàn bộ hàng để đặt lại nhân sự.
 - Chỉ PREVIEW được cập nhật; không ghi vào sheet production. CI kiểm thử gắn mã đội, thu hồi quyền, thu hồi nhiệm vụ chưa làm, bảo toàn chứng từ và số liệu kho. Cần V nghiệm thu trên bản thử với một đăng ký mới có liên kết.
 
+
+
+## Kiểm thử nghiệp vụ vòng đời đội trưởng — TEST ONLY, 23/10/2026
+
+**Nguyên tắc:** Dữ liệu thử để phát hiện lỗi giao việc, trách nhiệm hàng, chứng từ và quyền truy cập. Dữ liệu TEST không phải hồ sơ thật; sau kiểm thử mới đặt lại. Trong kiểm thử, vẫn phải giữ chứng từ ký nhận đã phát sinh cho mục đích đối soát.
+
+**Màn hình ADMIN mới:** 👥 Đăng ký & quản lý đội → 🔎 XEM ẢNH HƯỞNG KHI XÓA ĐỘI TRƯỞNG. Chọn đội đã liên kết hồ sơ, xem điểm/SKU có thể trả chờ phân công, điểm KTV đang giữ hàng, điểm VC đã bàn giao tập kết, và chứng từ cũ chưa xác định VC. Màn này chỉ xem, không xóa.
+
+**Ma trận nghiệp vụ chấp nhận:**
+- Chưa giao/nhận/lắp: xóa hồ sơ có liên kết → khóa quyền đội, bỏ mã đội khỏi nhiệm vụ VC/LD chưa thực hiện → ADMIN giao lại mà không nhập kho/phân bổ lần hai.
+- VC đã giao một phần hoặc có báo cáo: giữ nhiệm vụ và chứng từ đã ghi, chuyển Cần đối soát; không coi như giao đủ.
+- VC đã giao đủ tận xã: giữ chứng cứ giao tận xã; không giao VC lại cho cùng SKU.
+- VC giao gộp cho KTV tại tập kết: biên bản phải có mã đội VC và mã đội KTV, khớp nhiệm vụ VC của từng xã/SKU; KHÔNG tính là giao tận xã.
+- KTV đã nhận hàng tập kết: không tự bỏ nhiệm vụ lắp tại SKU đang giữ hàng; cần bàn giao hàng thực tế và đối soát chứng từ rồi mới đổi KTV.
+- Biên bản tập kết cũ không có mã đội VC: giữ nhiệm vụ VC tương ứng để đối soát; không đoán đội VC chỉ từ tên người ký rồi giao lại.
+- Đã lắp xong: giữ tiến độ và ảnh/GPS, chỉ thu hồi quyền đội và công việc còn dang dở.
+- Chưa duyệt/từ chối: không có tài khoản hoạt động để thu hồi; không cấp quyền trước duyệt.
+- Trùng tên / 500 điểm × 5 SKU / đổi mật khẩu: kiểm tra xung đột, số lượng, quyền theo dự án.
+
+**Bảng ký nhận tập kết PREVIEW** bổ sung cột U "Mã đội VC giao" sau 20 cột cũ. Phiếu mới chỉ lưu khi ADMIN chọn đúng đội VC hoạt động và mọi dòng VC ở các xã/SKU được giao cho đúng đội đó, chưa báo hoàn tất và số lượng khớp định mức. Từ chối trường hợp thiếu nhiệm vụ, thuộc VC khác, đã giao một phần hoặc sai SL. Các biên bản cũ thiếu mã VC không tự được điền; cần kiểm tra trước khi tái phân công.
+
+**Giới hạn kiểm thử:** Dọn liên kết xảy ra khi ADMIN mở/làm mới app, không có trigger tự chạy ở Google Sheets. Hoàn thành TEST cần lưu snapshot rồi mới dọn dữ liệu. Chưa có nghiệp vụ xuất kho vật lý và chuyển giao tồn hàng từ KTV cũ sang KTV mới hoàn chỉnh; đây là một bước bàn giao riêng, không suy diễn từ trạng thái phân bổ.
