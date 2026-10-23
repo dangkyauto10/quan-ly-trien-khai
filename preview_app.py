@@ -2,6 +2,8 @@
 # Staged only: never deploy to production without user approval.
 import io
 import json
+import base64
+from pathlib import Path
 import uuid
 import hmac
 import hashlib
@@ -48,7 +50,14 @@ from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
     column_choice, is_header, normalize_name, blank_excel_template)
 
-st.set_page_config(page_title="QUẢN LÝ DỰ ÁN • PREVIEW", page_icon="🚀", layout="centered")
+APP_ICON = Path(__file__).resolve().parent / "assets" / "tdv_icon_144.png"
+# Use the approved TDV square logo for the tab favicon and app masthead.
+st.set_page_config(
+    page_title="QUẢN LÝ DỰ ÁN • PREVIEW",
+    page_icon=str(APP_ICON),
+    layout="centered"
+)
+APP_ICON_DATA = base64.b64encode(APP_ICON.read_bytes()).decode("ascii")
 
 cookie_controller = CookieController(key="tdv_cookie_controller_v1")
 
@@ -124,10 +133,12 @@ st.markdown("""
   overflow: visible !important;
 }
 .tdv-hero-icon {
-  display: inline-block;
-  font-size: 1.35rem;
-  line-height: 1.45;
+  display: block;
+  width: 3.15rem;
+  height: 3.15rem;
+  object-fit: contain;
   flex-shrink: 0;
+  border-radius: 0.68rem;
 }
 .tdv-hero-subtitle {
   margin-top: 0.18rem;
@@ -164,7 +175,7 @@ st.markdown("""
     min-height: 3.35rem;
   }
   .tdv-hero-name {line-height: 1.55 !important;}
-  .tdv-hero-icon {font-size: 1.1rem;}
+  .tdv-hero-icon {width: 2.65rem; height: 2.65rem;}
 }
 h2, h3 {color: #173A73;}
 div[data-testid="stMetric"] {
@@ -193,9 +204,12 @@ input {border-radius: 10px !important;}
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
+st.markdown(f"""
 <div class="tdv-hero">
-  <div class="tdv-hero-title"><span class="tdv-hero-icon" aria-hidden="true">🚀</span><span class="tdv-hero-name">QUẢN LÝ DỰ ÁN</span></div>
+  <div class="tdv-hero-title">
+    <img class="tdv-hero-icon" src="data:image/png;base64,{APP_ICON_DATA}" alt="TDV" />
+    <span class="tdv-hero-name">QUẢN LÝ DỰ ÁN</span>
+  </div>
   <div class="tdv-hero-subtitle">Hệ thống điều hành hiện trường</div>
   <div class="tdv-preview-tag">BẢN THỬ NGHIỆM · CHƯA VẬN HÀNH</div>
 </div>
@@ -380,9 +394,10 @@ def home_screen_guide(expanded=False):
                 "vẫn phải được ADMIN duyệt, cấp mật khẩu riêng và gán nhiệm vụ. "
                 "Đã cấp tài khoản thì có thể chọn ghi nhớ đăng nhập 30 ngày "
                 "trên thiết bị cá nhân.")
-        st.caption("Tên và hình biểu tượng thực tế tùy vào iOS/Android "
-                   "và cách Streamlit Cloud phục vụ trang web; "
-                   "bản PREVIEW chưa bảo đảm logo riêng khi cài.")
+        st.caption("B đã cập nhật logo TV vàng cam làm favicon của PREVIEW. "
+                   "Biểu tượng khi ghim lên iPhone/Android vẫn phụ thuộc "
+                   "trình duyệt và Streamlit Cloud; nếu đã ghim icon cũ, "
+                   "cần xóa lối tắt cũ và tạo lại để kiểm tra.")
 
 
 def login(team_only=False):
