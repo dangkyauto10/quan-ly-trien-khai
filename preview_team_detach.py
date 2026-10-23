@@ -70,7 +70,8 @@ def revoked_team_ids(registrations,links):
     groups=defaultdict(list)
     for r in active:
         groups[str(r.get("Mã đội","")).strip()].append(r)
-    revoked=set()
+    revoked={str(r.get("Mã đội","")).strip() for r in links
+             if r.get("Trạng thái liên kết") in (DETACHED,NEEDS_REVIEW)}
     for tid,group in groups.items():
         if not tid or len(group)!=1:
             revoked.add(tid)
