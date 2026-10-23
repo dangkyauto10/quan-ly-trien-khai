@@ -122,8 +122,8 @@ def plan_detach(link, teams, credentials, vc_tasks, ld_tasks,
         if r.get("Mã đội KTV nhận")==tid
         and r.get("Mã dự án")==project
         and r.get("Trạng thái")=="KTV đã nhận tại tập kết"
-        and r.get("Số biên bản giấy")
-        and r.get("Link ảnh biên bản ký")
+        # Even if photo/number is missing, goods may already be physically
+        # in KTV custody. Do not silently hand such goods to a new team.
     }
     for table, records, team_col, waiting_status in (
         ("VAN_CHUYEN",vc_tasks,"Mã đội VC","Chưa giao"),
