@@ -580,6 +580,14 @@ def menu():
             if st.button("📩 MỞ DANH SÁCH CHỜ DUYỆT", use_container_width=True):
                 st.session_state["preview_menu"] = "👥 Đăng ký & quản lý đội"
                 st.rerun()
+    # Navigation requests are applied before widget construction on the
+    # next run; writing to a rendered selectbox's key is not permitted.
+    destination=st.session_state.pop("_next_menu",None)
+    if destination in opts:
+        st.session_state["preview_menu"]=destination
+    project_to_assign=st.session_state.pop("_next_assignment_project",None)
+    if project_to_assign and destination=="👥 Đăng ký & quản lý đội":
+        st.session_state["site_assign_project"]=project_to_assign
     return st.selectbox("CHỌN CHỨC NĂNG", opts, key="preview_menu")
 
 def register(on_behalf=False):
@@ -1978,7 +1986,27 @@ def hub_admin():
                     r.get("Mã dự án")==project and
                     r.get("Mã điểm")==p.get("Mã điểm") for r in ld_rows)]
         if not points:
-            st.warning("Đội KTV này chưa được giao xã/đơn vị nào.")
+            waiting={r.get("Mã điểm") for r in ld_rows
+                     if r.get("Mã dự án")==project and r.get("Mã điểm")
+                     and r.get("Trạng thái")=="Chưa lắp"
+                     and not r.get("Mã đội KTV")}
+            st.warning(
+                f"Đội KTV **{team.get('Tên đội/đội trưởng','')}** "
+                f"chưa được giao xã/đơn vị nào trong dự án **{project}**. "
+                f"Dự án hiện có {len(waiting)} địa điểm còn nhiệm vụ "
+                "LĐ chưa gán đội. Đây không phải lỗi phân bổ hàng.")
+            st.info("Thứ tự test: **Quản lý đội / Duyệt đăng ký → "
+                    "GIAO ĐỊA BÀN CHO ĐỘI TRƯỞNG → chọn dự án → "
+                    "chọn đội KTV → chọn Lắp đặt (LĐ) → "
+                    "chọn xã → xem bảng SKU → xác nhận giao nhiệm vụ.** "
+                    "Sau đó thực hiện tương tự với đội VC trên đúng các xã, "
+                    "rồi quay lại Bàn giao tập kết.")
+            if st.button("📍 ĐẾN MỤC GIAO ĐỊA BÀN",
+                         use_container_width=True,
+                         key="hub_go_assignments"):
+                st.session_state["_next_menu"]="👥 Đăng ký & quản lý đội"
+                st.session_state["_next_assignment_project"]=project
+                st.rerun()
             return
         lookup_names={p["Mã điểm"]:p.get("Tên xã/phường/đơn vị","")
                       for p in points}
