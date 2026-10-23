@@ -1284,12 +1284,13 @@ def provision_team_password():
     The sheet is an ADMIN/SA-only credential vault; do not share edit access.
     """
     a=require_role("ADMIN")
-    with st.expander("🔐 CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG",
+    with st.expander("🔐 CẤP / ĐẶT LẠI MẬT KHẨU – ĐỘI ĐÃ TẠO",
                      expanded=False):
-        st.caption("Hồ sơ MỚI: đội trưởng tự chọn mật khẩu lúc đăng ký; "
-                   "ADMIN duyệt là kích hoạt. Hồ sơ CŨ/đăng ký hộ hoặc quên "
-                   "mật khẩu: ADMIN có thể nhập theo đề nghị của đội trưởng, "
-                   "hoặc chọn hệ thống tự tạo.")
+        st.caption("Danh sách này đọc từ QUAN_LY_DOI (đội đã có trong hệ thống), "
+                   "KHÔNG đọc từ DANG_KY_THANH_VIEN. "
+                   "Xóa hồ sơ đăng ký không xóa các đội này. "
+                   "Hồ sơ mới có mật khẩu tự chọn sẽ kích hoạt khi ADMIN duyệt; "
+                   "đội cũ hoặc quên mật khẩu có thể cấp/đặt lại tại đây.")
         teams=[t for t in read_sheet("QUAN_LY_DOI")
                if t.get("Trạng thái")=="Hoạt động"
                and t.get("Loại nhiệm vụ") in ("VC","KTV","VC+KTV")
@@ -1299,7 +1300,7 @@ def provision_team_password():
                     "Cần duyệt hồ sơ trước khi cấp mật khẩu.")
             return
         team=st.selectbox(
-            "Đội trưởng được cấp mật khẩu", teams,
+            "Chọn đội trưởng đang có trong QUAN_LY_DOI", teams,
             format_func=lambda t:(t.get("Tên đội/đội trưởng","")+
                                   " • "+t.get("Mã dự án","")+
                                   " • "+t.get("Loại nhiệm vụ","")),
@@ -1439,6 +1440,26 @@ def provision_team_password():
 def teams_and_approval():
     require_role("ADMIN")
     st.subheader("👥 Quản lý đội / Duyệt đăng ký")
+    if st.button("🔄 LÀM MỚI DỮ LIỆU TỪ GOOGLE SHEETS",
+                 key="admin_team_refresh",use_container_width=True):
+        read_sheet.clear()
+        st.rerun()
+    registrations=read_sheet("DANG_KY_THANH_VIEN")
+    active_teams=[t for t in read_sheet("QUAN_LY_DOI")
+                  if t.get("Mã đội") and t.get("Trạng thái")=="Hoạt động"]
+    account_count=sum(bool(r.get("Mã tài khoản"))
+                      for r in read_sheet("TAI_KHOAN_DOI")
+                      if r.get("Trạng thái")=="Hoạt động")
+    st.caption(f"Google Sheets PREVIEW: **{len(registrations)} hồ sơ đăng ký**"
+               f" • **{len(active_teams)} đội trưởng đang hoạt động**"
+               f" • **{account_count} tài khoản cấp qua app**.")
+    if not registrations and active_teams:
+        st.info("📋 Bảng DANG_KY_THANH_VIEN đã trống. "
+                "Các tên trong mục CẤP / ĐẶT LẠI MẬT KHẨU là đội trưởng "
+                "đang còn ở bảng QUAN_LY_DOI, KHÔNG phải hồ sơ chờ duyệt. "
+                "Xóa đăng ký không tự xóa đội, tài khoản hay nhiệm vụ "
+                "đã gán để tránh mất dữ liệu. Nếu muốn làm sạch toàn bộ "
+                "dữ liệu TEST cần đối soát các bảng liên quan.")
     render_pending_approvals(
         read_sheet=read_sheet, sheet=sheet, client=client, auth=auth,
         audit=audit, lookup=lookup, sheet_datetime_serial=sheet_datetime_serial,
