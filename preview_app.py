@@ -608,10 +608,11 @@ def register(on_behalf=False):
         vehicle = st.selectbox("Phương tiện", ["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
         if not on_behalf:
             st.markdown("#### 🔐 Tự đặt mật khẩu đăng nhập")
-            st.caption("Chọn một cụm từ dễ nhớ, từ 14 ký tự, có chữ và số. "
-                       "Không dùng ngày sinh, số điện thoại hoặc mật khẩu Zalo. "
-                       "Mật khẩu chỉ được lưu dưới dạng mã băm; "
-                       "chỉ dùng được sau khi ADMIN duyệt.")
+            st.caption("V tự chọn mật khẩu dễ nhớ, **từ 10 ký tự có chữ và số**, "
+                       "ví dụ một cụm từ riêng có số (không dùng ví dụ chung). "
+                       "Không dùng họ tên, số điện thoại, ngày sinh hay "
+                       "mật khẩu Zalo. Chỉ lưu mã băm; "
+                       "ADMIN duyệt xong mới đăng nhập được.")
             desired_password=st.text_input(
                 "Mật khẩu tự chọn *",type="password",max_chars=128)
             confirm_password=st.text_input(
@@ -643,8 +644,12 @@ def register(on_behalf=False):
                         " ".join(full_name.casefold().split())
                     and row.get("Trạng thái duyệt") in ("Chờ duyệt", "Đã duyệt")]
                 if same:
-                    st.warning("Hồ sơ của người này đã được gửi cho dự án này. "
-                               "Không tạo bản đăng ký trùng.")
+                    st.warning("Hồ sơ này đã đăng ký trước đó. "
+                               "Không được đăng ký lại để đổi mật khẩu. "
+                               "Nếu muốn đổi mật khẩu tự chọn hoặc hồ sơ cũ "
+                               "chưa có mật khẩu, hãy nhờ ADMIN vào mục "
+                               "CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG "
+                               "và nhập mật khẩu theo đề nghị.")
                 else:
                     rid = "DK-" + uuid.uuid4().hex[:12].upper()
                     submitter = ("ADMIN:" + acting_admin["username"]) if acting_admin else "Tự đăng ký"
@@ -1281,10 +1286,10 @@ def provision_team_password():
     a=require_role("ADMIN")
     with st.expander("🔐 CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG",
                      expanded=False):
-        st.caption("Duyệt hồ sơ và gán đội trước, rồi chọn tên đội trưởng "
-                   "để cấp mật khẩu. Hệ thống tự tạo mật khẩu mạnh; "
-                   "ADMIN gửi RIÊNG cho người nhận. "
-                   "Không ai phải nhớ mã đội kỹ thuật.")
+        st.caption("Hồ sơ MỚI: đội trưởng tự chọn mật khẩu lúc đăng ký; "
+                   "ADMIN duyệt là kích hoạt. Hồ sơ CŨ/đăng ký hộ hoặc quên "
+                   "mật khẩu: ADMIN có thể nhập theo đề nghị của đội trưởng, "
+                   "hoặc chọn hệ thống tự tạo.")
         teams=[t for t in read_sheet("QUAN_LY_DOI")
                if t.get("Trạng thái")=="Hoạt động"
                and t.get("Loại nhiệm vụ") in ("VC","KTV","VC+KTV")
@@ -1325,6 +1330,21 @@ def provision_team_password():
         else:
             st.info("Đội trưởng chưa có tài khoản. Có thể cấp mới.")
         action="ĐẶT LẠI MẬT KHẨU" if current=="active" else "CẤP MẬT KHẨU"
+        method=st.radio(
+            "Cách chọn mật khẩu",
+            ["Đội trưởng đề nghị / ADMIN nhập hộ","Hệ thống tự tạo mật khẩu"],
+            horizontal=False,key="credential_password_method")
+        if method.startswith("Đội trưởng"):
+            st.caption("Nhập mật khẩu theo mong muốn của người nhận: "
+                       "ít nhất **10 ký tự**, có chữ và số, không dùng "
+                       "tên/số điện thoại hoặc mã dễ đoán. "
+                       "Không gửi mật khẩu trong nhóm Zalo.")
+            custom_password=st.text_input(
+                "Mật khẩu theo đề nghị *",type="password",
+                max_chars=128,key="credential_custom_password")
+            confirm_custom=st.text_input(
+                "Nhập lại mật khẩu *",type="password",
+                max_chars=128,key="credential_custom_confirm")
         approve=st.checkbox(
             "Tôi xác nhận đúng người nhận và sẽ chỉ gửi mật khẩu "
             "qua tin nhắn riêng, không đăng vào nhóm.",
@@ -1333,6 +1353,17 @@ def provision_team_password():
                          use_container_width=True,
                          disabled=not approve,key="credential_provision"):
             return
+        if method.startswith("Đội trưởng"):
+            if custom_password!=confirm_custom:
+                st.error("Hai lần nhập mật khẩu chưa giống nhau. "
+                         "Chưa cấp/đặt lại mật khẩu.")
+                return
+            message=validate_custom_password(
+                custom_password,team.get("Tên đội/đội trưởng",""),
+                team.get("SĐT đội trưởng",""))
+            if message:
+                st.error(message)
+                return
         try:
             # Strict live recheck before writing: sheet and team can change
             # while the ADMIN form is open.
@@ -1354,7 +1385,8 @@ def provision_team_password():
                 live[0],fresh,st.secrets.get("accounts",{}))
             if kind!=current or kind in ("conflict","legacy"):
                 fail("Tình trạng tài khoản thay đổi; hãy mở lại.")
-            password=new_password()
+            password=(custom_password if method.startswith("Đội trưởng")
+                      else new_password())
             salt,digest=create_hash(password)
             admin=str(a["username"])
             when=now()
@@ -1390,8 +1422,8 @@ def provision_team_password():
                   " / "+("Đặt lại" if current=="active" else "Cấp mới"))
             st.success("Đã "+("đặt lại" if current=="active" else "cấp")+
                        " mật khẩu cho **"+team["Tên đội/đội trưởng"]+"**.")
-            st.warning("MẬT KHẨU CHỈ HIỆN MỘT LẦN DƯỚI ĐÂY. "
-                       "Hãy sao chép gửi riêng cho đội trưởng, không đăng nhóm.")
+            st.warning("Mật khẩu chỉ được hiển thị cho ADMIN tại lần cấp này. "
+                       "Hãy gửi riêng cho đội trưởng; không đăng nhóm.")
             st.code(password,language=None)
             st.caption("Đội trưởng mở app → ĐỘI TRƯỞNG – BÁO CÁO "
                        "→ nhập HỌ TÊN đã đăng ký + mật khẩu này. "
