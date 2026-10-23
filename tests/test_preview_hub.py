@@ -131,6 +131,19 @@ class HubPlanningTests(unittest.TestCase):
         self.assertFalse(site_may_complete_installation(
             PROJECT,"P1",LD,VC,rows))
 
+    def test_vc_hub_completion_requires_correct_assigned_vc(self):
+        rows,_=evidence()
+        wrong=[{**r,"Mã đội VC giao":"VC-OTHER"} for r in rows]
+        projects=[{"Mã dự án":PROJECT}]
+        receipts=[{"Mã dự án":PROJECT,"SKU":"TB01","SL thực nhận":"4"},
+                  {"Mã dự án":PROJECT,"SKU":"TB02","SL thực nhận":"6"}]
+        result=build_progress(PROJECT,projects,PLACES,receipts,ALLOC,VC,
+                              LD,[],[TEAM],wrong)
+        self.assertEqual(result["metrics"]["sites_vc_hub_done"],0)
+        self.assertEqual(result["metrics"]["sites_at_hub"],2)
+        self.assertTrue(any("Biên bản tập kết không khớp đội VC" in e
+                            for e in result["anomalies"]))
+
     def test_unknown_or_other_team_hub_does_not_authorize_install(self):
         rows,_=evidence()
         for row in rows:
@@ -158,6 +171,7 @@ class HubPlanningTests(unittest.TestCase):
         m=progress["metrics"]
         self.assertEqual(m["sites_delivered"],0)
         self.assertEqual(m["sites_at_hub"],2)
+        self.assertEqual(m["sites_vc_hub_done"],2)
         self.assertEqual(m["sites_installed"],0)
         self.assertEqual(m["sites_ready_install"],2)
         installed=[{**r,"Trạng thái":"Đã lắp đặt","SL thực tế":r["SL lắp"]}
