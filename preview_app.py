@@ -2455,7 +2455,9 @@ def dashboard():
     b1,b2=st.columns(2)
     b1.metric("VC giao tận xã đủ",m["sites_delivered"])
     b2.metric("LĐ đã lắp đủ",m["sites_installed"])
-    st.metric("KTV đã nhận tại điểm tập kết",m["sites_at_hub"])
+    h1,h2=st.columns(2)
+    h1.metric("VC bàn giao tập kết đủ",m["sites_vc_hub_done"])
+    h2.metric("KTV nhận tập kết đủ",m["sites_at_hub"])
     st.metric("Đủ hàng, chờ/đang lắp",m["sites_ready_install"])
     if total:
         st.write(f"**VC giao TẬN XÃ đủ: {m['sites_delivered']}/{total} điểm** "
@@ -2465,7 +2467,9 @@ def dashboard():
                  f"({m['sites_installed']/total:.1%})")
         st.progress(min(1.,m["sites_installed"]/total))
     with st.expander("Chi tiết nhiệm vụ và việc chưa giao đội",expanded=False):
-        st.write(f"VC báo hoàn thành: **{m['vc_tasks_done']}/{m['vc_tasks']}** nhiệm vụ/SKU.")
+        st.write(f"VC báo giao tận xã: **{m['vc_tasks_done']}/{m['vc_tasks']}** nhiệm vụ/SKU. "
+                 f"VC bàn giao tập kết đủ: **{m['sites_vc_hub_done']}** địa điểm "
+                 "(xác nhận theo biên bản có mã đội VC).")
         st.write(f"LĐ báo hoàn thành: **{m['ld_tasks_done']}/{m['ld_tasks']}** nhiệm vụ/SKU.")
         st.write(f"Nhiệm vụ VC chưa có đội: **{m['vc_unassigned']}**; "
                  f"LĐ chưa có đội: **{m['ld_unassigned']}**.")
@@ -2519,7 +2523,8 @@ def dashboard():
         if site["skus"]:
             st.dataframe([{
                 "SKU":item["sku"],"SL phân bổ":display_amount(item["planned"]),
-                "VC đã báo giao":display_amount(item["delivered"]),
+                "VC giao tận xã":display_amount(item["delivered"]),
+                "KTV nhận tập kết":display_amount(item["hub"]),
                 "LĐ đã báo lắp":display_amount(item["installed"])
             } for item in site["skus"]],hide_index=True,use_container_width=True)
         else:
