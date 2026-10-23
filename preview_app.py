@@ -402,24 +402,19 @@ def home_screen_guide(expanded=False):
         ios,android=st.tabs(["🍎 iPhone","🤖 Android"])
         with ios:
             st.markdown(
-                "1. Mở app trong **Safari**.\n"
-                "2. Bấm **Chia sẻ** (biểu tượng ô vuông có mũi tên hướng lên).\n"
-                "3. Chọn **Thêm vào Màn hình chính**.\n"
-                "4. Đặt tên **QUẢN LÝ DỰ ÁN**; chọn **Mở dưới dạng ứng dụng web** "
-                "nếu máy có mục này, rồi bấm **Thêm**."
+                "**①** Nếu mở trong Zalo, chọn **Mở bằng trình duyệt → Safari**.\n\n"
+                "**②** Trong Safari: **Chia sẻ ⬆️ → Thêm vào Màn hình chính "
+                "→ Thêm**. Bật *Mở dưới dạng ứng dụng web* nếu có."
             )
         with android:
             st.markdown(
-                "1. Mở app trong **Chrome**.\n"
-                "2. Bấm dấu **⋮** ở góc trên.\n"
-                "3. Chọn **Cài đặt và tạo lối tắt** hoặc **Thêm vào màn hình chính** "
-                "(một số phiên bản hiện **Cài đặt ứng dụng**).\n"
-                "4. Chọn **Tạo lối tắt / Thêm**, đặt tên "
-                "**QUẢN LÝ DỰ ÁN** nếu được hỏi."
+                "**①** Nếu mở trong Zalo, chọn **Mở bằng trình duyệt → Chrome**.\n\n"
+                "**②** Trong Chrome: **⋮ → Cài đặt và tạo lối tắt** "
+                "(hoặc **Thêm vào màn hình chính**) **→ Thêm**."
             )
-        st.info("Tạo biểu tượng **không tự cấp tài khoản**. Hồ sơ đăng ký "
-                "vẫn phải được ADMIN duyệt, cấp mật khẩu riêng và gán nhiệm vụ. "
-                "Đã cấp tài khoản thì có thể chọn ghi nhớ đăng nhập 30 ngày "
+        st.info("Biểu tượng giúp mở app ngay từ màn hình điện thoại. "
+                "Mật khẩu tự đặt khi đăng ký chỉ dùng được **sau khi "
+                "ADMIN duyệt**; có thể chọn ghi nhớ đăng nhập 30 ngày "
                 "trên thiết bị cá nhân.")
         st.caption("B đã cập nhật logo TV vàng cam làm favicon của PREVIEW. "
                    "Biểu tượng khi ghim lên iPhone/Android vẫn phụ thuộc "
