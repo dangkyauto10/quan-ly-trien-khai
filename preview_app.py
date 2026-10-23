@@ -1415,7 +1415,8 @@ def teams_and_approval():
     st.subheader("👥 Quản lý đội / Duyệt đăng ký")
     render_pending_approvals(
         read_sheet=read_sheet, sheet=sheet, client=client, auth=auth,
-        audit=audit, lookup=lookup, sheet_datetime_serial=sheet_datetime_serial)
+        audit=audit, lookup=lookup, sheet_datetime_serial=sheet_datetime_serial,
+        secret_accounts=st.secrets.get("accounts",{}),current_time=now)
     provision_team_password()
     st.caption("Chỉ quản lý đội trưởng. Thành viên của đội do đội trưởng tự quản lý.")
     with st.expander("➕ Thêm đội trưởng thủ công (không phải gán nhiệm vụ)", expanded=False):
