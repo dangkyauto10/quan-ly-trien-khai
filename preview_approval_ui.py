@@ -14,11 +14,12 @@ from preview_credential_accounts import (
     visible_credential_state, next_account_id
 )
 from preview_team_access import normalized_name
+from preview_team_detach import approval_link_request
 
 
 def approval_requests(registration_sheet_id, team_sheet_id, row_number,
                       decision, team_row, team_id, approver, timestamp,
-                      credential_changes=None):
+                      credential_changes=None, link_request=None):
     """Build one atomic Sheets batch for review and optional new team."""
     if decision not in ("Đã duyệt", "Từ chối") or row_number < 2:
         raise ValueError("Trạng thái hoặc dòng đăng ký không hợp lệ.")
@@ -58,6 +59,10 @@ def approval_requests(registration_sheet_id, team_sheet_id, row_number,
     }})
     if credential_changes:
         requests.extend(credential_changes)
+    if link_request is not None:
+        if decision!="Đã duyệt" or team_row is None:
+            raise ValueError("Chỉ đội mới tạo được gắn liên kết đăng ký.")
+        requests.append(link_request)
     return requests
 
 
@@ -216,13 +221,23 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
                     sheet("MAT_KHAU_DANG_KY").id,
                     sheet("TAI_KHOAN_DOI").id,pending,rejected=True)
 
+            # Establish ownership ONLY if this approval creates a NEW team.
+            # Never guess that pre-existing/manual teams came from the
+            # registration being reviewed (old deleted registrations are many).
+            link_request=None
+            if decision=="Đã duyệt" and new_team is not None:
+                link_request=approval_link_request(
+                    sheet("LIEN_KET_DANG_KY_DOI").id,
+                    rid,tid,project,current_time())
+
             try:
                 request=approval_requests(
                     sheet("DANG_KY_THANH_VIEN").id,
                     sheet("QUAN_LY_DOI").id,
                     live["_row"],decision,new_team,tid,
                     auth()["username"],sheet_datetime_serial(),
-                    credential_changes=credential_changes)
+                    credential_changes=credential_changes,
+                    link_request=link_request)
                 client()[0].batch_update({"requests":request})
                 read_sheet.clear()
                 audit(auth()["username"],"XÉT DUYỆT ĐỘI TRƯỞNG",
