@@ -1556,10 +1556,12 @@ def hub_admin():
         if not qty_ok:
             st.warning("SL thực nhận khác số dự kiến. Chưa xác nhận được "
                        "toàn bộ điểm; hãy kiểm tra biên bản/chọn lại các xã.")
-        with st.expander("Xem danh sách xã và SKU",expanded=False):
-            st.dataframe([{"Xã/đơn vị":r["name"],"SKU":r["sku"],
-                           "Số lượng":qty_label(r["quantity"]),"ĐVT":r["unit"]}
-                          for r in lines],hide_index=True,use_container_width=True)
+        st.caption("Danh sách chi tiết nằm trong bảng cuộn; không cần mở "
+                   "thêm nhiều lớp biểu mẫu trên điện thoại.")
+        st.dataframe([{"Xã/đơn vị":r["name"],"SKU":r["sku"],
+                       "Số lượng":qty_label(r["quantity"]),"ĐVT":r["unit"]}
+                      for r in lines],hide_index=True,use_container_width=True,
+                     height=180)
     with st.expander("3. Điểm tập kết và BIÊN BẢN GIẤY có ký nhận",
                      expanded=True):
         area=st.text_input("Khu vực hợp đồng (địa danh cũ)",
@@ -1656,173 +1658,193 @@ def report():
         st.rerun()
     all_vc=read_sheet("VAN_CHUYEN")
     all_ld=read_sheet("LAP_DAT")
+    hub_rows=read_sheet("BAN_GIAO_TAP_KET")
+    accepted_hub={
+        (r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))
+        for r in hub_rows
+        if r.get("Trạng thái")=="KTV đã nhận tại tập kết"
+        and r.get("Số biên bản giấy") and r.get("Link ảnh biên bản ký")
+    }
     vc=[x for x in all_vc if x.get("Mã đội VC")==tid
-        and x.get("Trạng thái")!="Đã giao hàng"]
+        and x.get("Trạng thái")!="Đã giao hàng"
+        and (x.get("Mã dự án"),x.get("Mã điểm"),x.get("SKU"))
+        not in accepted_hub]
     ld=[x for x in all_ld if x.get("Mã đội KTV")==tid
         and x.get("Trạng thái")!="Đã lắp đặt"]
     handover=installer_handover(tid,all_ld,all_vc,
-                                read_sheet("DANH_SACH_DIEM"))
+                                read_sheet("DANH_SACH_DIEM"),hub_rows)
     status_by_site={(r["project"],r["point_id"]):r for r in handover}
     if handover:
-        st.markdown("### 📦 VC đã giao hàng – Sẵn sàng lắp đặt")
-        st.caption("Chỉ các địa điểm được giao cho đội LĐ này. "
-                   "Số liệu VC được đối chiếu theo từng SKU và SL THỰC GIAO; "
-                   "phân bổ hàng chưa phải đã giao hàng.")
-        c1,c2=st.columns(2)
-        c1.metric("Sẵn sàng lắp",
-                  sum(r["status"]=="Sẵn sàng lắp" for r in handover))
-        c2.metric("Chưa sẵn sàng",
-                  sum(r["status"] in ("Chưa giao","Đã giao một phần",
-                                      "Cần đối soát") for r in handover))
-        labels=["Tất cả","Sẵn sàng lắp","Đã giao một phần",
-                "Chưa giao","Cần đối soát","Đã lắp xong"]
-        kind=st.selectbox("Lọc trạng thái hàng VC",labels,
-                          key="team_handover_filter")
-        shown=[r for r in handover if kind=="Tất cả" or r["status"]==kind]
-        if shown:
-            st.dataframe([{
-                "Địa điểm":r["name"],"Dự án":r["project"],
-                "VC đã giao":r["status"],
-                "SKU phải lắp":r["sku_count"]
-            } for r in shown],hide_index=True,use_container_width=True)
-            detail=st.selectbox(
-                "Xem SL hàng VC đã giao tại một điểm",
-                list(range(len(shown))),
-                format_func=lambda i:shown[i]["name"]+" • "+shown[i]["status"],
-                key="team_handover_details")
-            info=shown[detail]
-            st.write("**"+info["name"]+"** • "+info["project"])
-            # Fallback Maps search is only a candidate, not a verified pin.
-            dest=next((p for p in read_sheet("DANH_SACH_DIEM")
-                       if p.get("Mã dự án")==info["project"] and
-                       p.get("Mã điểm")==info["point_id"]),{})
-            if dest.get("Vĩ độ") and dest.get("Kinh độ"):
-                query=dest["Vĩ độ"]+","+dest["Kinh độ"]
+        st.caption("Đội KTV xem nơi đã nhận hàng tập kết và các xã đã "
+                   "giao trực tiếp, không nhầm hai hình thức bàn giao.")
+    with st.expander("📦 1. KIỂM TRA HÀNG VC / TẬP KẾT",
+                     expanded=bool(handover)):
+        if handover:
+            st.markdown("#### Hàng VC đã giao tận xã / KTV nhận tập kết")
+            st.caption("Chỉ các địa điểm được giao cho đội LĐ này. "
+                       "Số liệu VC được đối chiếu theo từng SKU và SL THỰC GIAO; "
+                       "phân bổ hàng chưa phải đã giao hàng.")
+            c1,c2=st.columns(2)
+            c1.metric("Sẵn sàng đi lắp",
+                      sum(r["ready"] for r in handover))
+            c2.metric("Chưa sẵn sàng",
+                      sum(r["status"] in ("Chưa giao","Đã giao một phần",
+                                          "Cần đối soát") for r in handover))
+            labels=["Tất cả","Sẵn sàng lắp","Sẵn sàng lắp (tập kết)",
+                    "Đã tập kết một phần","Đã giao một phần",
+                    "Chưa giao","Cần đối soát","Đã lắp xong"]
+            kind=st.selectbox("Lọc trạng thái hàng VC",labels,
+                              key="team_handover_filter")
+            shown=[r for r in handover if kind=="Tất cả" or r["status"]==kind]
+            if shown:
+                st.dataframe([{
+                    "Địa điểm":r["name"],"Dự án":r["project"],
+                    "VC đã giao":r["status"],
+                    "SKU phải lắp":r["sku_count"]
+                } for r in shown],hide_index=True,use_container_width=True)
+                detail=st.selectbox(
+                    "Xem SL hàng VC đã giao tại một điểm",
+                    list(range(len(shown))),
+                    format_func=lambda i:shown[i]["name"]+" • "+shown[i]["status"],
+                    key="team_handover_details")
+                info=shown[detail]
+                st.write("**"+info["name"]+"** • "+info["project"])
+                # Fallback Maps search is only a candidate, not a verified pin.
+                dest=next((p for p in read_sheet("DANH_SACH_DIEM")
+                           if p.get("Mã dự án")==info["project"] and
+                           p.get("Mã điểm")==info["point_id"]),{})
+                if dest.get("Vĩ độ") and dest.get("Kinh độ"):
+                    query=dest["Vĩ độ"]+","+dest["Kinh độ"]
+                else:
+                    query=", ".join(filter(None,[
+                        info["name"],dest.get("Địa chỉ chi tiết",""),
+                        dest.get("Tỉnh/Thành","")]))
+                    st.caption("Chưa có GPS đã xác minh: cần kiểm tra đúng đích "
+                               "trên Google Maps trước khi đi.")
+                st.link_button("🧭 Xem địa điểm trên Google Maps",
+                    "https://www.google.com/maps/search/?api=1&query="+quote(query),
+                    use_container_width=True)
+                st.dataframe([{
+                    "SKU":v["sku"],"Cần lắp":v["need"],
+                    "VC giao xã":v["delivered"],
+                    "KTV nhận tập kết":v["hub_received"],
+                    "LĐ đã lắp":v["installed"],
+                    "Đủ hàng":"Có" if v["delivery_ready"] else "Chưa"
+                } for v in info["details"]],hide_index=True,use_container_width=True)
+                for row in info["details"]:
+                    if row["issues"]:
+                        st.warning(row["sku"]+": "+"; ".join(row["issues"]))
             else:
-                query=", ".join(filter(None,[
-                    info["name"],dest.get("Địa chỉ chi tiết",""),
-                    dest.get("Tỉnh/Thành","")]))
-                st.caption("Chưa có GPS đã xác minh: cần kiểm tra đúng đích "
-                           "trên Google Maps trước khi đi.")
-            st.link_button("🧭 Xem địa điểm trên Google Maps",
-                "https://www.google.com/maps/search/?api=1&query="+quote(query),
-                use_container_width=True)
-            st.dataframe([{
-                "SKU":v["sku"],"Cần lắp":v["need"],
-                "VC thực giao":v["delivered"],"LĐ đã lắp":v["installed"],
-                "Đủ hàng":"Có" if v["delivery_ready"] else "Chưa"
-            } for v in info["details"]],hide_index=True,use_container_width=True)
-            for row in info["details"]:
-                if row["issues"]:
-                    st.warning(row["sku"]+": "+"; ".join(row["issues"]))
+                st.info("Không có địa điểm trong trạng thái vừa lọc.")
+            st.divider()
+    with st.expander("📝 2. BÁO CÁO GIAO HÀNG / LẮP ĐẶT",
+                     expanded=not bool(handover)):
+        available=sorted(
+            set((r["Mã dự án"],r["Mã điểm"]) for r in vc+ld),
+            key=lambda k:(0 if status_by_site.get(k,{}).get("ready") else 1,k))
+        if not available:
+            st.info("Đội chưa được giao nhiệm vụ hoặc đã báo cáo hết.")
+            return
+        locs={p.get("Mã điểm"):p.get("Tên xã/phường/đơn vị")
+              for p in read_sheet("DANH_SACH_DIEM")}
+        def site_option(key):
+            name=locs.get(key[1],key[1])
+            summary=status_by_site.get(key)
+            suffix=" • "+summary["status"] if summary else ""
+            return f"{key[0]} • {name}{suffix}"
+        chosen=st.selectbox("Điểm được giao để báo cáo",available,
+                             format_func=site_option)
+        vrows=[r for r in vc if (r["Mã dự án"],r["Mã điểm"])==chosen]
+        lrows=[r for r in ld if (r["Mã dự án"],r["Mã điểm"])==chosen]
+        modes=(["Đã giao hàng"] if vrows else [])+(["Đã lắp đặt"] if lrows else [])
+        if vrows and lrows:
+            st.caption("Đội VC+LĐ báo GIAO HÀNG trước, sau khi đã xác nhận "
+                       "giao đủ mới được báo LẮP ĐẶT XONG. Hai bước lưu riêng.")
+        mode=st.radio("Loại báo cáo",modes,horizontal=True)
+        if mode=="Đã lắp đặt" and not site_may_complete_installation(
+                chosen[0],chosen[1],lrows,all_vc,hub_rows):
+            st.warning("⛔ Điểm này chưa có xác nhận VC giao tận xã HOẶC "
+                       "biên bản KTV nhận tại điểm tập kết đủ tất cả SKU. "
+                       "Chưa được báo LẮP XONG; cần đối soát trước.")
+            return
+        targets=({"VAN_CHUYEN":vrows} if mode=="Đã giao hàng" else
+                 {"LAP_DAT":lrows} if mode=="Đã lắp đặt" else
+                 {"VAN_CHUYEN":vrows,"LAP_DAT":lrows})
+        st.write("**Thiết bị và SLHH được giao**")
+        for tab,rows in targets.items():
+            st.caption("VẬN CHUYỂN" if tab=="VAN_CHUYEN" else "LẮP ĐẶT")
+            for r in rows:
+                st.write(f"{r['SKU']} — {r['SL giao' if tab=='VAN_CHUYEN' else 'SL lắp']}")
+        photos=st.file_uploader("📷 Ảnh hiện trường (bắt buộc, tối đa 10)",
+                               type=["jpg","jpeg","png"],accept_multiple_files=True)
+        require_gps = mode!="Đã giao hàng"
+        gps=None
+        if require_gps:
+            st.markdown("**📍 Check-in GPS bắt buộc**")
+            gps=streamlit_geolocation()
         else:
-            st.info("Không có địa điểm trong trạng thái vừa lọc.")
-        st.divider()
-    available=sorted(
-        set((r["Mã dự án"],r["Mã điểm"]) for r in vc+ld),
-        key=lambda k:(0 if status_by_site.get(k,{}).get("ready") else 1,k))
-    if not available:
-        st.info("Đội chưa được giao nhiệm vụ hoặc đã báo cáo hết.")
-        return
-    locs={p.get("Mã điểm"):p.get("Tên xã/phường/đơn vị")
-          for p in read_sheet("DANH_SACH_DIEM")}
-    def site_option(key):
-        name=locs.get(key[1],key[1])
-        summary=status_by_site.get(key)
-        suffix=" • "+summary["status"] if summary else ""
-        return f"{key[0]} • {name}{suffix}"
-    chosen=st.selectbox("Điểm được giao để báo cáo",available,
-                         format_func=site_option)
-    vrows=[r for r in vc if (r["Mã dự án"],r["Mã điểm"])==chosen]
-    lrows=[r for r in ld if (r["Mã dự án"],r["Mã điểm"])==chosen]
-    modes=(["Đã giao hàng"] if vrows else [])+(["Đã lắp đặt"] if lrows else [])
-    if vrows and lrows:
-        st.caption("Đội VC+LĐ báo GIAO HÀNG trước, sau khi đã xác nhận "
-                   "giao đủ mới được báo LẮP ĐẶT XONG. Hai bước lưu riêng.")
-    mode=st.radio("Loại báo cáo",modes,horizontal=True)
-    if mode=="Đã lắp đặt" and not site_may_complete_installation(
-            chosen[0],chosen[1],lrows,all_vc):
-        st.warning("⛔ Điểm này chưa có xác nhận VC giao ĐỦ số lượng "
-                   "của tất cả SKU được giao lắp, hoặc đang cần đối soát. "
-                   "Đội LĐ có thể xem tình hình nhưng chưa được báo LẮP XONG.")
-        return
-    targets=({"VAN_CHUYEN":vrows} if mode=="Đã giao hàng" else
-             {"LAP_DAT":lrows} if mode=="Đã lắp đặt" else
-             {"VAN_CHUYEN":vrows,"LAP_DAT":lrows})
-    st.write("**Thiết bị và SLHH được giao**")
-    for tab,rows in targets.items():
-        st.caption("VẬN CHUYỂN" if tab=="VAN_CHUYEN" else "LẮP ĐẶT")
-        for r in rows:
-            st.write(f"{r['SKU']} — {r['SL giao' if tab=='VAN_CHUYEN' else 'SL lắp']}")
-    photos=st.file_uploader("📷 Ảnh hiện trường (bắt buộc, tối đa 10)",
-                           type=["jpg","jpeg","png"],accept_multiple_files=True)
-    require_gps = mode!="Đã giao hàng"
-    gps=None
-    if require_gps:
-        st.markdown("**📍 Check-in GPS bắt buộc**")
-        gps=streamlit_geolocation()
-    else:
-        st.caption("Vận chuyển không bắt buộc GPS check-in.")
-    lat=gps.get("latitude") if isinstance(gps,dict) else None
-    lon=gps.get("longitude") if isinstance(gps,dict) else None
-    eligible=bool(photos) and len(photos)<=10 and (not require_gps or (lat is not None and lon is not None))
-    if not eligible:
-        st.info("Cần ảnh và" + (" GPS check-in." if require_gps else " đúng số ảnh quy định."))
-        return
-    if st.button("✅ GỬI BÁO CÁO",type="primary",use_container_width=True):
-        # Server-side recheck: never trust a selected team/name from browser.
-        live=[]
-        for tab, rows in targets.items():
-            all_rows=read_sheet(tab)
-            id_col="Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
-            team_col="Mã đội VC" if tab=="VAN_CHUYEN" else "Mã đội KTV"
-            closed="Đã giao hàng" if tab=="VAN_CHUYEN" else "Đã lắp đặt"
-            for row in rows:
-                current=lookup(all_rows,id_col,row[id_col])
-                if not current or current.get(team_col)!=tid or current.get("Mã dự án")!=chosen[0] or current.get("Mã điểm")!=chosen[1] or current.get("Trạng thái")==closed:
-                    fail("Quyền báo cáo hoặc trạng thái nhiệm vụ đã thay đổi. Vui lòng tải lại.")
-                live.append((tab,current))
-        # Re-read live VC status before installation; no stale/cached approval.
-        if mode=="Đã lắp đặt":
-            read_sheet.clear()
-            fresh_ld=read_sheet("LAP_DAT")
-            fresh=[lookup(fresh_ld,"Mã nhiệm vụ LD",row["Mã nhiệm vụ LD"])
-                   for row in lrows]
-            if any(not row or row.get("Mã đội KTV")!=tid or
-                   row.get("Trạng thái")=="Đã lắp đặt" for row in fresh):
-                fail("Nhiệm vụ lắp đã đổi; không báo cáo. Hãy tải lại.")
-            if not site_may_complete_installation(
-                    chosen[0],chosen[1],fresh,read_sheet("VAN_CHUYEN")):
-                fail("Hàng VC chưa giao đủ hoặc chưa đối soát được; "
-                     "không thể xác nhận lắp đặt.")
-        rid="BC-"+uuid.uuid4().hex[:16].upper()
-        p=lookup(read_sheet("DANH_SACH_DIEM"),"Mã điểm",chosen[1]) or {}
-        dest=p.get("Link Google Maps") or ("https://www.google.com/maps/search/?api=1&query="+quote(p.get("Tên xã/phường/đơn vị",chosen[1])))
-        maps=(f"https://www.google.com/maps?q={lat},{lon}" if require_gps else dest)
-        sku_text=", ".join(f"{row['SKU']}:{row['SL giao' if tab=='VAN_CHUYEN' else 'SL lắp']}" for tab,row in live)
-        try:
-            urls=images_to_drive(photos,rid)
-            row_index=len(sheet("BAO_CAO_TRIEN_KHAI").get_all_values())+1
-            append("BAO_CAO_TRIEN_KHAI",[rid,now(),chosen[0],chosen[1],tid,mode,
-                ", ".join(row["Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"] for tab,row in live),
-                sku_text,", ".join(urls),maps,lat if lat is not None else "",lon if lon is not None else "",
-                "Theo phân bổ","Cần đối soát","Đang cập nhật trạng thái"])
-            for tab,row in live:
-                status="Đã giao hàng" if tab=="VAN_CHUYEN" else "Đã lắp đặt"
-                sheet(tab).update(f"H{row['_row']}:N{row['_row']}",
-                  [[status,now(),", ".join(urls),maps,rid,
-                    row["SL giao" if tab=="VAN_CHUYEN" else "SL lắp"],""]],
-                  value_input_option="RAW")
-            sync_progress(chosen[0],chosen[1])
-            sheet("BAO_CAO_TRIEN_KHAI").update(
-                 f"N{row_index}:O{row_index}",[[READY,""]],value_input_option="RAW")
-            read_sheet.clear()
-            audit(a["username"],"GỬI BÁO CÁO","BAO_CAO_TRIEN_KHAI",rid,"OK")
-            st.success("Đã gửi báo cáo và đồng bộ trạng thái thành công.")
-        except Exception as e:
-            read_sheet.clear()
-            audit(a["username"],"GỬI BÁO CÁO","BAO_CAO_TRIEN_KHAI",rid,"CẦN ĐỐI SOÁT",type(e).__name__)
-            st.error(f"Chưa xác nhận được đồng bộ hoàn tất ({type(e).__name__}). Liên hệ Admin; không gửi lại liên tục.")
+            st.caption("Vận chuyển không bắt buộc GPS check-in.")
+        lat=gps.get("latitude") if isinstance(gps,dict) else None
+        lon=gps.get("longitude") if isinstance(gps,dict) else None
+        eligible=bool(photos) and len(photos)<=10 and (not require_gps or (lat is not None and lon is not None))
+        if not eligible:
+            st.info("Cần ảnh và" + (" GPS check-in." if require_gps else " đúng số ảnh quy định."))
+            return
+        if st.button("✅ GỬI BÁO CÁO",type="primary",use_container_width=True):
+            # Server-side recheck: never trust a selected team/name from browser.
+            live=[]
+            for tab, rows in targets.items():
+                all_rows=read_sheet(tab)
+                id_col="Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
+                team_col="Mã đội VC" if tab=="VAN_CHUYEN" else "Mã đội KTV"
+                closed="Đã giao hàng" if tab=="VAN_CHUYEN" else "Đã lắp đặt"
+                for row in rows:
+                    current=lookup(all_rows,id_col,row[id_col])
+                    if not current or current.get(team_col)!=tid or current.get("Mã dự án")!=chosen[0] or current.get("Mã điểm")!=chosen[1] or current.get("Trạng thái")==closed:
+                        fail("Quyền báo cáo hoặc trạng thái nhiệm vụ đã thay đổi. Vui lòng tải lại.")
+                    live.append((tab,current))
+            # Re-read live VC status before installation; no stale/cached approval.
+            if mode=="Đã lắp đặt":
+                read_sheet.clear()
+                fresh_ld=read_sheet("LAP_DAT")
+                fresh=[lookup(fresh_ld,"Mã nhiệm vụ LD",row["Mã nhiệm vụ LD"])
+                       for row in lrows]
+                if any(not row or row.get("Mã đội KTV")!=tid or
+                       row.get("Trạng thái")=="Đã lắp đặt" for row in fresh):
+                    fail("Nhiệm vụ lắp đã đổi; không báo cáo. Hãy tải lại.")
+                if not site_may_complete_installation(
+                        chosen[0],chosen[1],fresh,read_sheet("VAN_CHUYEN"),
+                        read_sheet("BAN_GIAO_TAP_KET")):
+                    fail("Hàng VC chưa giao đủ hoặc chưa đối soát được; "
+                         "không thể xác nhận lắp đặt.")
+            rid="BC-"+uuid.uuid4().hex[:16].upper()
+            p=lookup(read_sheet("DANH_SACH_DIEM"),"Mã điểm",chosen[1]) or {}
+            dest=p.get("Link Google Maps") or ("https://www.google.com/maps/search/?api=1&query="+quote(p.get("Tên xã/phường/đơn vị",chosen[1])))
+            maps=(f"https://www.google.com/maps?q={lat},{lon}" if require_gps else dest)
+            sku_text=", ".join(f"{row['SKU']}:{row['SL giao' if tab=='VAN_CHUYEN' else 'SL lắp']}" for tab,row in live)
+            try:
+                urls=images_to_drive(photos,rid)
+                row_index=len(sheet("BAO_CAO_TRIEN_KHAI").get_all_values())+1
+                append("BAO_CAO_TRIEN_KHAI",[rid,now(),chosen[0],chosen[1],tid,mode,
+                    ", ".join(row["Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"] for tab,row in live),
+                    sku_text,", ".join(urls),maps,lat if lat is not None else "",lon if lon is not None else "",
+                    "Theo phân bổ","Cần đối soát","Đang cập nhật trạng thái"])
+                for tab,row in live:
+                    status="Đã giao hàng" if tab=="VAN_CHUYEN" else "Đã lắp đặt"
+                    sheet(tab).update(f"H{row['_row']}:N{row['_row']}",
+                      [[status,now(),", ".join(urls),maps,rid,
+                        row["SL giao" if tab=="VAN_CHUYEN" else "SL lắp"],""]],
+                      value_input_option="RAW")
+                sync_progress(chosen[0],chosen[1])
+                sheet("BAO_CAO_TRIEN_KHAI").update(
+                     f"N{row_index}:O{row_index}",[[READY,""]],value_input_option="RAW")
+                read_sheet.clear()
+                audit(a["username"],"GỬI BÁO CÁO","BAO_CAO_TRIEN_KHAI",rid,"OK")
+                st.success("Đã gửi báo cáo và đồng bộ trạng thái thành công.")
+            except Exception as e:
+                read_sheet.clear()
+                audit(a["username"],"GỬI BÁO CÁO","BAO_CAO_TRIEN_KHAI",rid,"CẦN ĐỐI SOÁT",type(e).__name__)
+                st.error(f"Chưa xác nhận được đồng bộ hoàn tất ({type(e).__name__}). Liên hệ Admin; không gửi lại liên tục.")
 
 def dashboard():
     """Read-only progress dashboard: strictly ADMIN / LANH_DAO."""
