@@ -40,6 +40,7 @@ from preview_allocation_groups import (
 )
 from preview_leadership import build_progress, display_amount
 from preview_leader_access import leadership_username
+from preview_team_access import resolve_login_username, friendly_account_name
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
@@ -341,32 +342,63 @@ def leadership_login():
     st.rerun()
 
 
-def login():
-    with st.form("login_form_preview"):
-        username = st.text_input("Mã tài khoản")
-        pin = st.text_input("Mã truy cập riêng", type="password")
-        remember_key = remember_signing_key()
-        remember = st.checkbox(
+def login(team_only=False):
+    """Name-first team login or regular ADMIN login. PIN is always required."""
+    if team_only:
+        st.subheader("👷 ĐỘI TRƯỞNG – BÁO CÁO")
+        st.caption("Nhập họ tên đã đăng ký và mật khẩu riêng. "
+                   "Không cần biết mã đội hay mã tài khoản.")
+        if st.button("← Trở về trang chính",key="team_login_back"):
+            st.session_state["team_login_open"]=False
+            st.rerun()
+    with st.form("team_login_form" if team_only else "login_form_preview"):
+        typed=st.text_input(
+            "Họ và tên đội trưởng" if team_only else
+            "Họ tên đội trưởng hoặc mã tài khoản ADMIN",
+            placeholder="Ví dụ: Nguyễn Văn A" if team_only else "")
+        pin=st.text_input("Mật khẩu riêng",type="password")
+        remember_key=remember_signing_key()
+        remember=st.checkbox(
             "Ghi nhớ đăng nhập trên thiết bị này (30 ngày)",
-            value=False, disabled=not bool(remember_key),
-            help="Chỉ chọn trên điện thoại hoặc máy tính cá nhân; đừng chọn ở máy dùng chung.")
+            value=False,disabled=not bool(remember_key),
+            help="Chỉ chọn trên điện thoại hoặc máy tính cá nhân; "
+                 "không chọn trên thiết bị dùng chung.")
         if remember_key is None:
-            st.caption("Chức năng ghi nhớ sẽ bật sau khi Admin cấu hình remember_login_secret trong Secrets.")
-        if st.form_submit_button("ĐĂNG NHẬP", use_container_width=True):
-            user = valid_login(username.strip(), pin)
-            if not user:
-                st.error("Thông tin không hợp lệ hoặc tài khoản tạm khóa.")
-            else:
-                st.session_state["auth"] = user
-                if remember and remember_key:
-                    account = st.secrets["accounts"][user["username"]]
-                    st.session_state["_remember_token"] = issue_remember_token(
-                        user["username"], account, remember_key)
-                    st.session_state["_remember_action"] = "set"
-                else:
-                    # Prevent an old remembered account from being restored later.
-                    st.session_state["_remember_action"] = "remove"
-                st.rerun()
+            st.caption("Ghi nhớ đăng nhập chỉ có khi ADMIN đã cấu hình khóa "
+                       "ký phiên remember_login_secret trong Secrets.")
+        submitted=st.form_submit_button(
+            "✅ VÀO BÁO CÁO" if team_only else "ĐĂNG NHẬP",
+            use_container_width=True)
+    if not submitted:
+        return
+    username,reason=resolve_login_username(
+        typed,st.secrets.get("accounts",{}),read_sheet("QUAN_LY_DOI"))
+    if reason=="ambiguous":
+        st.error("Có nhiều hồ sơ trùng tên hoặc thông tin không nhất quán. "
+                 "Nhờ ADMIN kiểm tra, không đăng nhập nhầm tài khoản.")
+        return
+    if not username:
+        st.error("Họ tên hoặc tài khoản chưa được cấp quyền, hoặc thông tin "
+                 "đăng nhập không hợp lệ. Vui lòng liên hệ ADMIN.")
+        return
+    if team_only and str(st.secrets["accounts"][username].get("role","")).upper()!="DOI_TRUONG":
+        st.error("Chỉ tài khoản đội trưởng được dùng nút này.")
+        return
+    user=valid_login(username,pin)
+    if not user or (team_only and user["role"]!="DOI_TRUONG"):
+        st.error("Mật khẩu không đúng hoặc tài khoản tạm khóa.")
+        return
+    st.session_state["auth"]=user
+    st.session_state["team_login_open"]=False
+    if remember and remember_key:
+        account=st.secrets["accounts"][user["username"]]
+        st.session_state["_remember_token"]=issue_remember_token(
+            user["username"],account,remember_key)
+        st.session_state["_remember_action"]="set"
+    else:
+        st.session_state["_remember_action"]="remove"
+    st.rerun()
+
 
 def auth():
     a = st.session_state.get("auth")
@@ -391,12 +423,19 @@ def menu():
     if not a:
         if st.session_state.get("leader_login_open"):
             return "__LEADERSHIP_LOGIN__"
+        if st.session_state.get("team_login_open"):
+            return "__TEAM_LOGIN__"
         if st.button("📊 LÃNH ĐẠO – XEM BÁO CÁO",
                      type="primary",use_container_width=True,
                      key="leader_entry_button"):
             st.session_state["leader_login_open"]=True
             st.rerun()
-        opts = ["🔐 Đăng nhập", "📝 Đăng ký tham gia"]
+        if st.button("👷 ĐỘI TRƯỞNG – BÁO CÁO",
+                     use_container_width=True,key="team_entry_button"):
+            st.session_state["team_login_open"]=True
+            st.rerun()
+        opts = ["🔐 Đăng nhập ADMIN / tài khoản khác",
+                "📝 Đăng ký tham gia"]
     elif a["role"] == "ADMIN":
         opts = ["📊 Báo cáo tiến độ", "📁 Dự án/Điểm/Nhập kho", "📦 Phân bổ",
                 "👥 Đăng ký & quản lý đội", "📝 Đăng ký hộ đội trưởng",
@@ -416,7 +455,8 @@ def menu():
     else:
         opts = ["🗺️ Tìm đường"]
     if a:
-        st.caption(f"Đã đăng nhập: {a['username']} • {a['role']}")
+        name=friendly_account_name(a,read_sheet("QUAN_LY_DOI")) if a["role"]=="DOI_TRUONG" else a["username"]
+        st.caption(f"Đã đăng nhập: {name} • {a['role']}")
         if st.button("Đăng xuất"):
             st.session_state.pop("auth", None)
             st.session_state["_remember_action"] = "remove"
@@ -1706,7 +1746,8 @@ def main():
     try:
         view=menu()
         if view=="__LEADERSHIP_LOGIN__":leadership_login()
-        elif view=="🔐 Đăng nhập":login()
+        elif view=="__TEAM_LOGIN__":login(team_only=True)
+        elif view=="🔐 Đăng nhập ADMIN / tài khoản khác":login()
         elif view=="📝 Đăng ký tham gia":register()
         elif view=="📝 Đăng ký hộ đội trưởng":register(on_behalf=True)
         elif view=="🗺️ Tìm đường":directions()
