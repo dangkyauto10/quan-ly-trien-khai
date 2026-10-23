@@ -23,7 +23,7 @@ class RegistrationVsTeamDisplayTests(unittest.TestCase):
         self.assertIn('read_sheet("TAI_KHOAN_DOI")',source)
         self.assertIn('admin_team_refresh',source)
         self.assertIn('read_sheet.clear()',source)
-        self.assertIn('Xóa đăng ký không tự xóa đội, tài khoản hay nhiệm vụ',source)
+        self.assertIn('Các đội cũ/tạo thủ công chưa có liên kết hồ sơ',source)
 
     def test_password_picker_uses_approved_team_table(self):
         source=self.func("provision_team_password")
