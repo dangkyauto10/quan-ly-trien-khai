@@ -120,3 +120,14 @@
 - Người dùng mới tham khảo tài liệu khi chưa duyệt, không tự cấp quyền. Mục hướng dẫn không cho xem dữ liệu tổng hợp ADMIN/LÃNH ĐẠO hoặc dữ liệu riêng của đội khác.
 - Chưa có thử nghiệm UI thực tế trên Safari iPhone/Chrome Android. CI kiểm tra cấu trúc/không có backend write, nhưng V vẫn cần nghiệm thu khả năng bấm cuộn và font trên thiết bị.
 
+
+## 🔐 ADMIN cấp mật khẩu Đội trưởng ngay trong app (PREVIEW)
+
+- **Trình tự:** Đội trưởng gửi đăng ký → ADMIN mở **👥 Đăng ký & quản lý đội** để duyệt hồ sơ → mở **🔐 CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG** → chọn **họ tên + dự án + chuyên môn** của người được duyệt → đánh dấu xác nhận gửi riêng → bấm **CẤP MẬT KHẨU**. ADMIN sao chép mật khẩu mạnh 18 ký tự **chỉ hiện một lần**, gửi riêng cho đội trưởng; KHÔNG đăng ảnh/chụp nhóm, không dùng chung mã.
+- KTV/VC trên điện thoại bấm **👷 ĐỘI TRƯỞNG – BÁO CÁO**, nhập **họ và tên đã duyệt + mật khẩu riêng**; không cần biết mã đội/mã tài khoản ngẫu nhiên. Sau khi đăng nhập được phép xem/báo cáo **chỉ các nhiệm vụ đã gán đúng mã đội**; việc cấp mật khẩu không tự gán địa điểm, hàng hóa hay nhiệm vụ.
+- Nếu quên mã, ADMIN chọn người đã có tài khoản và bấm **ĐẶT LẠI MẬT KHẨU**. Mã cũ và cookie ghi nhớ bằng mật khẩu cũ tự mất hiệu lực khi tra lại vân tay hash (độ trễ cache dữ liệu Preview khoảng 15 giây). Ghi nhớ 30 ngày cần Secret ký phiên đã cấu hình.
+- Tạo bảng TAI_KHOAN_DOI chỉ trên Google Sheets PREVIEW. **KHÔNG lưu mật khẩu nguyên văn**: chỉ ghi mã tài khoản nội bộ, mã đội, dự án, DOI_TRUONG, salt ngẫu nhiên, PBKDF2-HMAC-SHA256 hash (390000 vòng), trạng thái, thời gian và ADMIN thao tác. Mật khẩu không ghi trong GitHub, nhật ký app, Sheets, cookie.
+- Giữ tài khoản **ADMIN và LÃNH ĐẠO** riêng trong **Streamlit Secrets**, **không thể tự cấp quyền ADMIN/LANH_DAO** qua bảng tài khoản. Dữ liệu bảng cần đúng mã đội hoạt động, dự án, vai trò và định dạng hash; các hàng bất hợp lệ/trùng tự từ chối. Nếu đội đã có tài khoản trong Secrets thì ADMIN không được cấp thêm tài khoản Sheet để tránh xung đột.
+- **QUAN TRỌNG BẢO MẬT:** Bảng TAI_KHOAN_DOI phải do ADMIN và Service Account có quyền, **không chia sẻ quyền Editor Google Sheets cho đội trưởng/thành viên**; người chỉnh sửa bảng hash có thể giả mạo tài khoản đội trưởng dù không biết mật khẩu gốc. Việc dùng Google Sheet làm nơi lưu xác thực phù hợp **chỉ trong PREVIEW**; khi đưa vào vận hành thật cần kho tài khoản và quy trình quản lý định danh bảo mật hơn.
+- Nếu cùng họ tên ở hai hồ sơ đang hoạt động, chặn cấp mật khẩu mới cho đến khi ADMIN xác minh và xử lý trùng tên. Không cho đội trưởng tự nhập mã đội để đoán quyền. Khi bản ghi cấp mật khẩu thất bại hoặc không rõ kết quả, **không gửi mã**; ADMIN kiểm tra trạng thái trên app trước khi thử lại.
+- Chưa tích hợp gửi mật khẩu qua Zalo/SMS tự động, chưa có trang đổi mật khẩu tự phục vụ. ADMIN gửi mã **bằng tin riêng** và cần nghiệm thu luồng trên điện thoại với đội trưởng trước vận hành.
