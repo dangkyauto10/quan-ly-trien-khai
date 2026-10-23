@@ -80,34 +80,59 @@ def sync_remembered_login():
 
 st.markdown("""
 <style>
-.block-container {max-width: 620px; padding: 1.5rem 1rem 3rem;}
+.block-container {
+  max-width: 720px;
+  padding: 2.1rem 1rem 3rem !important;
+}
 .tdv-hero {
+  box-sizing: border-box;
+  width: 100%;
   text-align: center;
-  padding: 0.45rem 0.25rem 1.05rem;
-  margin: 0 auto 0.45rem;
+  /* Reserve vertical room for Vietnamese accents on all devices.
+     Streamlit may otherwise clip the top of a short HTML line. */
+  padding: 1.05rem 0.25rem 1rem;
+  margin: 0 auto 0.55rem;
+  height: auto !important;
+  min-height: 8.3rem;
+  overflow: visible !important;
 }
 .tdv-hero-title {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.55rem;
+  gap: 0.5rem;
   color: #173A73;
   font-weight: 800;
-  font-size: clamp(1.45rem, 4.6vw, 1.95rem);
-  line-height: 1.35;
-  letter-spacing: -0.025em;
-  white-space: nowrap;
+  font-size: clamp(1.55rem, 4.5vw, 2rem);
+  line-height: 1.5 !important;
+  letter-spacing: -0.02em;
+  white-space: normal;
+  flex-wrap: wrap;
+  min-height: 3.5rem;
+  padding: 0.25rem 0;
+  overflow: visible !important;
 }
-.tdv-hero-icon {font-size: 1.25rem; line-height: 1; flex-shrink: 0;}
+.tdv-hero-name {
+  display: inline-block;
+  line-height: 1.5 !important;
+  padding: 0.12rem 0;
+  overflow: visible !important;
+}
+.tdv-hero-icon {
+  display: inline-block;
+  font-size: 1.35rem;
+  line-height: 1.45;
+  flex-shrink: 0;
+}
 .tdv-hero-subtitle {
-  margin-top: 0.25rem;
+  margin-top: 0.18rem;
   color: #64748b;
-  font-size: 0.8rem;
-  line-height: 1.5;
+  font-size: 0.84rem;
+  line-height: 1.6;
 }
 .tdv-preview-tag {
   display: inline-block;
-  margin-top: 0.55rem;
+  margin-top: 0.5rem;
   padding: 0.22rem 0.7rem;
   border: 1px solid #dbe5f2;
   background: #f5f8fc;
@@ -117,10 +142,24 @@ st.markdown("""
   line-height: 1.5;
   letter-spacing: 0.02em;
 }
-@media (max-width: 480px) {
-  .block-container {padding-top: 1.15rem;}
-  .tdv-hero-title {font-size: 1.38rem; gap: 0.35rem;}
-  .tdv-hero-icon {font-size: 1.05rem;}
+@media (max-width: 600px) {
+  .block-container {
+    padding-top: 1.8rem !important;
+    padding-left: 0.8rem !important;
+    padding-right: 0.8rem !important;
+  }
+  .tdv-hero {
+    padding-top: 1rem;
+    min-height: 8.3rem;
+  }
+  .tdv-hero-title {
+    font-size: clamp(1.28rem, 5.8vw, 1.55rem);
+    gap: 0.35rem;
+    line-height: 1.55 !important;
+    min-height: 3.35rem;
+  }
+  .tdv-hero-name {line-height: 1.55 !important;}
+  .tdv-hero-icon {font-size: 1.1rem;}
 }
 h2, h3 {color: #173A73;}
 div[data-testid="stMetric"] {
@@ -151,7 +190,7 @@ input {border-radius: 10px !important;}
 
 st.markdown("""
 <div class="tdv-hero">
-  <div class="tdv-hero-title"><span class="tdv-hero-icon" aria-hidden="true">🚀</span><span>QUẢN LÝ DỰ ÁN</span></div>
+  <div class="tdv-hero-title"><span class="tdv-hero-icon" aria-hidden="true">🚀</span><span class="tdv-hero-name">QUẢN LÝ DỰ ÁN</span></div>
   <div class="tdv-hero-subtitle">Hệ thống điều hành hiện trường</div>
   <div class="tdv-preview-tag">BẢN THỬ NGHIỆM · CHƯA VẬN HÀNH</div>
 </div>
