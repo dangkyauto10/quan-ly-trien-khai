@@ -94,6 +94,20 @@ class CascadeTests(unittest.TestCase):
         self.assertNotIn("KHO_PHAN_BO",SHEETS)
         self.assertEqual(len(pending_updates),2)
 
+    def test_bulk_500_sites_by_5_skus_is_compact(self):
+        plan=plan_detach(LINK,[TEAM],CREDS,[],[],[],[])
+        plan["pending_tasks"]=[
+            ("VAN_CHUYEN",i,"Mã đội VC") for i in range(20,2520)
+        ] + [("LAP_DAT",i,"Mã đội KTV") for i in range(30,2530)]
+        requests=detach_requests(plan,SHEETS,"2026-10-23")
+        groups=[r["repeatCell"] for r in requests if "repeatCell" in r]
+        self.assertEqual(len(groups),2)
+        self.assertEqual(len(requests),6)
+        self.assertTrue(all(r["range"]["endColumnIndex"]==7 for r in groups))
+        self.assertEqual(sorted(r["range"]["endRowIndex"]-
+                                r["range"]["startRowIndex"] for r in groups),
+                         [2500,2500])
+
     def test_completed_proof_not_removed_and_team_needs_reconciliation(self):
         closed={**VC,"Trạng thái":"Đã giao hàng",
                 "Thời gian báo cáo":"2026-10-23T12:00:00"}
