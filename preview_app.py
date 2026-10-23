@@ -1701,7 +1701,8 @@ def report():
                       sum(r["ready"] for r in handover))
             c2.metric("Chưa sẵn sàng",
                       sum(r["status"] in ("Chưa giao","Đã giao một phần",
-                                          "Cần đối soát") for r in handover))
+                                          "Đã tập kết một phần","Cần đối soát")
+                          for r in handover))
             labels=["Tất cả","Sẵn sàng lắp","Sẵn sàng lắp (tập kết)",
                     "Đã tập kết một phần","Đã giao một phần",
                     "Chưa giao","Cần đối soát","Đã lắp xong"]
@@ -1711,7 +1712,7 @@ def report():
             if shown:
                 st.dataframe([{
                     "Địa điểm":r["name"],"Dự án":r["project"],
-                    "VC đã giao":r["status"],
+                    "Tình trạng hàng":r["status"],
                     "SKU phải lắp":r["sku_count"]
                 } for r in shown],hide_index=True,use_container_width=True)
                 detail=st.selectbox(
@@ -1721,6 +1722,28 @@ def report():
                     key="team_handover_details")
                 info=shown[detail]
                 st.write("**"+info["name"]+"** • "+info["project"])
+                signed_hubs=[r for r in hub_rows if
+                    r.get("Mã dự án")==info["project"] and
+                    r.get("Mã điểm")==info["point_id"] and
+                    r.get("Mã đội KTV nhận")==tid and
+                    r.get("Trạng thái")=="KTV đã nhận tại tập kết"
+                    and r.get("Số biên bản giấy")
+                    and r.get("Link ảnh biên bản ký")]
+                if signed_hubs:
+                    refs=sorted(set((r.get("Điểm tập kết",""),
+                                     r.get("Địa chỉ tập kết",""),
+                                     r.get("Khu vực theo hợp đồng",""),
+                                     r.get("Số biên bản giấy",""))
+                                    for r in signed_hubs))
+                    for hname,haddress,area,paper in refs:
+                        st.info("📦 KTV đã nhận tại **"+hname+"**"+
+                                (" — "+haddress if haddress else "")+
+                                (" • "+area if area else "")+
+                                ". Biên bản giấy: "+paper)
+                    image=signed_hubs[0].get("Link ảnh biên bản ký","")
+                    if image.startswith("https://drive.google.com/"):
+                        st.link_button("📄 Xem ảnh biên bản ký nhận",
+                                       image,use_container_width=True)
                 # Fallback Maps search is only a candidate, not a verified pin.
                 dest=next((p for p in read_sheet("DANH_SACH_DIEM")
                            if p.get("Mã dự án")==info["project"] and
