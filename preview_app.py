@@ -42,6 +42,7 @@ from preview_leadership import build_progress, display_amount
 from preview_leader_access import leadership_username
 from preview_team_access import resolve_login_username, friendly_account_name
 from preview_handover import installer_handover, site_may_complete_installation
+from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
@@ -439,8 +440,9 @@ def menu():
                 "📝 Đăng ký tham gia"]
     elif a["role"] == "ADMIN":
         opts = ["📊 Báo cáo tiến độ", "📁 Dự án/Điểm/Nhập kho", "📦 Phân bổ",
-                "👥 Đăng ký & quản lý đội", "📝 Đăng ký hộ đội trưởng",
-                "📋 Báo cáo nhiệm vụ", "🗺️ Tìm đường"]
+                "👥 Đăng ký & quản lý đội", "📦 Bàn giao tập kết",
+                "📝 Đăng ký hộ đội trưởng", "📋 Báo cáo nhiệm vụ",
+                "🗺️ Tìm đường"]
     elif a["role"] == "LANH_DAO":
         # Executive landing is always the read-only progress view.
         st.caption("📊 LÃNH ĐẠO • Chế độ chỉ xem")
@@ -1465,6 +1467,177 @@ def images_to_drive(files, report_id):
                     f"https://drive.google.com/file/d/{uploaded['id']}/view")
     return urls
 
+def hub_admin():
+    """ADMIN records ONE signed physical transfer to a KTV receiving hub.
+
+    Site quota remains in KHO_PHAN_BO; this ledger does not write 'Đã giao'
+    to each commune or silently allocate goods a second time.
+    """
+    require_role("ADMIN")
+    st.subheader("📦 Bàn giao hàng TẬP KẾT cho KTV")
+    st.caption("Ví dụ: đội VC giao gộp hàng của Đồng Văn – Yên Minh – "
+               "Quản Bạ tại một điểm; KTV ký biên bản giấy nhận đủ, "
+               "sau đó tổ chức đi lắp từng xã. KHÔNG tính là giao tận xã.")
+    projects=[p["Mã dự án"] for p in read_sheet("DANH_SACH_DU_AN")
+              if p.get("Mã dự án")]
+    if not projects:
+        st.info("Chưa có dự án.")
+        return
+    if st.button("🔄 Làm mới dữ liệu tập kết",key="refresh_hub"):
+        read_sheet.clear()
+        st.rerun()
+    with st.expander("1. Chọn dự án, đội KTV và các xã thuộc hợp đồng",
+                     expanded=True):
+        project=st.selectbox("Dự án",projects,index=projects.index("DA880")
+                             if "DA880" in projects else 0,key="hub_project")
+        teams=[t for t in read_sheet("QUAN_LY_DOI")
+               if t.get("Mã dự án")==project and
+               t.get("Trạng thái")=="Hoạt động" and
+               t.get("Loại nhiệm vụ") in ("KTV","VC+KTV")]
+        if not teams:
+            st.info("Chưa có đội KTV hoạt động trong dự án. "
+                    "Hãy duyệt/gán đội trước khi lập biên bản tập kết.")
+            return
+        team=st.selectbox("Đội KTV nhận hàng",teams,
+                          format_func=lambda x:x.get("Tên đội/đội trưởng",""),
+                          key="hub_ktv_team")
+        ld_rows=read_sheet("LAP_DAT")
+        points=[p for p in read_sheet("DANH_SACH_DIEM") if
+                p.get("Mã dự án")==project and
+                any(r.get("Mã đội KTV")==team["Mã đội"] and
+                    r.get("Mã dự án")==project and
+                    r.get("Mã điểm")==p.get("Mã điểm") for r in ld_rows)]
+        if not points:
+            st.warning("Đội KTV này chưa được giao xã/đơn vị nào.")
+            return
+        lookup_names={p["Mã điểm"]:p.get("Tên xã/phường/đơn vị","")
+                      for p in points}
+        full=st.checkbox("Chọn tất cả xã đã giao cho đội KTV này",
+                         key="hub_all_sites")
+        selected=st.multiselect(
+            "🔎 Tìm và chọn các xã trong chuyến bàn giao",
+            sorted(lookup_names,key=lambda k:lookup_names[k].casefold()),
+            default=sorted(lookup_names) if full else [],
+            format_func=lambda k:lookup_names[k],
+            key="hub_selected_sites"
+        )
+        if not selected:
+            st.info("Chọn các xã theo hợp đồng của đội trưởng KTV.")
+            return
+        try:
+            lines,summary=hub_plan(team,selected,ld_rows,points,
+                                   read_sheet("KHO_PHAN_BO"))
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        prior=read_sheet("BAN_GIAO_TAP_KET")
+        accepted={(r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))
+                  for r in prior if r.get("Trạng thái")=="KTV đã nhận tại tập kết"}
+        repeats=[l for l in lines if
+                 (project,l["point_id"],l["sku"]) in accepted]
+        st.write(f"**{len(selected)} địa điểm · {len(lines)} dòng SKU** "
+                 "thuộc biên bản tập kết.")
+        if repeats:
+            st.error(f"Đã có {len(repeats)} dòng SKU thuộc biên bản KTV "
+                     "đã nhận tại điểm tập kết. Chưa thể ghi đúp.")
+            return
+    with st.expander("2. Đối chiếu đủ số hàng trong chuyến giao",
+                     expanded=True):
+        st.caption("Số thực nhận chỉ xác nhận khi KTV đã kiểm đếm và hai "
+                   "bên đã ký biên bản giấy. Trường hợp thiếu hàng hãy "
+                   "tách chuyến/xã và báo ADMIN đối soát.")
+        qty_ok=True
+        for (sku,unit),amount in sorted(summary.items()):
+            actual=st.number_input(f"{sku} ({unit}) • phải nhận {qty_label(amount)}",
+                min_value=0., value=float(amount),step=1.,
+                key=f"hub_qty_{project}_{team['Mã đội']}_{sku}")
+            if abs(actual-float(amount))>1e-9:
+                qty_ok=False
+        if not qty_ok:
+            st.warning("SL thực nhận khác số dự kiến. Chưa xác nhận được "
+                       "toàn bộ điểm; hãy kiểm tra biên bản/chọn lại các xã.")
+        with st.expander("Xem danh sách xã và SKU",expanded=False):
+            st.dataframe([{"Xã/đơn vị":r["name"],"SKU":r["sku"],
+                           "Số lượng":qty_label(r["quantity"]),"ĐVT":r["unit"]}
+                          for r in lines],hide_index=True,use_container_width=True)
+    with st.expander("3. Điểm tập kết và BIÊN BẢN GIẤY có ký nhận",
+                     expanded=True):
+        area=st.text_input("Khu vực hợp đồng (địa danh cũ)",
+                           placeholder="Ví dụ: Đồng Văn, Yên Minh, Quản Bạ",
+                           key="hub_area")
+        hub=st.text_input("Tên điểm tập kết",placeholder="Kho/địa điểm nhận hàng",
+                          key="hub_name")
+        address=st.text_input("Địa chỉ điểm tập kết",
+                              key="hub_address")
+        giver=st.text_input("Họ tên người/đội VC bàn giao trên biên bản",
+                            key="hub_giver")
+        paper=st.text_input("Số biên bản bàn giao giấy",
+                            key="hub_paper")
+        proof=st.file_uploader(
+            "📷 Ảnh biên bản giấy có chữ ký của bên giao và KTV nhận",
+            type=["jpg","jpeg","png"],key="hub_scan")
+        acknowledged=st.checkbox(
+            "Tôi đã đối chiếu hàng THỰC NHẬN và thấy biên bản giấy có "
+            "đủ chữ ký hai bên; ghi nhận đây là giao tại điểm tập kết, "
+            "KHÔNG phải giao tận xã.",
+            key="hub_confirm_paper")
+        ready=bool(qty_ok and area.strip() and hub.strip()
+                   and address.strip() and giver.strip() and paper.strip()
+                   and proof and acknowledged)
+        if st.button("✅ GHI NHẬN BÀN GIAO TẬP KẾT",
+                     type="primary",use_container_width=True,
+                     disabled=not ready,key="hub_commit"):
+            try:
+                read_sheet.clear()
+                live_team=lookup(read_sheet("QUAN_LY_DOI"),
+                                 "Mã đội",team["Mã đội"])
+                if not live_team or live_team.get("Mã dự án")!=project or (
+                    live_team.get("Trạng thái")!="Hoạt động"
+                    or live_team.get("Loại nhiệm vụ") not in ("KTV","VC+KTV")
+                ):
+                    fail("Đội KTV đã thay đổi; chưa ghi dữ liệu.")
+                actual,actual_sum=hub_plan(
+                    live_team,selected,read_sheet("LAP_DAT"),
+                    read_sheet("DANH_SACH_DIEM"),
+                    read_sheet("KHO_PHAN_BO"))
+                current_set={(r["point_id"],r["sku"],str(r["quantity"]))
+                             for r in actual}
+                original={(r["point_id"],r["sku"],str(r["quantity"]))
+                          for r in lines}
+                if current_set!=original:
+                    fail("Phân công/định mức đã thay đổi; đối chiếu rồi xác nhận lại.")
+                existed={(r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))
+                         for r in read_sheet_live("BAN_GIAO_TAP_KET")
+                         if r.get("Trạng thái")=="KTV đã nhận tại tập kết"}
+                if any((project,r["point_id"],r["sku"]) in existed
+                       for r in actual):
+                    fail("Các SKU này đã có biên bản tập kết; không ghi đúp.")
+                batch="BG-"+uuid.uuid4().hex[:12].upper()
+                urls=images_to_drive([proof],batch)
+                if not urls:
+                    fail("Không lưu được ảnh biên bản; chưa ghi bàn giao.")
+                rows=signed_receipt_lines(batch,live_team,actual,
+                    area.strip(),hub.strip(),address.strip(),
+                    giver.strip(),paper.strip(),urls[0],now())
+                sheet("BAN_GIAO_TAP_KET").append_rows(rows,
+                                                      value_input_option="RAW")
+                read_sheet.clear()
+                audit(auth()["username"],"BÀN GIAO TẬP KẾT",
+                      "BAN_GIAO_TAP_KET",batch,"OK",
+                      f"{len(selected)} điểm, {len(rows)} dòng; số giấy {paper}")
+                st.success("Đã ghi biên bản tập kết. KTV nhận hàng theo "
+                           "từng SKU của các xã đã chọn; chưa đánh dấu "
+                           "VC giao tận xã hoặc lắp đặt xong.")
+                st.rerun()
+            except Exception as exc:
+                read_sheet.clear()
+                st.error("Chưa xác nhận ghi đủ biên bản ("+
+                         type(exc).__name__+"). KHÔNG bấm lại; "
+                         "ADMIN cần kiểm tra BAN_GIAO_TAP_KET.")
+    st.caption("Bảng biên bản chỉ dùng trên PREVIEW. "
+               "Không thay phiếu xuất kho hoặc biên bản nghiệm thu lắp đặt.")
+
+
 def report():
     a=require_role("DOI_TRUONG","ADMIN")
     st.subheader("📋 Báo cáo nhiệm vụ")
@@ -1848,6 +2021,7 @@ def main():
         elif view=="📁 Dự án/Điểm/Nhập kho":projects_and_inventory()
         elif view=="📦 Phân bổ":allocate()
         elif view=="👥 Đăng ký & quản lý đội":teams_and_approval()
+        elif view=="📦 Bàn giao tập kết":hub_admin()
         elif view=="📋 Báo cáo nhiệm vụ":report()
         elif view=="📊 Báo cáo tiến độ":dashboard()
     except Exception as e:
