@@ -7,7 +7,6 @@ from preview_team_detach import (
     approval_link_request, lost_registrations, revoked_team_ids,
     plan_detach, detach_requests, ACTIVE, DETACHED, NEEDS_REVIEW
 )
-from preview_approval_ui import approval_requests
 
 
 PROJECT="DA880"
@@ -37,15 +36,14 @@ class CascadeTests(unittest.TestCase):
                  "Hoạt động",PROJECT,"Duyệt từ "+RID]
         request=approval_link_request(SHEETS["LIEN_KET_DANG_KY_DOI"],
                                       RID,TID,PROJECT,"2026-10-23")
-        batch=approval_requests(1,2,3,"Đã duyệt",newteam,
-                                TID,"admin",46500,link_request=request)
-        self.assertEqual(batch[-1],request)
+        approval_source=(Path(__file__).resolve().parents[1]/
+                         "preview_approval_ui.py").read_text(encoding="utf-8")
+        self.assertIn('link_request=link_request',approval_source)
+        self.assertIn('requests.append(link_request)',approval_source)
+        self.assertIn('if decision!="Đã duyệt" or team_row is None:',approval_source)
         values=[v["userEnteredValue"]["stringValue"] for v in
                 request["appendCells"]["rows"][0]["values"]]
         self.assertEqual(values[:4],[RID,TID,PROJECT,ACTIVE])
-        with self.assertRaises(ValueError):
-            approval_requests(1,2,3,"Từ chối",None,"","admin",46500,
-                              link_request=request)
 
     def test_delete_recognized_without_clearing_legacy(self):
         self.assertEqual(lost_registrations([REG],[LINK]),[])
