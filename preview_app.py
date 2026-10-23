@@ -55,7 +55,7 @@ from preview_team_detach import (
 )
 from preview_remember import account_fingerprint
 from preview_handover import installer_handover, site_may_complete_installation
-from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label
+from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label, verify_vc_assignment
 from preview_user_guide import GUIDE_URL, render_guide
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
@@ -1954,6 +1954,19 @@ def hub_admin():
         team=st.selectbox("Đội KTV nhận hàng",teams,
                           format_func=lambda x:x.get("Tên đội/đội trưởng",""),
                           key="hub_ktv_team")
+        vc_teams=[t for t in read_sheet("QUAN_LY_DOI")
+                  if t.get("Mã dự án")==project and
+                  t.get("Trạng thái")=="Hoạt động" and
+                  t.get("Loại nhiệm vụ") in ("VC","VC+KTV")]
+        if not vc_teams:
+            st.warning("Chưa có đội VC hoạt động trong dự án. "
+                       "Cần gán đội VC trước khi bàn giao tập kết.")
+            return
+        vc_team=st.selectbox(
+            "Đội VC đã giao hàng (theo phân công)",
+            vc_teams,
+            format_func=lambda x:x.get("Tên đội/đội trưởng",""),
+            key="hub_vc_team")
         ld_rows=read_sheet("LAP_DAT")
         points=[p for p in read_sheet("DANH_SACH_DIEM") if
                 p.get("Mã dự án")==project and
@@ -1985,6 +1998,12 @@ def hub_admin():
                                    read_sheet("KHO_PHAN_BO"))
         except ValueError as exc:
             st.error(str(exc))
+            return
+        try:
+            verify_vc_assignment(
+                lines,vc_team["Mã đội"],read_sheet("VAN_CHUYEN"))
+        except ValueError as exc:
+            st.error("Chưa thể bàn giao tập kết: "+str(exc))
             return
         prior=read_sheet("BAN_GIAO_TAP_KET")
         accepted={(r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))
@@ -2058,6 +2077,14 @@ def hub_admin():
                     live_team,selected,read_sheet("LAP_DAT"),
                     read_sheet("DANH_SACH_DIEM"),
                     read_sheet("KHO_PHAN_BO"))
+                live_vc=lookup(read_sheet("QUAN_LY_DOI"),
+                               "Mã đội",vc_team["Mã đội"])
+                if (not live_vc or live_vc.get("Mã dự án")!=project
+                        or live_vc.get("Trạng thái")!="Hoạt động"
+                        or live_vc.get("Loại nhiệm vụ") not in ("VC","VC+KTV")):
+                    fail("Đội VC đã thay đổi, chưa được ghi bàn giao.")
+                verify_vc_assignment(
+                    actual,vc_team["Mã đội"],read_sheet("VAN_CHUYEN"))
                 current_set={(r["point_id"],r["sku"],str(r["quantity"]))
                              for r in actual}
                 original={(r["point_id"],r["sku"],str(r["quantity"]))
@@ -2088,7 +2115,8 @@ def hub_admin():
                     fail("Không lưu được ảnh biên bản; chưa ghi bàn giao.")
                 rows=signed_receipt_lines(batch,live_team,actual,
                     area.strip(),hub.strip(),address.strip(),
-                    giver.strip(),paper.strip(),urls[0],now())
+                    giver.strip(),paper.strip(),urls[0],now(),
+                    vc_team_id=vc_team["Mã đội"])
                 sheet("BAN_GIAO_TAP_KET").append_rows(rows,
                                                       value_input_option="RAW")
                 read_sheet.clear()
@@ -2104,7 +2132,9 @@ def hub_admin():
                 st.error("Chưa xác nhận ghi đủ biên bản ("+
                          type(exc).__name__+"). KHÔNG bấm lại; "
                          "ADMIN cần kiểm tra BAN_GIAO_TAP_KET.")
-    st.caption("Bảng biên bản chỉ dùng trên PREVIEW. "
+    st.caption("Biên bản gắn MÃ ĐỘI VC giao và MÃ ĐỘI KTV nhận. "
+               "Hai bên có trách nhiệm đối soát theo từng SKU. "
+               "Bảng biên bản chỉ dùng trên PREVIEW. "
                "Không thay phiếu xuất kho hoặc biên bản nghiệm thu lắp đặt.")
 
 
@@ -2128,14 +2158,16 @@ def report():
     all_ld=read_sheet("LAP_DAT")
     hub_rows=read_sheet("BAN_GIAO_TAP_KET")
     accepted_hub={
-        (r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))
+        (r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"),
+         r.get("Mã đội VC giao"))
         for r in hub_rows
         if r.get("Trạng thái")=="KTV đã nhận tại tập kết"
         and r.get("Số biên bản giấy") and r.get("Link ảnh biên bản ký")
+        and r.get("Mã đội VC giao")
     }
     vc=[x for x in all_vc if x.get("Mã đội VC")==tid
         and x.get("Trạng thái")!="Đã giao hàng"
-        and (x.get("Mã dự án"),x.get("Mã điểm"),x.get("SKU"))
+        and (x.get("Mã dự án"),x.get("Mã điểm"),x.get("SKU"),tid)
         not in accepted_hub]
     ld=[x for x in all_ld if x.get("Mã đội KTV")==tid
         and x.get("Trạng thái")!="Đã lắp đặt"]
