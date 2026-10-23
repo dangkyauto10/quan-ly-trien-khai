@@ -163,8 +163,29 @@ def detach_requests(plan, sheet_ids, timestamp):
             "rows":[{"values":[text_cell(value)]}],
             "fields":"userEnteredValue"}}
     requests=[]
+    by_tab=defaultdict(set)
     for tab,row_number,col in plan["pending_tasks"]:
-        requests.append(update_one(tab,row_number,6,""))
+        if tab not in ("VAN_CHUYEN","LAP_DAT") or row_number<2:
+            raise ValueError("Invalid task.")
+        by_tab[tab].add(row_number)
+    for tab,rows in by_tab.items():
+        ordered=sorted(rows)
+        chunks=[]
+        lo=hi=ordered[0]
+        for n in ordered[1:]:
+            if n==hi+1:
+                hi=n
+            else:
+                chunks.append((lo,hi))
+                lo=hi=n
+        chunks.append((lo,hi))
+        for lo,hi in chunks:
+            requests.append({"repeatCell":{
+                "range":{"sheetId":sheet_ids[tab],
+                         "startRowIndex":lo-1,"endRowIndex":hi,
+                         "startColumnIndex":6,"endColumnIndex":7},
+                "cell":text_cell(""),
+                "fields":"userEnteredValue"}})
     # Do not hard delete the team: retain identity/previous signed evidence.
     # Existing UI and login only accept "Hoạt động" teams.
     requests.append(update_one("QUAN_LY_DOI",plan["team_row"],5,
