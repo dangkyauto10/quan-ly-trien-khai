@@ -1608,6 +1608,18 @@ def hub_admin():
                           for r in lines}
                 if current_set!=original:
                     fail("Phân công/định mức đã thay đổi; đối chiếu rồi xác nhận lại.")
+                # Prevent two independent delivery proofs for the same site.
+                # A signed KTV hub handover is not a retroactive direct VC delivery.
+                keys={(r["project"],r["point_id"],r["sku"]) for r in actual}
+                direct=[r for r in read_sheet("VAN_CHUYEN")
+                        if (r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU")) in keys
+                        and r.get("Trạng thái")=="Đã giao hàng"]
+                completed=[r for r in read_sheet("LAP_DAT")
+                           if (r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU")) in keys
+                           and r.get("Trạng thái")=="Đã lắp đặt"]
+                if direct or completed:
+                    fail("Một số SKU đã có xác nhận giao tận xã hoặc đã lắp xong. "
+                         "Chưa được ghi trùng biên bản tập kết.")
                 existed={(r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))
                          for r in read_sheet_live("BAN_GIAO_TAP_KET")
                          if r.get("Trạng thái")=="KTV đã nhận tại tập kết"}
@@ -1817,6 +1829,18 @@ def report():
                         read_sheet("BAN_GIAO_TAP_KET")):
                     fail("Hàng VC chưa giao đủ hoặc chưa đối soát được; "
                          "không thể xác nhận lắp đặt.")
+            if mode=="Đã giao hàng":
+                read_sheet.clear()
+                current_hub=read_sheet_live("BAN_GIAO_TAP_KET")
+                confirmed={(r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))
+                           for r in current_hub
+                           if r.get("Trạng thái")=="KTV đã nhận tại tập kết"
+                           and r.get("Số biên bản giấy")
+                           and r.get("Link ảnh biên bản ký")}
+                if any((chosen[0],chosen[1],r.get("SKU")) in confirmed
+                       for r in vrows):
+                    fail("Hàng đã được KTV ký nhận tại điểm tập kết. "
+                         "Không báo giao tận xã lần thứ hai.")
             rid="BC-"+uuid.uuid4().hex[:16].upper()
             p=lookup(read_sheet("DANH_SACH_DIEM"),"Mã điểm",chosen[1]) or {}
             dest=p.get("Link Google Maps") or ("https://www.google.com/maps/search/?api=1&query="+quote(p.get("Tên xã/phường/đơn vị",chosen[1])))
