@@ -75,7 +75,7 @@ def render_guide():
                      "chọn các xã/đơn vị thuộc **khu vực đã hợp đồng**, "
                      "hoặc ghi địa bàn bổ sung; chọn **Chuyên môn / Nhiệm vụ** "
                      "và **Phương tiện**. Tiếp đó nhập **mật khẩu tự chọn** "
-                     "(ít nhất 14 ký tự có chữ và số) và **nhập lại để xác nhận**. "
+                     "(ít nhất 10 ký tự có chữ và số) và **nhập lại để xác nhận**. "
                      "Không dùng mật khẩu Zalo, ngày sinh hoặc số điện thoại.")
         with st.expander("Bước 3 • Gửi và chờ duyệt", expanded=True):
             st.write("Bấm **GỬI ĐĂNG KÝ** một lần; chờ thông báo "
@@ -92,7 +92,9 @@ def render_guide():
             st.write("Sau khi ADMIN duyệt, bấm "
                      "**👷 ĐỘI TRƯỞNG – BÁO CÁO** → nhập **họ tên đã đăng ký** "
                      "và **mật khẩu riêng** → bấm **VÀO BÁO CÁO**. "
-                     "Mã đội nội bộ không cần nhớ.")
+                     "Mã đội nội bộ không cần nhớ. Nếu trước đây đã "
+                     "đăng ký mà chưa có mật khẩu, nhờ ADMIN cấp hoặc "
+                     "đổi thành mật khẩu mình mong muốn.")
             st.caption("Nếu trùng họ tên hoặc chưa được cấp tài khoản, "
                        "hãy nhờ ADMIN xử lý; không thử tài khoản người khác.")
         with st.expander("Ghi nhớ đăng nhập 30 ngày"):
@@ -198,7 +200,9 @@ def render_guide():
                      "kích hoạt tự động**; ADMIN không phải cấp lại. "
                      "Sau đó ADMIN gán địa bàn. Với hồ sơ cũ hoặc do "
                      "ADMIN đăng ký hộ chưa có mật khẩu, dùng mục "
-                     "**🔐 CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG**. "
+                     "**🔐 CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG**, "
+                     "chọn **Đội trưởng đề nghị / ADMIN nhập hộ** "
+                     "hoặc **Hệ thống tự tạo**. "
                      "Chỉ ADMIN và LÃNH ĐẠO được xem báo cáo tổng hợp.")
         st.info("Đội trưởng không xem báo cáo tiến độ tổng hợp của các đội khác.")
 
