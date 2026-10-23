@@ -121,6 +121,7 @@ def installer_handover(team_id, ld_rows, vc_rows, place_rows, hub_rows=None):
                 "sku":sku,
                 "need":count_text(planned),
                 "delivered":count_text(delivered),
+                "hub_received":count_text(received_hub),
                 "installed":count_text(actual_install or 0),
                 "delivery_ready":bool(planned>0 and
                                        (delivered>=planned or received_hub>=planned)
