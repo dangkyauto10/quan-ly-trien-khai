@@ -1247,12 +1247,145 @@ def allocate_single():
                 audit(auth()["username"],"PHÂN BỔ","KHO_PHAN_BO",bid,"CẦN ĐỐI SOÁT",str(e))
                 st.error("Có lỗi giữa quá trình phân bổ. Cần đối soát trước khi thử lại.")
 
+def provision_team_password():
+    """ADMIN-only provisioning. Password is shown ONCE and never stored clear.
+
+    Existing signed remembered logins become invalid after a password reset.
+    The sheet is an ADMIN/SA-only credential vault; do not share edit access.
+    """
+    a=require_role("ADMIN")
+    with st.expander("🔐 CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG",
+                     expanded=False):
+        st.caption("Duyệt hồ sơ và gán đội trước, rồi chọn tên đội trưởng "
+                   "để cấp mật khẩu. Hệ thống tự tạo mật khẩu mạnh; "
+                   "ADMIN gửi RIÊNG cho người nhận. "
+                   "Không ai phải nhớ mã đội kỹ thuật.")
+        teams=[t for t in read_sheet("QUAN_LY_DOI")
+               if t.get("Trạng thái")=="Hoạt động"
+               and t.get("Loại nhiệm vụ") in ("VC","KTV","VC+KTV")
+               and t.get("Mã dự án") and t.get("Mã đội")]
+        if not teams:
+            st.info("Chưa có đội trưởng VC/KTV đã duyệt. "
+                    "Cần duyệt hồ sơ trước khi cấp mật khẩu.")
+            return
+        team=st.selectbox(
+            "Đội trưởng được cấp mật khẩu", teams,
+            format_func=lambda t:(t.get("Tên đội/đội trưởng","")+
+                                  " • "+t.get("Mã dự án","")+
+                                  " • "+t.get("Loại nhiệm vụ","")),
+            key="credential_team_selection")
+        if sum(normalized_name(t.get("Tên đội/đội trưởng"))==
+               normalized_name(team.get("Tên đội/đội trưởng"))
+               for t in teams)>1:
+            st.error("Có nhiều đội trưởng trùng họ tên. "
+                     "Hiện đăng nhập bằng tên không phân biệt được họ; "
+                     "ADMIN cần làm rõ định danh trước khi cấp.")
+            return
+        records=read_sheet("TAI_KHOAN_DOI")
+        current,existing=visible_credential_state(
+            team,records,st.secrets.get("accounts",{}))
+        if current=="conflict":
+            st.error("Có nhiều tài khoản trùng mã đội. "
+                     "Cần xử lý hồ sơ tài khoản trước khi cấp.")
+            return
+        if current=="legacy":
+            st.info("Đội này đã có tài khoản trong Streamlit Secrets. "
+                    "Để tránh hai tài khoản cùng quyền, B chưa cho cấp thêm "
+                    "ở đây; ADMIN cần đối soát tài khoản cũ trước.")
+            return
+        if current=="active":
+            st.info("Đội trưởng đã được cấp tài khoản. "
+                    "Nếu quên mật khẩu, có thể ĐẶT LẠI; "
+                    "mật khẩu cũ sẽ mất hiệu lực.")
+        else:
+            st.info("Đội trưởng chưa có tài khoản. Có thể cấp mới.")
+        action="ĐẶT LẠI MẬT KHẨU" if current=="active" else "CẤP MẬT KHẨU"
+        approve=st.checkbox(
+            "Tôi xác nhận đúng người nhận và sẽ chỉ gửi mật khẩu "
+            "qua tin nhắn riêng, không đăng vào nhóm.",
+            key="credential_confirm_private")
+        if not st.button("🔐 "+action,type="primary",
+                         use_container_width=True,
+                         disabled=not approve,key="credential_provision"):
+            return
+        try:
+            # Strict live recheck before writing: sheet and team can change
+            # while the ADMIN form is open.
+            read_sheet.clear()
+            teams_live=read_sheet("QUAN_LY_DOI")
+            live=[t for t in teams_live
+                  if t.get("Mã đội")==team["Mã đội"]
+                  and t.get("Mã dự án")==team["Mã dự án"]
+                  and t.get("Trạng thái")=="Hoạt động"
+                  and t.get("Loại nhiệm vụ") in ("VC","KTV","VC+KTV")]
+            if len(live)!=1 or live[0].get("Tên đội/đội trưởng")!=team.get("Tên đội/đội trưởng"):
+                fail("Thông tin đội trưởng đã thay đổi. Hãy tải lại.")
+            if sum(normalized_name(t.get("Tên đội/đội trưởng"))==
+                   normalized_name(team.get("Tên đội/đội trưởng"))
+                   for t in teams_live if t.get("Trạng thái")=="Hoạt động")>1:
+                fail("Tên đội trưởng trùng; phải đối soát trước khi cấp.")
+            fresh=read_sheet("TAI_KHOAN_DOI")
+            kind,row=visible_credential_state(
+                live[0],fresh,st.secrets.get("accounts",{}))
+            if kind!=current or kind in ("conflict","legacy"):
+                fail("Tình trạng tài khoản thay đổi; hãy mở lại.")
+            password=new_password()
+            salt,digest=create_hash(password)
+            admin=str(a["username"])
+            when=now()
+            if current=="active":
+                # Replace only salted secret, status, time and audit owner.
+                # Never duplicate active accounts for a team.
+                idx=row.get("_row")
+                if not isinstance(idx,int) or idx<2:
+                    fail("Không tìm thấy dòng tài khoản để đặt lại.")
+                sheet("TAI_KHOAN_DOI").update(
+                    range_name=f"E{idx}:J{idx}",
+                    values=[[salt,digest,"Hoạt động",when,admin,
+                             "ADMIN đặt lại mật khẩu trên PREVIEW"]],
+                    value_input_option="RAW")
+                username=row["Mã tài khoản"]
+            else:
+                usernames={r.get("Mã tài khoản") for r in fresh}
+                usernames.update(st.secrets.get("accounts",{}).keys())
+                username=next_account_id(usernames)
+                append("TAI_KHOAN_DOI", [
+                    username,team["Mã đội"],team["Mã dự án"],
+                    "DOI_TRUONG",salt,digest,"Hoạt động",when,
+                    admin,"ADMIN cấp mật khẩu trên PREVIEW"])
+            read_sheet.clear()
+            verified=effective_accounts().get(username)
+            if not verified or verified.get("hash")!=digest or (
+                    verified.get("team_id")!=team["Mã đội"]):
+                fail("Đã ghi nhưng chưa xác nhận tài khoản hợp lệ. "
+                     "Không cấp mật khẩu; hãy đối soát trước khi thử lại.")
+            # No raw password in Sheets, GitHub, audit logs, or cookies.
+            audit(admin,"CẤP MẬT KHẨU ĐỘI TRƯỞNG","TAI_KHOAN_DOI",
+                  username,"OK",team["Mã dự án"]+
+                  " / "+("Đặt lại" if current=="active" else "Cấp mới"))
+            st.success("Đã "+("đặt lại" if current=="active" else "cấp")+
+                       " mật khẩu cho **"+team["Tên đội/đội trưởng"]+"**.")
+            st.warning("MẬT KHẨU CHỈ HIỆN MỘT LẦN DƯỚI ĐÂY. "
+                       "Hãy sao chép gửi riêng cho đội trưởng, không đăng nhóm.")
+            st.code(password,language=None)
+            st.caption("Đội trưởng mở app → ĐỘI TRƯỞNG – BÁO CÁO "
+                       "→ nhập HỌ TÊN đã đăng ký + mật khẩu này. "
+                       "Có thể tích Ghi nhớ đăng nhập 30 ngày trên máy cá nhân.")
+        except Exception as exc:
+            read_sheet.clear()
+            st.error("Chưa xác nhận được việc cấp mật khẩu ("+
+                     type(exc).__name__+"). Không gửi bất kỳ mật khẩu "
+                     "nào nếu chưa thấy thông báo cấp thành công. "
+                     "Cần kiểm tra bảng tài khoản trước khi làm lại.")
+
+
 def teams_and_approval():
     require_role("ADMIN")
     st.subheader("👥 Quản lý đội / Duyệt đăng ký")
     render_pending_approvals(
         read_sheet=read_sheet, sheet=sheet, client=client, auth=auth,
         audit=audit, lookup=lookup, sheet_datetime_serial=sheet_datetime_serial)
+    provision_team_password()
     st.caption("Chỉ quản lý đội trưởng. Thành viên của đội do đội trưởng tự quản lý.")
     with st.expander("➕ Thêm đội trưởng thủ công (không phải gán nhiệm vụ)", expanded=False):
         saved_team_message=st.session_state.pop("team_saved_message", None)
