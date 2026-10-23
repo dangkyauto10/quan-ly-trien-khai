@@ -38,8 +38,10 @@ def lost_registrations(registrations, links):
              if r.get("Mã đăng ký")}
     active=[r for r in links if r.get("Trạng thái liên kết")==ACTIVE]
     count=defaultdict(int)
+    per_team=defaultdict(int)
     for r in active:
         count[(r.get("Mã đăng ký"),r.get("Mã đội"),r.get("Mã dự án"))]+=1
+        per_team[r.get("Mã đội")]+=1
     found=[]
     for r in active:
         rid=str(r.get("Mã đăng ký","")).strip()
@@ -48,7 +50,8 @@ def lost_registrations(registrations, links):
         if rid in present:
             continue
         key=(rid,team_id,project)
-        if not all(key) or count[key]!=1 or not isinstance(r.get("_row"),int):
+        if (not all(key) or count[key]!=1 or per_team[team_id]!=1
+                or not isinstance(r.get("_row"),int)):
             # Ambiguous duplicate / corrupt links are NOT auto-removed.
             continue
         found.append(r)
