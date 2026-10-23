@@ -26,13 +26,14 @@ def evidence():
         "BG-000001",TEAM,plan,"Đồng Văn / Yên Minh / Quản Bạ",
         "Kho nhận hợp đồng","Đồng Văn, Hà Giang (cũ)",
         "VC Nguyễn Văn B","BB-GIAO-001",
-        "https://drive.google.com/file/d/abc/view","2026-10-23T09:00:00+07:00")
+        "https://drive.google.com/file/d/abc/view","2026-10-23T09:00:00+07:00",
+        vc_team_id="VC01")
     keys=["Mã dòng","Mã biên bản hệ thống","Mã dự án","Mã đội KTV nhận",
           "Tên đội KTV nhận","Khu vực theo hợp đồng","Điểm tập kết",
           "Địa chỉ tập kết","Mã điểm","Tên địa điểm","SKU",
           "SL định mức điểm","SL KTV thực nhận","ĐVT","Tên đội VC giao",
           "Số biên bản giấy","Link ảnh biên bản ký","Thời điểm ghi nhận",
-          "Trạng thái","Ghi chú"]
+          "Trạng thái","Ghi chú","Mã đội VC giao"]
     return [dict(zip(keys,r)) for r in rows],totals
 
 
@@ -47,7 +48,24 @@ class HubPlanningTests(unittest.TestCase):
         self.assertEqual({x["Điểm tập kết"] for x in rows},{"Kho nhận hợp đồng"})
         self.assertEqual({x["Mã điểm"] for x in rows},{"P1","P2"})
         self.assertEqual({x["Trạng thái"] for x in rows},{ACCEPTED})
-        self.assertTrue(all(len(x)==20 for x in [list(row.values()) for row in rows]))
+        self.assertTrue(all(len(x)==21 for x in [list(row.values()) for row in rows]))
+        self.assertEqual({x["Mã đội VC giao"] for x in rows},{"VC01"})
+
+    def test_vc_team_owns_each_sku_before_signing_hub(self):
+        from preview_hub import verify_vc_assignment
+        plan,_=hub_plan(TEAM,["P1","P2"],LD,PLACES,ALLOC)
+        self.assertTrue(verify_vc_assignment(plan,"VC01",[
+            {**x,"SL giao":next(r["SL lắp"] for r in LD
+                               if r["Mã điểm"]==x["Mã điểm"] and
+                               r["SKU"]==x["SKU"])} for x in VC]))
+        with self.assertRaisesRegex(ValueError,"đội VC khác"):
+            verify_vc_assignment(plan,"OTHER",VC)
+        with self.assertRaises(ValueError):
+            verify_vc_assignment(plan,"VC01",VC[:-1])
+        partial=[{**x,"Trạng thái":"Đã giao một phần"}
+                 if x["SKU"]=="TB01" else x for x in VC]
+        with self.assertRaises(ValueError):
+            verify_vc_assignment(plan,"VC01",partial)
 
     def test_outside_contract_location_rejected(self):
         with self.assertRaises(ValueError):
@@ -65,7 +83,7 @@ class HubPlanningTests(unittest.TestCase):
         plan,_=hub_plan(TEAM,["P1"],LD,PLACES,ALLOC)
         with self.assertRaises(ValueError):
             signed_receipt_lines("BG1",TEAM,plan,"Vùng cũ","Kho","Địa chỉ",
-                                 "VC","Số BB","","2026-10-23")
+                                 "VC","Số BB","","2026-10-23",vc_team_id="VC01")
 
     def test_only_signed_accepted_receipt_counted(self):
         rows,_=evidence()
