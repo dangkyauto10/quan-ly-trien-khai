@@ -67,8 +67,12 @@ class SignupCredentialTests(unittest.TestCase):
         self.assertNotIn(PASSWORD,str(changes))
         self.assertEqual(changes[0]["appendCells"]["sheetId"],112)
         self.assertEqual(changes[1]["updateCells"]["range"]["startRowIndex"],11)
-        self.assertEqual(changes[1]["updateCells"]["rows"][0]["values"][0]
+        self.assertEqual(changes[1]["updateCells"]["rows"][0]["values"][2]
                          ["userEnteredValue"]["stringValue"],ACTIVATED)
+        self.assertEqual(changes[1]["updateCells"]["range"]["startColumnIndex"],2)
+        self.assertEqual([x["userEnteredValue"]["stringValue"] for x in
+                          changes[1]["updateCells"]["rows"][0]["values"][:2]],
+                         ["",""])
         account_rows=[{
             "Mã tài khoản":credential[0],"Mã đội":credential[1],
             "Mã dự án":credential[2],"Vai trò":credential[3],
@@ -82,7 +86,7 @@ class SignupCredentialTests(unittest.TestCase):
         p=make_pending()
         req=approval_credential_requests(111,112,p,rejected=True)
         self.assertEqual(len(req),1)
-        self.assertEqual(req[0]["updateCells"]["rows"][0]["values"][0]
+        self.assertEqual(req[0]["updateCells"]["rows"][0]["values"][2]
                          ["userEnteredValue"]["stringValue"],REJECTED)
         with self.assertRaises(ValueError):
             approval_credential_requests(111,112,p)
