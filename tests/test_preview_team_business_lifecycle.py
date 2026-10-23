@@ -75,6 +75,41 @@ class DeletingTeamBusinessTests(unittest.TestCase):
                 self.assertTrue(result["review"])
                 self.assertEqual(result["custody_sites"],1)
 
+    def test_vc_completed_at_hub_is_not_reassigned_when_captain_deleted(self):
+        signed={
+            "Mã dự án":PROJECT,"Mã điểm":"P1","SKU":"TB01",
+            "Mã đội VC giao":TID,"Mã đội KTV nhận":"KTV-OTHER",
+            "Trạng thái":"KTV đã nhận tại tập kết",
+            "Số biên bản giấy":"BG-001",
+            "Link ảnh biên bản ký":"https://drive.google.com/file/d/001"
+        }
+        result=plan(
+            vc_rows=[vc("P1","TB01",idx=15),vc("P2","TB01",idx=16)],
+            hub_rows=[signed])
+        self.assertEqual(len(result["pending_tasks"]),1)
+        self.assertEqual(result["pending_details"][0]["point_id"],"P2")
+        self.assertEqual(result["vc_hub_sites"],1)
+        self.assertTrue(any("VC đã bàn giao tại điểm tập kết"==x["reason"]
+                            for x in result["protected_details"]))
+        changes=detach_requests(result,SHEETS,"now")
+        self.assertFalse(any(
+            x.get("repeatCell",{}).get("range",{}).get("startRowIndex")==14
+            for x in changes))
+        self.assertTrue(any(
+            x.get("repeatCell",{}).get("range",{}).get("startRowIndex")==15
+            for x in changes))
+
+    def test_signed_hub_missing_vc_id_cannot_safely_prove_which_vc_did_it(self):
+        unsigned_origin={
+            "Mã dự án":PROJECT,"Mã điểm":"P1","SKU":"TB01",
+            "Mã đội KTV nhận":"KTV-OTHER",
+            "Trạng thái":"KTV đã nhận tại tập kết",
+            "Tên đội VC giao":"Một người vận chuyển chưa định danh"
+        }
+        result=plan(vc_rows=[vc("P1")],hub_rows=[unsigned_origin])
+        # Existing historical proofs without team ID require manual audit.
+        self.assertEqual(result["vc_hub_sites"],0)
+
     def test_partial_transport_is_protected_and_not_reassigned_as_full(self):
         result=plan(vc_rows=[{**vc("P1"),
                   "Trạng thái":"Đã giao một phần",
