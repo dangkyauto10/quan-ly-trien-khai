@@ -109,3 +109,14 @@
 - Chỉ chính người dùng có thể xác nhận việc thêm biểu tượng; app không có quyền tự động cài biểu tượng sau đăng ký. Biểu tượng tạo ra là lối tắt web hoặc web app tùy hệ điều hành, **không phải app phát hành qua App Store/Google Play**. Hiện logo/tên khi ghim từ Streamlit Cloud có thể vẫn chịu định dạng/biểu tượng mặc định, cần kiểm thử trên thiết bị thật trước khi hứa logo riêng.
 - Lối tắt không có nghĩa đã duyệt hay có quyền báo cáo. ADMIN vẫn duyệt, cấp mật khẩu và gán nhiệm vụ. Tài khoản đã cấp có thể chọn **Ghi nhớ đăng nhập (30 ngày)** trên thiết bị cá nhân, không lưu mật khẩu trong cookie.
 - Chỉ cập nhật mã nguồn PREVIEW và hướng dẫn sau khi đăng ký. Không thay đổi dữ liệu dự án, quyền, Secrets, đường dẫn hay app production.
+
+## 📖 Hướng dẫn sử dụng công khai + thực hành thử trên điện thoại
+
+- Màn hình đầu PREVIEW có nút nhỏ **📖 Hướng dẫn sử dụng** ngay dưới tiêu đề TV. Mọi vai trò đều mở được, kể cả người **chưa đăng nhập**. Bấm mở trang hướng dẫn ngay bên trong app, có nút **← Về app**.
+- Đường dẫn chia sẻ độc lập: https://quan-ly-trien-khai-qfzumkrq7escxbxpv9v9tr.streamlit.app/?guide=1 (gửi riêng vào nhóm Zalo hoặc mã QR ngoài app nếu cần). Không tạo website mới, không yêu cầu đăng nhập. Đây là đường dẫn của **bản PREVIEW**, không phải production.
+- Sau khi người dùng gửi đăng ký thành công, app cũng hiện nút **📖 XEM HƯỚNG DẪN & THỰC HÀNH THỬ**, cạnh hướng dẫn ghim biểu tượng điện thoại.
+- Nội dung đúng luồng chức năng hiện tại: **đội trưởng đăng ký → ADMIN duyệt, cấp tài khoản, gán địa bàn → đội trưởng vào theo họ tên + mật khẩu → VC báo giao đủ kèm ảnh → KTV xem hàng VC/tập kết đủ từng SKU → KTV báo lắp từng điểm kèm ảnh/GPS**. Có hướng dẫn cho VC+LĐ, biên bản giấy có chữ ký tại điểm tập kết, Lãnh đạo đọc báo cáo, ghim app lên màn hình chính.
+- Mục **🧪 Thực hành thử** có 3 bài: gửi đăng ký giả lập, VC kiểm tra đủ hàng/ảnh, KTV kiểm tra hàng/ảnh/GPS. Mọi nút thực hành chỉ chạy local Streamlit, **không đọc/ghi Google Sheets**, không lưu ảnh hay sửa DA880. Đây không phải môi trường sandbox để gửi báo cáo thật; muốn báo cáo thật phải ra màn hình đội trưởng sau khi đã có quyền.
+- Người dùng mới tham khảo tài liệu khi chưa duyệt, không tự cấp quyền. Mục hướng dẫn không cho xem dữ liệu tổng hợp ADMIN/LÃNH ĐẠO hoặc dữ liệu riêng của đội khác.
+- Chưa có thử nghiệm UI thực tế trên Safari iPhone/Chrome Android. CI kiểm tra cấu trúc/không có backend write, nhưng V vẫn cần nghiệm thu khả năng bấm cuộn và font trên thiết bị.
+
