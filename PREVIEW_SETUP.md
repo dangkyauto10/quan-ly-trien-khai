@@ -87,3 +87,17 @@
 - Có nút **ĐĂNG XUẤT** xóa cookie ghi nhớ; app sẽ yêu cầu mật khẩu ở lần tiếp theo.
 - Cần kiểm tra riêng trên iPhone/Android và máy tính: nhập mật khẩu một lần, bật Ghi nhớ, đóng tab và mở lại phải vào thẳng báo cáo; khi đăng xuất phải yêu cầu mật khẩu lại. Không coi CI là đã kiểm thử trình duyệt thực.
 
+
+
+## Bàn giao TẬP KẾT cho đội KTV (PREVIEW, Hà Giang cũ)
+
+- Có **hai hình thức giao**: (a) VC giao thẳng tận xã/đơn vị; (b) VC tập kết gộp hàng của nhiều xã theo địa bàn hợp đồng, KTV ký nhận tại một địa điểm đã thống nhất. Địa bàn có thể dùng địa danh hành chính cũ, ví dụ Đồng Văn / Yên Minh / Quản Bạ; phải chọn chính xác các xã/đơn vị theo hợp đồng, không suy diễn chỉ từ tên huyện cũ.
+- ADMIN mở **📦 Bàn giao tập kết**, chọn dự án, đội trưởng KTV, nhiều xã thuộc những nhiệm vụ LĐ đã gán; phần mềm cộng tất cả SKU và SL theo định mức từng xã (KHO_PHAN_BO và LAP_DAT). Chưa có đội hoặc chưa gán địa bàn thì chưa lập biên bản.
+- ADMIN nhập vị trí tập kết, người VC giao, số biên bản giấy, tải ảnh có **chữ ký bên giao và bên nhận KTV**, xác nhận kiểm đếm đủ. Nếu thiếu SL, chưa ghi trạng thái đủ; chia chuyến hoặc đối soát sau. Không chấp nhận ghi đúp các SKU đã tập kết hoặc đã giao tận xã/đã lắp.
+- Sau nút xác nhận, một giao dịch PREVIEW ghi nhật ký **BAN_GIAO_TAP_KET**, mỗi xã × SKU một dòng với chung mã biên bản/ảnh và tên người KTV nhận. Bảng này KHÔNG xóa hay thay đổi KHO_PHAN_BO, VAN_CHUYEN, LAP_DAT. Đây là nhật ký giao tập kết, chưa phải phiếu xuất kho hay chứng nhận lắp xong.
+- KTV mở **👷 ĐỘI TRƯỞNG – BÁO CÁO**, chọn nhóm **📦 1. KIỂM TRA HÀNG VC / TẬP KẾT** để xem chỉ các xã được gán cho mình, SL VC giao tận xã và SL KTV đã nhận tại điểm tập kết được tách riêng. Trạng thái **Sẵn sàng lắp (tập kết)** nghĩa là biên bản ký nhận đủ SL của từng SKU trong hợp đồng; **KHÔNG** khẳng định đã giao tận xã.
+- KTV đi đến từng xã, mở **📝 2. BÁO CÁO GIAO HÀNG / LẮP ĐẶT**: chọn xã, nhập ảnh+GPS theo quy định. App chặn xác nhận LĐ nếu không có VC giao trực tiếp đủ hoặc biên bản tập kết đủ đã ghi. Khi đã báo LĐ, tiến độ Lãnh đạo tính riêng VC giao tận xã, KTV nhận ở điểm tập kết, và xã đã lắp xong.
+- Bố cục điện thoại: mỗi nhóm thành phần bấm mở/thu gọn, bảng trong vùng cuộn, không dàn dài 135–500 địa điểm trên cùng một trang. Tên đội trưởng hiện cho người dùng, mã đội chỉ lưu nội bộ để xác thực quyền.
+- **Bắt buộc nghiệp vụ**: biên bản giấy ký cả hai bên mới là chứng cứ nhận hàng. Nếu thiếu, mất, sửa chứng từ hoặc thực nhận lệch định mức phải đối soát, không giả tạo trạng thái hoàn tất. Khi vận hành thật cần thêm phiếu xuất kho vật lý, sổ hàng KTV chuyển từ điểm tập kết tới từng xã và xử lý bồi hoàn/thiếu hàng.
+- PREVIEW mới chỉ qua unit test/compile GitHub Actions. Chưa nghiệm thu trực tiếp trên iPhone/Android hay luồng ảnh ký nhận ngoài thực địa; tuyệt đối không đổi PRODUCTION.
+
