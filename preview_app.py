@@ -215,6 +215,32 @@ div.stButton > button[kind="primary"] {
 }
 div[data-baseweb="select"] > div {border-radius: 10px;}
 input {border-radius: 10px !important;}
+/* TDV PREVIEW - TANG CO CHU DE DOC */
+.tdv-hero-subtitle {
+  font-size: 1.04rem !important;
+}
+.tdv-preview-tag {
+  font-size: 0.95rem !important;
+}
+.stApp [data-testid="stWidgetLabel"] p,
+.stApp [data-testid="stMarkdownContainer"] p,
+.stApp [data-testid="stMarkdownContainer"] li,
+.stApp label {
+  font-size: 1.1rem !important;
+  line-height: 1.6 !important;
+}
+.stApp [data-testid="stCaptionContainer"] p {
+  font-size: 1rem !important;
+}
+.stApp input,
+.stApp textarea,
+.stApp div[data-baseweb="select"] > div,
+.stApp div.stButton > button {
+  font-size: 1.1rem !important;
+}
+.stApp div.stButton > button {
+  min-height: 48px !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -2078,8 +2104,11 @@ def hub_admin():
                           key="hub_name")
         address=st.text_input("Địa chỉ điểm tập kết",
                               key="hub_address")
-        giver=st.text_input("Họ tên người/đội VC bàn giao trên biên bản",
-                            key="hub_giver")
+                giver=st.text_input(
+            "Họ tên người/đội VC bàn giao trên biên bản",
+            value=vc_team.get("Tên đội/đội trưởng", ""),
+            key=f"hub_giver_{project}_{vc_team['Mã đội']}"
+        )
         paper=st.text_input("Số biên bản bàn giao giấy",
                             key="hub_paper")
         proof=st.file_uploader(
