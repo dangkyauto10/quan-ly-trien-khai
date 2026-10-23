@@ -1898,7 +1898,8 @@ def dashboard():
         read_sheet("VAN_CHUYEN"),
         read_sheet("LAP_DAT"),
         read_sheet("BAO_CAO_TRIEN_KHAI"),
-        read_sheet("QUAN_LY_DOI")
+        read_sheet("QUAN_LY_DOI"),
+        read_sheet("BAN_GIAO_TAP_KET")
     )
     m=progress["metrics"]
     total=m["sites"]
@@ -1909,11 +1910,12 @@ def dashboard():
     a1.metric("Điểm dự án",m["sites"])
     a2.metric("Đã phân bổ hàng",m["sites_allocated"])
     b1,b2=st.columns(2)
-    b1.metric("VC đã giao đủ",m["sites_delivered"])
+    b1.metric("VC giao tận xã đủ",m["sites_delivered"])
     b2.metric("LĐ đã lắp đủ",m["sites_installed"])
-    st.metric("Điểm đã giao, đang chờ/đang lắp",m["sites_ready_install"])
+    st.metric("KTV đã nhận tại điểm tập kết",m["sites_at_hub"])
+    st.metric("Đủ hàng, chờ/đang lắp",m["sites_ready_install"])
     if total:
-        st.write(f"**Giao hàng đủ: {m['sites_delivered']}/{total} điểm** "
+        st.write(f"**VC giao TẬN XÃ đủ: {m['sites_delivered']}/{total} điểm** "
                  f"({m['sites_delivered']/total:.1%})")
         st.progress(min(1.,m["sites_delivered"]/total))
         st.write(f"**Lắp đặt đủ: {m['sites_installed']}/{total} điểm** "
@@ -1924,9 +1926,10 @@ def dashboard():
         st.write(f"LĐ báo hoàn thành: **{m['ld_tasks_done']}/{m['ld_tasks']}** nhiệm vụ/SKU.")
         st.write(f"Nhiệm vụ VC chưa có đội: **{m['vc_unassigned']}**; "
                  f"LĐ chưa có đội: **{m['ld_unassigned']}**.")
-        st.caption("Một địa điểm chỉ tính 'giao/lắp đủ' khi toàn bộ SKU tại "
-                   "điểm có báo cáo hoàn tất và SL thực tế đủ theo phân bổ. "
-                   "Số nhiệm vụ không đồng nghĩa số địa điểm.")
+        st.caption("VC giao tận xã và KTV nhận hàng ở điểm tập kết là "
+                   "HAI chỉ tiêu khác nhau. Lắp đặt hoàn thành cần báo cáo "
+                   "tại xã với ảnh/GPS và hàng đã giao đủ theo một trong hai "
+                   "hình thức. Số nhiệm vụ không phải số xã hoàn thành.")
 
     if progress["pending_report_count"]:
         st.warning(f"⚠️ Có {progress['pending_report_count']} báo cáo chưa đồng bộ "
@@ -1982,8 +1985,9 @@ def dashboard():
         st.info("Không có địa điểm khớp điều kiện tìm kiếm.")
 
     st.markdown("#### 3. Nhập kho – Phân bổ – Giao – Lắp theo SKU")
-    st.caption("Đơn vị tính theo từng SKU; tuyệt đối không cộng gộp các "
-               "mặt hàng khác ĐVT. 'Còn chờ phân bổ' KHÔNG phải tồn kho vật lý.")
+    st.caption("VC giao tận xã và KTV nhận tập kết được báo riêng, "
+               "KHÔNG cộng hai lần. ĐVT theo từng SKU; "
+               "'Còn chờ phân bổ' không phải tồn kho vật lý.")
     if progress["skus"]:
         st.dataframe(progress["skus"],hide_index=True,use_container_width=True)
     else:
