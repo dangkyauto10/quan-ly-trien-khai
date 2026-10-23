@@ -111,6 +111,20 @@ def plan_detach(link, teams, credentials, vc_tasks, ld_tasks,
         raise ValueError("Duplicated credentials; requires audit.")
     pending=[]
     protected=[]
+    pending_details=[]
+    protected_details=[]
+    # When a KTV has signed for goods at a central hub, the goods remain
+    # physically in that person's custody. The assigned installation tasks
+    # MUST NOT be released to another team as if the goods were free.
+    hub_custody={
+        (r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))
+        for r in hub_receipts
+        if r.get("Mã đội KTV nhận")==tid
+        and r.get("Mã dự án")==project
+        and r.get("Trạng thái")=="KTV đã nhận tại tập kết"
+        and r.get("Số biên bản giấy")
+        and r.get("Link ảnh biên bản ký")
+    }
     for table, records, team_col, waiting_status in (
         ("VAN_CHUYEN",vc_tasks,"Mã đội VC","Chưa giao"),
         ("LAP_DAT",ld_tasks,"Mã đội KTV","Chưa lắp"),
@@ -120,13 +134,29 @@ def plan_detach(link, teams, credentials, vc_tasks, ld_tasks,
                 continue
             if not isinstance(row.get("_row"),int):
                 raise ValueError("Invalid task row.")
-            if row.get("Trạng thái")==waiting_status and not any(
+            key=(project,row.get("Mã điểm"),row.get("SKU"))
+            has_custody=(table=="LAP_DAT" and key in hub_custody)
+            # Only unstarted tasks without disputed stock custody can
+            # be safely returned to ADMIN for reassignment.
+            unstarted=(row.get("Trạng thái")==waiting_status and not any(
                 str(row.get(k,"")).strip() for k in
                 ("Mã báo cáo","SL thực tế","Thời gian báo cáo")
-            ):
+            ))
+            detail={
+                "table":table,
+                "point_id":str(row.get("Mã điểm","")),
+                "sku":str(row.get("SKU","")),
+                "quantity":row.get("SL giao" if table=="VAN_CHUYEN" else "SL lắp",""),
+            }
+            if unstarted and not has_custody:
                 pending.append((table,row["_row"],team_col))
+                pending_details.append({**detail,"state":"Chờ phân công lại"})
             else:
+                reason=("KTV còn giữ hàng tại điểm tập kết"
+                        if has_custody else "Đã có tiến độ/chứng từ")
                 protected.append((table,row["_row"],row.get("Trạng thái","")))
+                protected_details.append({**detail,"state":"Cần bàn giao/đối soát",
+                                          "reason":reason})
     if any(r.get("Mã đội")==tid and r.get("Mã dự án")==project
            for r in reports):
         protected.append(("BAO_CAO_TRIEN_KHAI",0,"Đã có báo cáo"))
@@ -138,6 +168,11 @@ def plan_detach(link, teams, credentials, vc_tasks, ld_tasks,
     return {
         "team_row":team["_row"], "account_rows":[r["_row"] for r in creds],
         "pending_tasks":pending,"protected_tasks":protected,
+        "pending_details":pending_details,
+        "protected_details":protected_details,
+        "released_sites":len({d["point_id"] for d in pending_details}),
+        "custody_sites":len({d["point_id"] for d in protected_details
+                             if d.get("reason")=="KTV còn giữ hàng tại điểm tập kết"}),
         "review":bool(protected),
         "team_id":tid,"project":project,
         "link_row":link.get("_row")
