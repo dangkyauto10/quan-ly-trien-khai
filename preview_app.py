@@ -38,6 +38,7 @@ from preview_bulk_excel import parse_exception_excel
 from preview_allocation_groups import (
     match_contract_locations, read_contract_locations_excel, preview_basket
 )
+from preview_leadership import build_progress, display_amount
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
@@ -338,11 +339,11 @@ def menu():
     if not a:
         opts = ["🔐 Đăng nhập", "📝 Đăng ký tham gia"]
     elif a["role"] == "ADMIN":
-        opts = ["📊 Điều hành", "📁 Dự án/Điểm/Nhập kho", "📦 Phân bổ",
+        opts = ["📊 Báo cáo tiến độ", "📁 Dự án/Điểm/Nhập kho", "📦 Phân bổ",
                 "👥 Đăng ký & quản lý đội", "📝 Đăng ký hộ đội trưởng",
                 "📋 Báo cáo nhiệm vụ", "🗺️ Tìm đường"]
     elif a["role"] == "LANH_DAO":
-        opts = ["📊 Điều hành", "🗺️ Tìm đường"]
+        opts = ["📊 Báo cáo tiến độ", "🗺️ Tìm đường"]
     elif a["role"] == "DOI_TRUONG":
         opts = ["📋 Báo cáo nhiệm vụ", "🗺️ Tìm đường"]
     else:
@@ -1450,25 +1451,142 @@ def report():
             st.error(f"Chưa xác nhận được đồng bộ hoàn tất ({type(e).__name__}). Liên hệ Admin; không gửi lại liên tục.")
 
 def dashboard():
-    require_role("ADMIN","LANH_DAO")
-    st.subheader("📊 Điều hành – Thống kê")
+    """Read-only progress dashboard: strictly ADMIN / LANH_DAO."""
+    a=require_role("ADMIN","LANH_DAO")
+    st.subheader("📊 Báo cáo tiến độ dự án")
+    st.caption("Chỉ ADMIN và LÃNH ĐẠO xem toàn dự án. "
+               "Số liệu theo nhiệm vụ và báo cáo đã ghi vào Google Sheets; "
+               "chưa phải biên bản nghiệm thu hay đối soát xuất kho vật lý.")
+    if st.button("🔄 CẬP NHẬT SỐ LIỆU",use_container_width=True,
+                 key="leadership_refresh"):
+        read_sheet.clear()
+        st.rerun()
     projects=read_sheet("DANH_SACH_DU_AN")
-    points=read_sheet("DANH_SACH_DIEM")
-    vc=read_sheet("VAN_CHUYEN")
-    ld=read_sheet("LAP_DAT")
-    reports=read_sheet("BAO_CAO_TRIEN_KHAI")
-    codes=["Tất cả"]+[p["Mã dự án"] for p in projects if p.get("Mã dự án")]
-    chosen=st.selectbox("Dự án",codes)
-    filt=lambda rows:[x for x in rows if chosen=="Tất cả" or x.get("Mã dự án")==chosen]
-    vc,ld,reports,points=map(filt,(vc,ld,reports,points))
-    c1,c2=st.columns(2)
-    c1.metric("Nhiệm vụ đã giao",sum(x.get("Trạng thái")=="Đã giao hàng" for x in vc))
-    c2.metric("Nhiệm vụ đã lắp",sum(x.get("Trạng thái")=="Đã lắp đặt" for x in ld))
-    c3,c4=st.columns(2)
-    c3.metric("Số điểm trong dự án",len({x.get("Mã điểm") for x in points if x.get("Mã điểm")}))
-    c4.metric("Báo cáo cần đối soát",sum(x.get("Trạng thái đồng bộ")!=READY for x in reports))
-    if chosen=="Tất cả":
-        st.caption("Thống kê nhiệm vụ không phải số địa điểm hoàn thành.")
+    ids=[p["Mã dự án"] for p in projects if p.get("Mã dự án")]
+    if not ids:
+        st.info("Chưa có dự án để báo cáo.")
+        return
+    options=ids+["Tất cả"]
+    preferred=ids.index("DA880") if "DA880" in ids else 0
+    project=st.selectbox("Dự án cần xem",options,index=preferred,
+                         key="leadership_project")
+    progress=build_progress(
+        project,projects,
+        read_sheet("DANH_SACH_DIEM"),
+        read_sheet("NHAP_KHO"),
+        read_sheet("KHO_PHAN_BO"),
+        read_sheet("VAN_CHUYEN"),
+        read_sheet("LAP_DAT"),
+        read_sheet("BAO_CAO_TRIEN_KHAI"),
+        read_sheet("QUAN_LY_DOI")
+    )
+    m=progress["metrics"]
+    total=m["sites"]
+    st.caption("Số liệu đọc lúc "+now().replace("T"," ")[:19]+
+               " (giờ Việt Nam). Nhấn CẬP NHẬT để lấy dữ liệu mới nhất.")
+    st.markdown("#### 1. Tổng quan tiến độ")
+    a1,a2=st.columns(2)
+    a1.metric("Điểm dự án",m["sites"])
+    a2.metric("Đã phân bổ hàng",m["sites_allocated"])
+    b1,b2=st.columns(2)
+    b1.metric("VC đã giao đủ",m["sites_delivered"])
+    b2.metric("LĐ đã lắp đủ",m["sites_installed"])
+    st.metric("Điểm đã giao, đang chờ/đang lắp",m["sites_ready_install"])
+    if total:
+        st.write(f"**Giao hàng đủ: {m['sites_delivered']}/{total} điểm** "
+                 f"({m['sites_delivered']/total:.1%})")
+        st.progress(min(1.,m["sites_delivered"]/total))
+        st.write(f"**Lắp đặt đủ: {m['sites_installed']}/{total} điểm** "
+                 f"({m['sites_installed']/total:.1%})")
+        st.progress(min(1.,m["sites_installed"]/total))
+    with st.expander("Chi tiết nhiệm vụ và việc chưa giao đội",expanded=False):
+        st.write(f"VC báo hoàn thành: **{m['vc_tasks_done']}/{m['vc_tasks']}** nhiệm vụ/SKU.")
+        st.write(f"LĐ báo hoàn thành: **{m['ld_tasks_done']}/{m['ld_tasks']}** nhiệm vụ/SKU.")
+        st.write(f"Nhiệm vụ VC chưa có đội: **{m['vc_unassigned']}**; "
+                 f"LĐ chưa có đội: **{m['ld_unassigned']}**.")
+        st.caption("Một địa điểm chỉ tính 'giao/lắp đủ' khi toàn bộ SKU tại "
+                   "điểm có báo cáo hoàn tất và SL thực tế đủ theo phân bổ. "
+                   "Số nhiệm vụ không đồng nghĩa số địa điểm.")
+
+    if progress["pending_report_count"]:
+        st.warning(f"⚠️ Có {progress['pending_report_count']} báo cáo chưa đồng bộ "
+                   "hoặc cần ADMIN đối soát. Không coi các báo cáo này là nghiệm thu.")
+    if progress["anomalies"]:
+        with st.expander(f"⚠️ Cần kiểm tra dữ liệu ({len(progress['anomalies'])} cảnh báo)"):
+            for issue in progress["anomalies"][:30]:
+                st.write("• "+issue)
+            if len(progress["anomalies"])>30:
+                st.caption("Còn các cảnh báo khác; ADMIN cần kiểm tra Google Sheets.")
+
+    st.markdown("#### 2. Tra cứu tiến độ từng xã/đơn vị")
+    sites=progress["sites"]
+    statuses=["Tất cả"]+sorted({p["status"] for p in sites})
+    f1,f2=st.columns([1,1])
+    status=f1.selectbox("Trạng thái",statuses,key="leadership_status")
+    search=f2.text_input("🔎 Tìm địa điểm",placeholder="Tên xã, đơn vị hoặc mã điểm...",
+                         key="leadership_search")
+    needle=search.casefold().strip()
+    matching=[p for p in sites if
+              (status=="Tất cả" or p["status"]==status)
+              and (not needle or needle in p["name"].casefold()
+                   or needle in p["point_id"].casefold()
+                   or needle in p["project"].casefold())]
+    st.caption(f"Đang hiển thị {len(matching)} / {len(sites)} địa điểm.")
+    if matching:
+        st.dataframe([{
+            "Địa điểm":p["name"],
+            "Dự án":p["project"],
+            "VC đủ SKU":f"{p['vc_done']}/{p['sku_count']}",
+            "LĐ đủ SKU":f"{p['ld_done']}/{p['sku_count']}",
+            "Tình trạng":p["status"]
+        } for p in matching],hide_index=True,use_container_width=True)
+        selected_site=st.selectbox("Xem chi tiết một địa điểm",
+            list(range(len(matching))),
+            format_func=lambda i:(matching[i]["name"]+
+                                  " • "+matching[i]["project"]+
+                                  " • "+matching[i]["status"]),
+            key="leadership_site_detail")
+        site=matching[selected_site]
+        st.write("**"+site["name"]+"** • "+site["point_id"])
+        st.write(f"**VC:** {', '.join(site['vc_teams']) or 'Chưa gán đội'}")
+        st.write(f"**LĐ:** {', '.join(site['ld_teams']) or 'Chưa gán đội'}")
+        if site["skus"]:
+            st.dataframe([{
+                "SKU":item["sku"],"SL phân bổ":display_amount(item["planned"]),
+                "VC đã báo giao":display_amount(item["delivered"]),
+                "LĐ đã báo lắp":display_amount(item["installed"])
+            } for item in site["skus"]],hide_index=True,use_container_width=True)
+        else:
+            st.info("Địa điểm chưa được phân bổ hàng.")
+    else:
+        st.info("Không có địa điểm khớp điều kiện tìm kiếm.")
+
+    st.markdown("#### 3. Nhập kho – Phân bổ – Giao – Lắp theo SKU")
+    st.caption("Đơn vị tính theo từng SKU; tuyệt đối không cộng gộp các "
+               "mặt hàng khác ĐVT. 'Còn chờ phân bổ' KHÔNG phải tồn kho vật lý.")
+    if progress["skus"]:
+        st.dataframe(progress["skus"],hide_index=True,use_container_width=True)
+    else:
+        st.info("Chưa có dữ liệu nhập kho/phân bổ của dự án.")
+
+    st.markdown("#### 4. Báo cáo hiện trường gần đây")
+    activity=progress["activity"]
+    if activity:
+        st.dataframe([{
+            "Thời gian":str(r.get("Thời gian máy chủ","")).replace("T"," ")[:19],
+            "Dự án":r.get("Mã dự án",""),
+            "Mã điểm":r.get("Mã điểm",""),
+            "Đội":r.get("Mã đội",""),
+            "Nội dung":r.get("Loại báo cáo",""),
+            "Đồng bộ":r.get("Trạng thái đồng bộ","")
+        } for r in activity],hide_index=True,use_container_width=True)
+        st.caption("Bảng tóm tắt 40 báo cáo mới nhất. Ảnh và check-in "
+                   "được lưu theo mã báo cáo gốc.")
+    else:
+        st.info("Chưa có báo cáo hiện trường. "
+                "Phân bổ và gán đội không được tính là đã giao/lắp.")
+    st.caption("Báo cáo chỉ đọc. ADMIN xử lý nhập kho, phân bổ, phân công "
+               "và đối soát tại các chức năng riêng; LÃNH ĐẠO không được sửa dữ liệu.")
 
 def main():
     try:
@@ -1481,7 +1599,7 @@ def main():
         elif view=="📦 Phân bổ":allocate()
         elif view=="👥 Đăng ký & quản lý đội":teams_and_approval()
         elif view=="📋 Báo cáo nhiệm vụ":report()
-        elif view=="📊 Điều hành":dashboard()
+        elif view=="📊 Báo cáo tiến độ":dashboard()
     except Exception as e:
         st.error("Không thể truy cập dữ liệu Preview: "+type(e).__name__)
         st.caption("Kiểm tra Secrets, quyền Google Sheets và thư mục ảnh; không dùng khóa cũ đã lộ.")
