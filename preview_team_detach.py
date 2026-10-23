@@ -134,6 +134,15 @@ def plan_detach(link, teams, credentials, vc_tasks, ld_tasks,
         # Signed at the hub is VC work DONE, though not delivered to each
         # commune. Preserve the original VC assignment as delivery evidence.
     }
+    unverified_vc_hub={
+        (r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))
+        for r in hub_receipts
+        if not r.get("Mã đội VC giao")
+        and r.get("Mã dự án")==project
+        and r.get("Trạng thái")=="KTV đã nhận tại tập kết"
+        # Legacy signed paper proves some VC delivered, but not which crew.
+        # Prevent any automatic reallocation of that site/SKU until checked.
+    }
     for table, records, team_col, waiting_status in (
         ("VAN_CHUYEN",vc_tasks,"Mã đội VC","Chưa giao"),
         ("LAP_DAT",ld_tasks,"Mã đội KTV","Chưa lắp"),
@@ -146,8 +155,9 @@ def plan_detach(link, teams, credentials, vc_tasks, ld_tasks,
             key=(project,row.get("Mã điểm"),row.get("SKU"))
             has_custody=(table=="LAP_DAT" and key in hub_custody)
             vc_hub_done=(table=="VAN_CHUYEN" and key in vc_hub_handoffs)
-            # Only unstarted tasks without disputed stock custody or
-            # signed hub handoff can be reassigned.
+            unknown_vc=(table=="VAN_CHUYEN" and key in unverified_vc_hub)
+            # Only unstarted tasks without disputed stock custody,
+            # signed transfer or unverifiable legacy handoff can be freed.
             unstarted=(row.get("Trạng thái")==waiting_status and not any(
                 str(row.get(k,"")).strip() for k in
                 ("Mã báo cáo","SL thực tế","Thời gian báo cáo")
@@ -158,14 +168,16 @@ def plan_detach(link, teams, credentials, vc_tasks, ld_tasks,
                 "sku":str(row.get("SKU","")),
                 "quantity":row.get("SL giao" if table=="VAN_CHUYEN" else "SL lắp",""),
             }
-            if unstarted and not has_custody and not vc_hub_done:
+            if unstarted and not has_custody and not vc_hub_done and not unknown_vc:
                 pending.append((table,row["_row"],team_col))
                 pending_details.append({**detail,"state":"Chờ phân công lại"})
             else:
                 reason=("KTV còn giữ hàng tại điểm tập kết"
                         if has_custody else
                         "VC đã bàn giao tại điểm tập kết"
-                        if vc_hub_done else "Đã có tiến độ/chứng từ")
+                        if vc_hub_done else
+                        "Biên bản tập kết cũ thiếu mã đội VC giao"
+                        if unknown_vc else "Đã có tiến độ/chứng từ")
                 protected.append((table,row["_row"],row.get("Trạng thái","")))
                 protected_details.append({**detail,"state":"Cần bàn giao/đối soát",
                                           "reason":reason})
@@ -187,6 +199,8 @@ def plan_detach(link, teams, credentials, vc_tasks, ld_tasks,
                              if d.get("reason")=="KTV còn giữ hàng tại điểm tập kết"}),
         "vc_hub_sites":len({d["point_id"] for d in protected_details
                              if d.get("reason")=="VC đã bàn giao tại điểm tập kết"}),
+        "unknown_hub_sites":len({d["point_id"] for d in protected_details
+                             if d.get("reason")=="Biên bản tập kết cũ thiếu mã đội VC giao"}),
         "review":bool(protected),
         "team_id":tid,"project":project,
         "link_row":link.get("_row")
