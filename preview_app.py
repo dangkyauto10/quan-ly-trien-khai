@@ -41,6 +41,7 @@ from preview_allocation_groups import (
 from preview_leadership import build_progress, display_amount
 from preview_leader_access import leadership_username
 from preview_team_access import resolve_login_username, friendly_account_name
+from preview_handover import installer_handover, site_may_complete_installation
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
@@ -1477,21 +1478,87 @@ def report():
         tid=st.selectbox("Kiểm thử theo mã đội (chỉ Admin)",allteams)
     if not tid:
         fail("Chưa liên kết mã đội cho tài khoản.")
-    vc=[x for x in read_sheet("VAN_CHUYEN") if x.get("Mã đội VC")==tid and x.get("Trạng thái")!="Đã giao hàng"]
-    ld=[x for x in read_sheet("LAP_DAT") if x.get("Mã đội KTV")==tid and x.get("Trạng thái")!="Đã lắp đặt"]
-    available=sorted(set((r["Mã dự án"],r["Mã điểm"]) for r in vc+ld))
+    if st.button("🔄 CẬP NHẬT HÀNG VC ĐÃ GIAO",use_container_width=True,
+                 key="team_report_refresh"):
+        read_sheet.clear()
+        st.rerun()
+    all_vc=read_sheet("VAN_CHUYEN")
+    all_ld=read_sheet("LAP_DAT")
+    vc=[x for x in all_vc if x.get("Mã đội VC")==tid
+        and x.get("Trạng thái")!="Đã giao hàng"]
+    ld=[x for x in all_ld if x.get("Mã đội KTV")==tid
+        and x.get("Trạng thái")!="Đã lắp đặt"]
+    handover=installer_handover(tid,all_ld,all_vc,
+                                read_sheet("DANH_SACH_DIEM"))
+    status_by_site={(r["project"],r["point_id"]):r for r in handover}
+    if handover:
+        st.markdown("### 📦 VC đã giao hàng – Sẵn sàng lắp đặt")
+        st.caption("Chỉ các địa điểm được giao cho đội LĐ này. "
+                   "Số liệu VC được đối chiếu theo từng SKU và SL THỰC GIAO; "
+                   "phân bổ hàng chưa phải đã giao hàng.")
+        c1,c2=st.columns(2)
+        c1.metric("Sẵn sàng lắp",
+                  sum(r["status"]=="Sẵn sàng lắp" for r in handover))
+        c2.metric("Chưa sẵn sàng",
+                  sum(r["status"] in ("Chưa giao","Đã giao một phần",
+                                      "Cần đối soát") for r in handover))
+        labels=["Tất cả","Sẵn sàng lắp","Đã giao một phần",
+                "Chưa giao","Cần đối soát","Đã lắp xong"]
+        kind=st.selectbox("Lọc trạng thái hàng VC",labels,
+                          key="team_handover_filter")
+        shown=[r for r in handover if kind=="Tất cả" or r["status"]==kind]
+        if shown:
+            st.dataframe([{
+                "Địa điểm":r["name"],"Dự án":r["project"],
+                "VC đã giao":r["status"],
+                "SKU phải lắp":r["sku_count"]
+            } for r in shown],hide_index=True,use_container_width=True)
+            detail=st.selectbox(
+                "Xem SL hàng VC đã giao tại một điểm",
+                list(range(len(shown))),
+                format_func=lambda i:shown[i]["name"]+" • "+shown[i]["status"],
+                key="team_handover_details")
+            info=shown[detail]
+            st.write("**"+info["name"]+"** • "+info["project"])
+            st.dataframe([{
+                "SKU":v["sku"],"Cần lắp":v["need"],
+                "VC thực giao":v["delivered"],"LĐ đã lắp":v["installed"],
+                "Đủ hàng":"Có" if v["delivery_ready"] else "Chưa"
+            } for v in info["details"]],hide_index=True,use_container_width=True)
+            for row in info["details"]:
+                if row["issues"]:
+                    st.warning(row["sku"]+": "+"; ".join(row["issues"]))
+        else:
+            st.info("Không có địa điểm trong trạng thái vừa lọc.")
+        st.divider()
+    available=sorted(
+        set((r["Mã dự án"],r["Mã điểm"]) for r in vc+ld),
+        key=lambda k:(0 if status_by_site.get(k,{}).get("ready") else 1,k))
     if not available:
         st.info("Đội chưa được giao nhiệm vụ hoặc đã báo cáo hết.")
         return
-    locs={p.get("Mã điểm"):p.get("Tên xã/phường/đơn vị") for p in read_sheet("DANH_SACH_DIEM")}
-    chosen=st.selectbox("Điểm được giao",available,
-        format_func=lambda x:f"{x[0]} • {locs.get(x[1],x[1])}")
+    locs={p.get("Mã điểm"):p.get("Tên xã/phường/đơn vị")
+          for p in read_sheet("DANH_SACH_DIEM")}
+    def site_option(key):
+        name=locs.get(key[1],key[1])
+        summary=status_by_site.get(key)
+        suffix=" • "+summary["status"] if summary else ""
+        return f"{key[0]} • {name}{suffix}"
+    chosen=st.selectbox("Điểm được giao để báo cáo",available,
+                         format_func=site_option)
     vrows=[r for r in vc if (r["Mã dự án"],r["Mã điểm"])==chosen]
     lrows=[r for r in ld if (r["Mã dự án"],r["Mã điểm"])==chosen]
     modes=(["Đã giao hàng"] if vrows else [])+(["Đã lắp đặt"] if lrows else [])
     if vrows and lrows:
-        modes.append("Giao & lắp đặt xong")
+        st.caption("Đội VC+LĐ báo GIAO HÀNG trước, sau khi đã xác nhận "
+                   "giao đủ mới được báo LẮP ĐẶT XONG. Hai bước lưu riêng.")
     mode=st.radio("Loại báo cáo",modes,horizontal=True)
+    if mode=="Đã lắp đặt" and not site_may_complete_installation(
+            chosen[0],chosen[1],lrows,all_vc):
+        st.warning("⛔ Điểm này chưa có xác nhận VC giao ĐỦ số lượng "
+                   "của tất cả SKU được giao lắp, hoặc đang cần đối soát. "
+                   "Đội LĐ có thể xem tình hình nhưng chưa được báo LẮP XONG.")
+        return
     targets=({"VAN_CHUYEN":vrows} if mode=="Đã giao hàng" else
              {"LAP_DAT":lrows} if mode=="Đã lắp đặt" else
              {"VAN_CHUYEN":vrows,"LAP_DAT":lrows})
@@ -1528,6 +1595,19 @@ def report():
                 if not current or current.get(team_col)!=tid or current.get("Mã dự án")!=chosen[0] or current.get("Mã điểm")!=chosen[1] or current.get("Trạng thái")==closed:
                     fail("Quyền báo cáo hoặc trạng thái nhiệm vụ đã thay đổi. Vui lòng tải lại.")
                 live.append((tab,current))
+        # Re-read live VC status before installation; no stale/cached approval.
+        if mode=="Đã lắp đặt":
+            read_sheet.clear()
+            fresh_ld=read_sheet("LAP_DAT")
+            fresh=[lookup(fresh_ld,"Mã nhiệm vụ LD",row["Mã nhiệm vụ LD"])
+                   for row in lrows]
+            if any(not row or row.get("Mã đội KTV")!=tid or
+                   row.get("Trạng thái")=="Đã lắp đặt" for row in fresh):
+                fail("Nhiệm vụ lắp đã đổi; không báo cáo. Hãy tải lại.")
+            if not site_may_complete_installation(
+                    chosen[0],chosen[1],fresh,read_sheet("VAN_CHUYEN")):
+                fail("Hàng VC chưa giao đủ hoặc chưa đối soát được; "
+                     "không thể xác nhận lắp đặt.")
         rid="BC-"+uuid.uuid4().hex[:16].upper()
         p=lookup(read_sheet("DANH_SACH_DIEM"),"Mã điểm",chosen[1]) or {}
         dest=p.get("Link Google Maps") or ("https://www.google.com/maps/search/?api=1&query="+quote(p.get("Tên xã/phường/đơn vị",chosen[1])))
