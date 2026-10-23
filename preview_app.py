@@ -344,6 +344,47 @@ def leadership_login():
     st.rerun()
 
 
+# Stable PREVIEW URL for staff home-screen shortcuts (no production changes).
+PREVIEW_HOME_URL = (
+    "https://quan-ly-trien-khai-qfzumkrq7escxbxpv9v9tr.streamlit.app"
+)
+
+
+def home_screen_guide(expanded=False):
+    """One-time device-owner shortcut setup; no silent install is possible."""
+    with st.expander("📲 ĐƯA APP RA MÀN HÌNH ĐIỆN THOẠI",expanded=expanded):
+        st.write("**Lưu biểu tượng QUẢN LÝ DỰ ÁN để mở app chỉ bằng một lần chạm.** "
+                 "Không cần quay lại Zalo tìm link. Việc tạo biểu tượng do "
+                 "chính chủ điện thoại xác nhận một lần.")
+        st.caption("Nếu đang xem link trong Zalo hoặc Facebook, hãy chọn "
+                   "Mở bằng trình duyệt / Mở trong Safari hoặc Chrome trước.")
+        ios,android=st.tabs(["🍎 iPhone","🤖 Android"])
+        with ios:
+            st.markdown(
+                "1. Mở app trong **Safari**.\n"
+                "2. Bấm **Chia sẻ** (biểu tượng ô vuông có mũi tên hướng lên).\n"
+                "3. Chọn **Thêm vào Màn hình chính**.\n"
+                "4. Đặt tên **QUẢN LÝ DỰ ÁN**; chọn **Mở dưới dạng ứng dụng web** "
+                "nếu máy có mục này, rồi bấm **Thêm**."
+            )
+        with android:
+            st.markdown(
+                "1. Mở app trong **Chrome**.\n"
+                "2. Bấm dấu **⋮** ở góc trên.\n"
+                "3. Chọn **Cài đặt và tạo lối tắt** hoặc **Thêm vào màn hình chính** "
+                "(một số phiên bản hiện **Cài đặt ứng dụng**).\n"
+                "4. Chọn **Tạo lối tắt / Thêm**, đặt tên "
+                "**QUẢN LÝ DỰ ÁN** nếu được hỏi."
+            )
+        st.info("Tạo biểu tượng **không tự cấp tài khoản**. Hồ sơ đăng ký "
+                "vẫn phải được ADMIN duyệt, cấp mật khẩu riêng và gán nhiệm vụ. "
+                "Đã cấp tài khoản thì có thể chọn ghi nhớ đăng nhập 30 ngày "
+                "trên thiết bị cá nhân.")
+        st.caption("Tên và hình biểu tượng thực tế tùy vào iOS/Android "
+                   "và cách Streamlit Cloud phục vụ trang web; "
+                   "bản PREVIEW chưa bảo đảm logo riêng khi cài.")
+
+
 def login(team_only=False):
     """Name-first team login or regular ADMIN login. PIN is always required."""
     if team_only:
@@ -436,6 +477,8 @@ def menu():
                      use_container_width=True,key="team_entry_button"):
             st.session_state["team_login_open"]=True
             st.rerun()
+        if not st.session_state.get("registered_notice"):
+            home_screen_guide(expanded=False)
         opts = ["🔐 Đăng nhập ADMIN / tài khoản khác",
                 "📝 Đăng ký tham gia"]
     elif a["role"] == "ADMIN":
@@ -483,6 +526,8 @@ def register(on_behalf=False):
     saved_notice = st.session_state.pop("registered_notice", None)
     if saved_notice:
         st.success(saved_notice)
+        if not on_behalf:
+            home_screen_guide(expanded=True)
     projects = [p for p in read_sheet("DANH_SACH_DU_AN")
                 if p.get("Mã dự án") and p.get("Tên dự án")]
     if not projects:
