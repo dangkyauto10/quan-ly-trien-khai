@@ -595,8 +595,7 @@ def register(on_behalf=False):
     project = st.selectbox("Dự án đăng ký *", options,
         format_func=lambda key: f"{key} — {project_names[key]}",
         key=f"register_project_{'admin' if on_behalf else 'public'}")
-    with st.form(f"registration_{'admin' if on_behalf else 'public'}_{revision}",
-                 clear_on_submit=True):
+    with st.form(f"registration_{'admin' if on_behalf else 'public'}_{revision}"):
         full_name = st.text_input("Họ và tên *", max_chars=120)
         phone = st.text_input("Điện thoại liên hệ (Zalo) *", max_chars=20)
         area_options = sorted({
