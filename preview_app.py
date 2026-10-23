@@ -43,6 +43,12 @@ from preview_allocation_groups import (
 from preview_leadership import build_progress, display_amount
 from preview_leader_access import leadership_username
 from preview_team_access import resolve_login_username, friendly_account_name
+from preview_team_access import normalized_name
+from preview_credential_accounts import (
+    team_accounts, visible_credential_state, next_account_id,
+    new_password, create_hash
+)
+from preview_remember import account_fingerprint
 from preview_handover import installer_handover, site_may_complete_installation
 from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label
 from preview_user_guide import GUIDE_URL, render_guide
@@ -87,8 +93,10 @@ def sync_remembered_login():
         key = remember_signing_key()
         cookie = cookie_controller.get(COOKIE_NAME)
         if key and cookie:
-            account = verify_remember_token(cookie, st.secrets.get("accounts", {}), key)
+            accounts=effective_accounts()
+            account = verify_remember_token(cookie, accounts, key)
             if account:
+                account["_fp"]=account_fingerprint(accounts[account["username"]])
                 st.session_state["auth"] = account
 
 
@@ -287,8 +295,24 @@ def pbkdf(pin, salt):
 def login_blocks():
     return {}
 
+
+def effective_accounts():
+    """Privileged credentials from Secrets only; team credentials from Sheet.
+
+    Invalid/missing sheet fails CLOSED for sheet-backed team users,
+    while existing ADMIN Secrets login remains available for recovery.
+    """
+    secrets_accounts = st.secrets.get("accounts", {})
+    try:
+        return team_accounts(secrets_accounts,
+                             read_sheet("TAI_KHOAN_DOI"),
+                             read_sheet("QUAN_LY_DOI"))
+    except Exception:
+        return dict(secrets_accounts)
+
+
 def valid_login(username, pin):
-    accounts = st.secrets.get("accounts", {})
+    accounts = effective_accounts()
     info = accounts.get(username)
     if not info:
         return None
@@ -303,7 +327,8 @@ def valid_login(username, pin):
     if valid:
         locks.pop(username, None)
         return {"username": username, "role": str(info["role"]).upper(),
-                "team_id": str(info.get("team_id", ""))}
+                "team_id": str(info.get("team_id", "")),
+                "_fp": account_fingerprint(info)}
     count = record["count"] + 1
     locks[username] = {"count": count, "until": time.time() + 900 if count >= 5 else 0}
     return None
@@ -430,8 +455,9 @@ def login(team_only=False):
             use_container_width=True)
     if not submitted:
         return
+    accounts=effective_accounts()
     username,reason=resolve_login_username(
-        typed,st.secrets.get("accounts",{}),read_sheet("QUAN_LY_DOI"))
+        typed,accounts,read_sheet("QUAN_LY_DOI"))
     if reason=="ambiguous":
         st.error("Có nhiều hồ sơ trùng tên hoặc thông tin không nhất quán. "
                  "Nhờ ADMIN kiểm tra, không đăng nhập nhầm tài khoản.")
@@ -440,7 +466,7 @@ def login(team_only=False):
         st.error("Họ tên hoặc tài khoản chưa được cấp quyền, hoặc thông tin "
                  "đăng nhập không hợp lệ. Vui lòng liên hệ ADMIN.")
         return
-    if team_only and str(st.secrets["accounts"][username].get("role","")).upper()!="DOI_TRUONG":
+    if team_only and str(accounts[username].get("role","")).upper()!="DOI_TRUONG":
         st.error("Chỉ tài khoản đội trưởng được dùng nút này.")
         return
     user=valid_login(username,pin)
@@ -450,7 +476,7 @@ def login(team_only=False):
     st.session_state["auth"]=user
     st.session_state["team_login_open"]=False
     if remember and remember_key:
-        account=st.secrets["accounts"][user["username"]]
+        account=accounts[user["username"]]
         st.session_state["_remember_token"]=issue_remember_token(
             user["username"],account,remember_key)
         st.session_state["_remember_action"]="set"
@@ -463,11 +489,19 @@ def auth():
     a = st.session_state.get("auth")
     if not a:
         return None
-    accounts = st.secrets.get("accounts", {})
-    cur = accounts.get(a["username"])
-    if not cur or str(cur.get("role", "")).upper() != a["role"]:
-        st.session_state.pop("auth", None)
+    cur = effective_accounts().get(a.get("username"))
+    if (not cur or str(cur.get("role","")).upper() != a.get("role")
+            or str(cur.get("team_id","")) != a.get("team_id")
+            or a.get("_fp") != account_fingerprint(cur)):
+        st.session_state.pop("auth",None)
         return None
+    if a["role"]=="DOI_TRUONG":
+        match=[t for t in read_sheet("QUAN_LY_DOI")
+               if t.get("Mã đội")==a.get("team_id") and
+               t.get("Trạng thái")=="Hoạt động"]
+        if len(match)!=1:
+            st.session_state.pop("auth",None)
+            return None
     return a
 
 def require_role(*roles):
