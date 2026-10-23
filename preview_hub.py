@@ -73,6 +73,34 @@ def hub_plan(team, chosen_points, install_rows, places, allocation_rows):
     return sorted(lines,key=lambda p:(p["name"].casefold(),p["sku"])),dict(summary)
 
 
+def verify_vc_assignment(lines, vc_team_id, vc_tasks):
+    """Confirm the signer team owns every projected transport SKU before hub receipt.
+
+    This closes the lifecycle gap: a hub receipt must be attributable to
+    the exact VC team, not just a free-text signer's name.
+    """
+    if not vc_team_id or not lines:
+        raise ValueError("Chưa xác định được đội VC bàn giao.")
+    for item in lines:
+        key=(item["project"],item["point_id"],item["sku"])
+        records=[r for r in vc_tasks
+                 if (r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))==key]
+        if len(records)!=1:
+            raise ValueError("Thiếu/trùng nhiệm vụ VC tại xã hoặc SKU: "+
+                             str(item["point_id"])+" / "+str(item["sku"]))
+        vc=records[0]
+        if vc.get("Mã đội VC")!=vc_team_id:
+            raise ValueError("SKU được giao cho đội VC khác: "+
+                             str(item["point_id"])+" / "+str(item["sku"]))
+        if (vc.get("Trạng thái")!="Chưa giao" or
+                str(vc.get("Mã báo cáo","")).strip() or
+                str(vc.get("SL thực tế","")).strip() or
+                q(vc.get("SL giao"))!=item["quantity"]):
+            raise ValueError("VC đã báo cáo hoặc định mức VC khác hợp đồng: "+
+                             str(item["point_id"])+" / "+str(item["sku"]))
+    return True
+
+
 def received_by_site(hub_rows, project, team_id):
     """Accepted proof only: signed paper reference + image + explicit site qty."""
     result=defaultdict(Decimal)
@@ -95,11 +123,12 @@ def received_by_site(hub_rows, project, team_id):
 
 
 def signed_receipt_lines(batch_id, team, lines, area, hub_name, hub_address,
-                         vc_sender, paper_number, image_url, stamp):
+                         vc_sender, paper_number, image_url, stamp,
+                         vc_team_id):
     """Create site/SKU-level signed receipt rows; no fake receipt without evidence."""
     if not all(str(x or "").strip() for x in
                (batch_id,area,hub_name,hub_address,vc_sender,
-                paper_number,image_url,stamp)):
+                paper_number,image_url,stamp,vc_team_id)):
         raise ValueError("Thiếu tên điểm tập kết, bên giao, số biên bản, ảnh ký hoặc thời gian.")
     if not lines:
         raise ValueError("Không có địa điểm nhận hàng.")
@@ -111,6 +140,7 @@ def signed_receipt_lines(batch_id, team, lines, area, hub_name, hub_address,
             hub_address,line["point_id"],line["name"],line["sku"],
             qty_label(line["quantity"]),qty_label(line["quantity"]),line["unit"],
             vc_sender,paper_number,image_url,stamp,ACCEPTED,
-            "Bàn giao tại điểm tập kết; KHÔNG ghi đã giao tận xã"
+            "Bàn giao tại điểm tập kết; KHÔNG ghi đã giao tận xã",
+            vc_team_id
         ])
     return result
