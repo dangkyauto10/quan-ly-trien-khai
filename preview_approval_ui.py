@@ -7,10 +7,18 @@ import streamlit as st
 from preview_registration import (
     role_for_specialty, team_id_from_registration, matching_teams
 )
+from preview_signup_credentials import (
+    pending_for_registration, approval_credential_requests
+)
+from preview_credential_accounts import (
+    visible_credential_state, next_account_id
+)
+from preview_team_access import normalized_name
 
 
 def approval_requests(registration_sheet_id, team_sheet_id, row_number,
-                      decision, team_row, team_id, approver, timestamp):
+                      decision, team_row, team_id, approver, timestamp,
+                      credential_changes=None):
     """Build one atomic Sheets batch for review and optional new team."""
     if decision not in ("Đã duyệt", "Từ chối") or row_number < 2:
         raise ValueError("Trạng thái hoặc dòng đăng ký không hợp lệ.")
@@ -48,11 +56,14 @@ def approval_requests(registration_sheet_id, team_sheet_id, row_number,
             "type":"DATE_TIME","pattern":"dd/mm/yyyy hh:mm"}}},
         "fields":"userEnteredFormat.numberFormat"
     }})
+    if credential_changes:
+        requests.extend(credential_changes)
     return requests
 
 
 def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
-                             lookup, sheet_datetime_serial):
+                             lookup, sheet_datetime_serial,
+                             secret_accounts, current_time):
     notice=st.session_state.pop("approval_notice",None)
     if notice:
         st.success(notice)
@@ -126,8 +137,17 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
                 st.error("Dự án không còn hợp lệ.")
                 continue
 
+            try:
+                pending=pending_for_registration(
+                    rid,project,read_sheet("MAT_KHAU_DANG_KY"))
+            except ValueError as exc:
+                st.error(str(exc))
+                continue
+
             tid=""
             new_team=None
+            credential_changes=[]
+            activated=False
             if decision=="Đã duyệt":
                 if role_for_specialty(live.get("Chuyên môn",""))!=kind:
                     st.error("Chuyên môn đăng ký đã đổi; không thể duyệt.")
@@ -139,6 +159,17 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
                     kind=kind,project=project)
                 if len(matches)>1:
                     st.error("Đội trùng tên, số điện thoại và dự án; cần đối soát.")
+                    continue
+                # Names are used as login identifiers. Do not approve a
+                # duplicate among active captains without resolving identity.
+                collisions=[t for t in teams if
+                    t.get("Trạng thái")=="Hoạt động"
+                    and normalized_name(t.get("Tên đội/đội trưởng"))==
+                        normalized_name(live.get("Họ tên"))]
+                if any(t not in matches for t in collisions):
+                    st.error("Đã có đội trưởng trùng họ tên đang hoạt động. "
+                             "ADMIN cần đối soát trước khi cấp tài khoản "
+                             "đăng nhập bằng tên.")
                     continue
                 tid=matches[0]["Mã đội"] if matches else team_id_from_registration(rid,kind)
                 existing=lookup(teams,"Mã đội",tid)
@@ -155,12 +186,43 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
                               kind,"","Hoạt động",project,
                               "Duyệt từ "+rid+"; chưa cấp đăng nhập"]
 
+            # Approving the registration activates the *already hashed*
+            # password from public signup. Old and ADMIN-assisted forms have
+            # no pending password and retain the manual provisioning path.
+            if pending and decision=="Đã duyệt":
+                credentials=read_sheet("TAI_KHOAN_DOI")
+                state,_=visible_credential_state(
+                    {"Mã đội":tid},credentials,secret_accounts)
+                if state!="missing":
+                    st.error("Đội trưởng đã có tài khoản. Không tạo tài khoản "
+                             "trùng; cần ADMIN đối soát trước khi duyệt.")
+                    continue
+                usernames={r.get("Mã tài khoản") for r in credentials}
+                usernames.update(secret_accounts.keys())
+                username=next_account_id(usernames)
+                hashed_account=[
+                    username,tid,project,"DOI_TRUONG",
+                    pending["Salt hex"],pending["Mã băm PBKDF2"],
+                    "Hoạt động",current_time(),auth()["username"],
+                    "Kích hoạt theo hồ sơ "+rid
+                ]
+                credential_changes=approval_credential_requests(
+                    sheet("MAT_KHAU_DANG_KY").id,
+                    sheet("TAI_KHOAN_DOI").id,
+                    pending,hashed_account)
+                activated=True
+            elif pending and decision=="Từ chối":
+                credential_changes=approval_credential_requests(
+                    sheet("MAT_KHAU_DANG_KY").id,
+                    sheet("TAI_KHOAN_DOI").id,pending,rejected=True)
+
             try:
                 request=approval_requests(
                     sheet("DANG_KY_THANH_VIEN").id,
                     sheet("QUAN_LY_DOI").id,
                     live["_row"],decision,new_team,tid,
-                    auth()["username"],sheet_datetime_serial())
+                    auth()["username"],sheet_datetime_serial(),
+                    credential_changes=credential_changes)
                 client()[0].batch_update({"requests":request})
                 read_sheet.clear()
                 audit(auth()["username"],"XÉT DUYỆT ĐỘI TRƯỞNG",
@@ -170,9 +232,11 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
                     st.session_state["approval_notice"]=(
                         f"Đã duyệt hồ sơ đội trưởng {live.get('Họ tên','')}. "
                         "Mã đội đã được lưu nội bộ để gán nhiệm vụ. "
-                        "Đội trưởng đăng nhập bằng HỌ TÊN + mật khẩu riêng "
-                        "sau khi ADMIN cấp tài khoản; chưa tự gán điểm, "
-                        "SKU hoặc số lượng.")
+                        +("Mật khẩu đã tự đặt khi đăng ký ĐÃ KÍCH HOẠT. "
+                          if activated else
+                          "Đây là hồ sơ cũ/ADMIN đăng ký hộ, cần ADMIN cấp "
+                          "mật khẩu riêng. ")
+                        +"Chưa tự gán điểm, SKU hoặc số lượng.")
                 else:
                     st.session_state["approval_notice"]=(
                         f"Đã cập nhật hồ sơ {rid} thành TỪ CHỐI. Không tạo đội.")
