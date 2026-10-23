@@ -1589,7 +1589,9 @@ def teams_and_approval():
                            f"KTV còn giữ hàng tập kết: "
                            f"{impact['custody_sites']} • "
                            f"VC đã bàn giao ở tập kết: "
-                           f"{impact['vc_hub_sites']}")
+                           f"{impact['vc_hub_sites']} • "
+                           f"Biên bản cũ thiếu mã VC: "
+                           f"{impact['unknown_hub_sites']}")
                 if impact["protected_details"]:
                     st.warning("Có hàng đã nhận, báo cáo hoặc chứng từ "
                                "cần xử lý bàn giao. Không tự giải phóng "
