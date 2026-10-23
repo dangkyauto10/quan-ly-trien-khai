@@ -5,6 +5,7 @@ for physical warehouse inventory. No writes and no personal contact details.
 """
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
+from preview_hub import received_by_site
 
 
 VC_DONE = "Đã giao hàng"
@@ -35,7 +36,7 @@ def site_label(site):
 
 
 def build_progress(project_id, projects, sites, receipts, allocations,
-                   transport, installs, reports, teams):
+                   transport, installs, reports, teams, hub_rows=None):
     """Return a consistent snapshot filtered by project (or 'Tất cả').
 
     Site delivered/installed counts require a matching status AND confirmed
@@ -56,6 +57,7 @@ def build_progress(project_id, projects, sites, receipts, allocations,
     rec=project_rows(receipts)
     rs=project_rows(reports)
     team_rows=project_rows(teams)
+    hub_rows=project_rows(hub_rows or [])
     name_by_team={r.get("Mã đội"):r.get("Tên đội/đội trưởng","")
                   for r in team_rows if r.get("Mã đội")}
 
@@ -114,6 +116,14 @@ def build_progress(project_id, projects, sites, receipts, allocations,
 
     vci=task_index(vc,"Mã nhiệm vụ VC","Mã đội VC",VC_DONE)
     ldi=task_index(ld,"Mã nhiệm vụ LD","Mã đội KTV",LD_DONE)
+    hub_index=defaultdict(Decimal)
+    for t in team_rows:
+        teamid=t.get("Mã đội")
+        project=t.get("Mã dự án")
+        if not teamid:
+            continue
+        for (p,pid,sku),v in received_by_site(hub_rows,project,teamid).items():
+            hub_index[(p,pid,sku,teamid)]+=v
 
     def accomplished(rows, done):
         value=Decimal("0")
@@ -134,20 +144,23 @@ def build_progress(project_id, projects, sites, receipts, allocations,
 
     by_point=defaultdict(list)
     totals=defaultdict(lambda:{"allocated":Decimal("0"),"vc":Decimal("0"),
-                                "ld":Decimal("0")})
+                                "hub":Decimal("0"),"ld":Decimal("0")})
     for key, amount in allocations_by_key.items():
         project, pid, sku=key
         vrows=vci.get(key,[])
         lrows=ldi.get(key,[])
         delivered=accomplished(vrows,VC_DONE)
         installed=accomplished(lrows,LD_DONE)
+        hub_total=sum((hub_index.get((project,pid,sku,r.get("Mã đội KTV")),
+                                      Decimal("0")) for r in lrows),Decimal("0"))
         totals[(project,sku)]["allocated"]+=amount
         totals[(project,sku)]["vc"]+=delivered
+        totals[(project,sku)]["hub"]+=hub_total
         totals[(project,sku)]["ld"]+=installed
         if amount>0:
             by_point[(project,pid)].append({
                 "sku":sku, "planned":amount,
-                "delivered":delivered, "installed":installed,
+                "delivered":delivered, "hub":hub_total, "installed":installed,
                 "vc_count":len(vrows),"ld_count":len(lrows),
                 "vc_assigned":any(r.get("Mã đội VC") for r in vrows),
                 "ld_assigned":any(r.get("Mã đội KTV") for r in lrows),
@@ -156,8 +169,10 @@ def build_progress(project_id, projects, sites, receipts, allocations,
                 "ld_team_names":sorted({name_by_team.get(r.get("Mã đội KTV"),r.get("Mã đội KTV"))
                                         for r in lrows if r.get("Mã đội KTV")})
             })
-        if delivered>amount or installed>amount or installed>delivered:
-            anomalies.append("Số lượng báo cáo vượt phân bổ/đã giao: "+str(key))
+        if (delivered>amount or hub_total>amount or installed>amount or
+                (delivered>0 and hub_total>0) or
+                (installed>max(delivered,hub_total))):
+            anomalies.append("Đối soát giao trực tiếp/tập kết/lắp: "+str(key))
 
     result_sites=[]
     for key,site in sorted(site_index.items(),key=lambda pair:
@@ -166,9 +181,14 @@ def build_progress(project_id, projects, sites, receipts, allocations,
         allocated=bool(skus)
         full_vc=allocated and all(x["vc_count"] and
                                   x["delivered"]>=x["planned"] for x in skus)
-        full_ld=full_vc and all(x["ld_count"] and
-                                x["installed"]>=x["planned"] for x in skus)
+        full_hub=allocated and all(x["hub"]>=x["planned"] for x in skus)
+        full_supply=allocated and all(
+            (x["delivered"]>=x["planned"] or x["hub"]>=x["planned"])
+            and not (x["delivered"]>0 and x["hub"]>0) for x in skus)
+        full_ld=full_supply and all(x["ld_count"] and
+                                    x["installed"]>=x["planned"] for x in skus)
         some_vc=any(x["delivered"]>0 for x in skus)
+        some_hub=any(x["hub"]>0 for x in skus)
         some_ld=any(x["installed"]>0 for x in skus)
         assigned_vc=any(x["vc_assigned"] for x in skus)
         assigned_ld=any(x["ld_assigned"] for x in skus)
@@ -176,10 +196,14 @@ def build_progress(project_id, projects, sites, receipts, allocations,
             status="Chưa phân bổ"
         elif full_ld:
             status="Đã lắp xong"
-        elif full_vc and some_ld:
+        elif full_supply and some_ld:
             status="Đang lắp đặt"
+        elif full_hub:
+            status="KTV đã nhận tại điểm tập kết"
         elif full_vc:
             status="Sẵn sàng lắp"
+        elif some_hub:
+            status="Đã tập kết một phần"
         elif some_vc:
             status="Đang giao hàng"
         elif assigned_vc or assigned_ld:
@@ -189,7 +213,9 @@ def build_progress(project_id, projects, sites, receipts, allocations,
         result_sites.append({
             "project":key[0],"point_id":key[1],"name":site_label(site),
             "status":status,"skus":skus,"sku_count":len(skus),
-            "delivery_full":bool(full_vc),"installation_full":bool(full_ld),
+            "delivery_full":bool(full_vc),"hub_received_full":bool(full_hub),
+            "supply_full":bool(full_supply),
+            "installation_full":bool(full_ld),
             "has_partial_delivery":bool(some_vc and not full_vc),
             "vc_done":sum(x["delivered"]>=x["planned"] and x["vc_count"]>0 for x in skus),
             "ld_done":sum(x["installed"]>=x["planned"] and x["ld_count"]>0 for x in skus),
@@ -211,7 +237,8 @@ def build_progress(project_id, projects, sites, receipts, allocations,
             "Nhập":display_amount(imported),
             "Phân bổ":display_amount(allocated),
             "Còn chờ phân bổ":display_amount(imported-allocated),
-            "VC đã báo giao":display_amount(values["vc"]),
+            "VC giao tận xã":display_amount(values["vc"]),
+            "KTV nhận tập kết":display_amount(values["hub"]),
             "LĐ đã báo lắp":display_amount(values["ld"])
         })
 
@@ -219,6 +246,7 @@ def build_progress(project_id, projects, sites, receipts, allocations,
     point_progress=len(result_sites)
     vc_complete=sum(p["delivery_full"] for p in result_sites)
     ld_complete=sum(p["installation_full"] for p in result_sites)
+    hub_complete=sum(p["hub_received_full"] for p in result_sites)
     unassigned_vc=sum(1 for row in vc if not row.get("Mã đội VC"))
     unassigned_ld=sum(1 for row in ld if not row.get("Mã đội KTV"))
     delivery_tasks=sum(r.get("Trạng thái")==VC_DONE for r in vc)
@@ -232,8 +260,9 @@ def build_progress(project_id, projects, sites, receipts, allocations,
             "sites":point_progress,
             "sites_allocated":sum(bool(p["sku_count"]) for p in result_sites),
             "sites_delivered":vc_complete,
+            "sites_at_hub":hub_complete,
             "sites_installed":ld_complete,
-            "sites_ready_install":sum(p["delivery_full"] and
+            "sites_ready_install":sum(p["supply_full"] and
                                        not p["installation_full"] for p in result_sites),
             "vc_tasks":len(vc),"vc_tasks_done":delivery_tasks,
             "ld_tasks":len(ld),"ld_tasks_done":install_tasks,
