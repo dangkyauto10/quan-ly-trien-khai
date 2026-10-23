@@ -67,6 +67,21 @@ class HubPlanningTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             verify_vc_assignment(plan,"VC01",partial)
 
+    def test_hub_empty_assignment_explains_workflow_and_navigates(self):
+        from pathlib import Path
+        source=(Path(__file__).resolve().parents[1]/
+                "preview_app.py").read_text(encoding="utf-8")
+        block=source[source.index("def hub_admin():"):
+                     source.index("def report():")]
+        self.assertIn("ĐẾN MỤC GIAO ĐỊA BÀN",block)
+        self.assertIn('st.session_state["_next_assignment_project"]=project',block)
+        self.assertIn('st.session_state["_next_menu"]="👥 Đăng ký & quản lý đội"',block)
+        self.assertIn('and not r.get("Mã đội KTV")',block)
+        menu=source[source.index("def menu():"):
+                    source.index("def register(")]
+        self.assertIn('destination=st.session_state.pop("_next_menu",None)',menu)
+        self.assertIn('st.session_state["site_assign_project"]=project_to_assign',menu)
+
     def test_outside_contract_location_rejected(self):
         with self.assertRaises(ValueError):
             hub_plan(TEAM,["P3"],LD,PLACES,ALLOC)
