@@ -37,6 +37,10 @@ def resolve_login_username(typed, accounts, teams):
         tid for tid,rows in teams_by_id.items()
         if any(normalized_name(r.get("Tên đội/đội trưởng"))==needle for r in rows)
     }
+    # Never guess between two approved people with the same name,
+    # including one who does not yet have an account.
+    if len(matched_ids)>1:
+        return None,"ambiguous"
     ambiguous=False
     for username,info in accounts.items():
         if not isinstance(info,Mapping) or str(info.get("role","")).upper()!="DOI_TRUONG":
