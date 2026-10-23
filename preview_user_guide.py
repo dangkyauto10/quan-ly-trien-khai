@@ -187,10 +187,13 @@ def render_guide():
                      "và **địa điểm đã lắp xong** là ba chỉ tiêu khác nhau. "
                      "Bấm **CẬP NHẬT SỐ LIỆU** khi cần số liệu mới.")
         with st.expander("ADMIN xét duyệt và cấp quyền", expanded=True):
-            st.write("ADMIN đăng nhập tài khoản riêng → "
-                     "**👥 Đăng ký & quản lý đội** để duyệt hồ sơ; "
-                     "cấp tài khoản riêng theo quy trình bảo mật, "
-                     "sau đó gán địa bàn. Quyền xem **📊 Báo cáo tiến độ** "
+            st.write("ADMIN đăng nhập → mở **👥 Đăng ký & quản lý đội** "
+                     "→ duyệt hồ sơ → mở mục **🔐 CẤP / ĐẶT LẠI "
+                     "MẬT KHẨU ĐỘI TRƯỞNG** → chọn tên người đã duyệt "
+                     "→ xác nhận **CẤP MẬT KHẨU**. Mật khẩu mạnh "
+                     "chỉ hiện một lần: ADMIN sao chép và gửi riêng "
+                     "cho người nhận (không đăng nhóm Zalo). "
+                     "Sau đó gán địa bàn. Quyền xem **📊 Báo cáo tiến độ** "
                      "toàn dự án chỉ dành cho ADMIN và LÃNH ĐẠO.")
         st.info("Đội trưởng không xem báo cáo tiến độ tổng hợp của các đội khác.")
 
