@@ -46,8 +46,9 @@ from preview_team_access import resolve_login_username, friendly_account_name
 from preview_team_access import normalized_name
 from preview_credential_accounts import (
     team_accounts, visible_credential_state, next_account_id,
-    new_password, create_hash
+    new_password, create_hash, validate_custom_password
 )
+from preview_signup_credentials import registration_requests, pending_row
 from preview_remember import account_fingerprint
 from preview_handover import installer_handover, site_may_complete_installation
 from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label
@@ -594,7 +595,8 @@ def register(on_behalf=False):
     project = st.selectbox("Dự án đăng ký *", options,
         format_func=lambda key: f"{key} — {project_names[key]}",
         key=f"register_project_{'admin' if on_behalf else 'public'}")
-    with st.form(f"registration_{'admin' if on_behalf else 'public'}_{revision}"):
+    with st.form(f"registration_{'admin' if on_behalf else 'public'}_{revision}",
+                 clear_on_submit=True):
         full_name = st.text_input("Họ và tên *", max_chars=120)
         phone = st.text_input("Điện thoại liên hệ (Zalo) *", max_chars=20)
         area_options = sorted({
@@ -610,6 +612,16 @@ def register(on_behalf=False):
             ["Vận chuyển / Giao nhận", "KTV lắp đặt",
              "Vận chuyển & Lắp đặt", "Điều phối / Giám sát", "Kho vận / Hậu cứ"])
         vehicle = st.selectbox("Phương tiện", ["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
+        if not on_behalf:
+            st.markdown("#### 🔐 Tự đặt mật khẩu đăng nhập")
+            st.caption("Chọn một cụm từ dễ nhớ, từ 14 ký tự, có chữ và số. "
+                       "Không dùng ngày sinh, số điện thoại hoặc mật khẩu Zalo. "
+                       "Mật khẩu chỉ được lưu dưới dạng mã băm; "
+                       "chỉ dùng được sau khi ADMIN duyệt.")
+            desired_password=st.text_input(
+                "Mật khẩu tự chọn *",type="password",max_chars=128)
+            confirm_password=st.text_input(
+                "Nhập lại mật khẩu *",type="password",max_chars=128)
         st.caption("Khu vực tự khai chỉ để ADMIN tham khảo khi phân công. "
                    "Chỉ điểm được giao chính thức mới có thể báo cáo.")
         if st.form_submit_button("GỬI ĐĂNG KÝ" if not on_behalf else
@@ -618,6 +630,12 @@ def register(on_behalf=False):
             described_areas = ", ".join(area + ([area_other.strip()] if area_other.strip() else []))
             if len(full_name.strip()) < 3 or len(normalized_phone) not in (9,10,11):
                 st.error("Vui lòng kiểm tra họ tên và số điện thoại (9–11 chữ số).")
+            elif not on_behalf and desired_password!=confirm_password:
+                st.error("Hai lần nhập mật khẩu chưa giống nhau.")
+            elif not on_behalf and validate_custom_password(
+                    desired_password,full_name,normalized_phone):
+                st.error(validate_custom_password(
+                    desired_password,full_name,normalized_phone))
             elif not described_areas:
                 st.error("Hãy chọn hoặc ghi ít nhất một khu vực đã hợp đồng.")
             elif project not in [p["Mã dự án"] for p in read_sheet("DANH_SACH_DU_AN")]:
@@ -638,15 +656,28 @@ def register(on_behalf=False):
                     submitter = ("ADMIN:" + acting_admin["username"]) if acting_admin else "Tự đăng ký"
                     try:
                         date_serial = sheet_datetime_serial()
-                        sheet("DANG_KY_THANH_VIEN").append_row(
-                            [rid, date_serial, full_name.strip(),
-                             normalized_phone, described_areas, specialty, vehicle,
-                             "Chờ duyệt", "", "", "", project, submitter],
-                            value_input_option="RAW")
+                        registration=[rid, date_serial, full_name.strip(),
+                                      normalized_phone,described_areas,
+                                      specialty,vehicle,"Chờ duyệt",
+                                      "","","",project,submitter]
+                        if on_behalf:
+                            sheet("DANG_KY_THANH_VIEN").append_row(
+                                registration,value_input_option="RAW")
+                            notice="ADMIN cần cấp mật khẩu riêng sau khi duyệt."
+                        else:
+                            pending=pending_row(rid,project,desired_password,now())
+                            # One atomic Sheets request: no registration without
+                            # its corresponding salted password hash.
+                            batch=registration_requests(
+                                sheet("DANG_KY_THANH_VIEN").id,
+                                sheet("MAT_KHAU_DANG_KY").id,
+                                registration,pending)
+                            client()[0].batch_update({"requests":batch})
+                            notice=("Mật khẩu đã được lưu an toàn dưới dạng mã "
+                                    "băm. Chỉ đăng nhập được sau khi ADMIN duyệt.")
                         read_sheet.clear()
                         st.session_state["registered_notice"] = (
-                            f"Đã nhận hồ sơ {rid} — đang chờ ADMIN duyệt. "
-                            "Hồ sơ chưa được cấp quyền báo cáo.")
+                            f"Đã nhận hồ sơ {rid} — đang chờ ADMIN duyệt. "+notice)
                         st.session_state["registration_form_revision"] = revision + 1
                         st.rerun()
                     except Exception as e:
