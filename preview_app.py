@@ -39,6 +39,7 @@ from preview_allocation_groups import (
     match_contract_locations, read_contract_locations_excel, preview_basket
 )
 from preview_leadership import build_progress, display_amount
+from preview_leader_access import leadership_username
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
@@ -289,6 +290,57 @@ def valid_login(username, pin):
     locks[username] = {"count": count, "until": time.time() + 900 if count >= 5 else 0}
     return None
 
+def leadership_login():
+    """One-button entry for a dedicated read-only leadership identity."""
+    st.subheader("📊 LÃNH ĐẠO – XEM BÁO CÁO")
+    st.caption("Chỉ cần nhập mật khẩu để xem tiến độ. "
+               "Không cần mã tài khoản hoặc chọn chức năng.")
+    if st.button("← Trở về trang chính",key="leader_login_back"):
+        st.session_state["leader_login_open"] = False
+        st.rerun()
+    username = leadership_username(
+        st.secrets.get("accounts", {}),
+        st.secrets.get("leader_login_username", "")
+    )
+    if not username:
+        st.warning("Chưa cấu hình tài khoản riêng cho LÃNH ĐẠO. "
+                   "ADMIN cần tạo tài khoản vai trò LANH_DAO trong Secrets. "
+                   "Không dùng chung tài khoản ADMIN.")
+        return
+    key = remember_signing_key()
+    with st.form("leader_password_only",clear_on_submit=True):
+        password = st.text_input("Mật khẩu Lãnh đạo",
+                                  type="password")
+        remember = st.checkbox(
+            "Ghi nhớ đăng nhập trên thiết bị này (30 ngày)",
+            value=False,disabled=not bool(key),
+            help="Chỉ tích trên điện thoại hoặc máy tính cá nhân, không "
+                 "sử dụng ở thiết bị công cộng hoặc dùng chung."
+        )
+        if not key:
+            st.caption("Cần ADMIN cấu hình remember_login_secret "
+                       "để sử dụng ghi nhớ đăng nhập.")
+        submitted=st.form_submit_button("🔓 XEM BÁO CÁO",
+                                        use_container_width=True)
+    if not submitted:
+        return
+    account=valid_login(username,password)
+    if not account or account.get("role")!="LANH_DAO":
+        st.error("Mật khẩu không đúng hoặc tài khoản đang tạm khóa.")
+        return
+    # No password or PIN is written into browser cookies or session state.
+    st.session_state["auth"]=account
+    st.session_state["leader_login_open"]=False
+    if remember and key:
+        info=st.secrets["accounts"][username]
+        st.session_state["_remember_token"]=issue_remember_token(
+            username,info,key)
+        st.session_state["_remember_action"]="set"
+    else:
+        st.session_state["_remember_action"]="remove"
+    st.rerun()
+
+
 def login():
     with st.form("login_form_preview"):
         username = st.text_input("Mã tài khoản")
@@ -337,13 +389,28 @@ def menu():
     sync_remembered_login()
     a = auth()
     if not a:
+        if st.session_state.get("leader_login_open"):
+            return "__LEADERSHIP_LOGIN__"
+        if st.button("📊 LÃNH ĐẠO – XEM BÁO CÁO",
+                     type="primary",use_container_width=True,
+                     key="leader_entry_button"):
+            st.session_state["leader_login_open"]=True
+            st.rerun()
         opts = ["🔐 Đăng nhập", "📝 Đăng ký tham gia"]
     elif a["role"] == "ADMIN":
         opts = ["📊 Báo cáo tiến độ", "📁 Dự án/Điểm/Nhập kho", "📦 Phân bổ",
                 "👥 Đăng ký & quản lý đội", "📝 Đăng ký hộ đội trưởng",
                 "📋 Báo cáo nhiệm vụ", "🗺️ Tìm đường"]
     elif a["role"] == "LANH_DAO":
-        opts = ["📊 Báo cáo tiến độ", "🗺️ Tìm đường"]
+        # Executive landing is always the read-only progress view.
+        st.caption("📊 LÃNH ĐẠO • Chế độ chỉ xem")
+        if st.button("🚪 ĐĂNG XUẤT",use_container_width=True,
+                     key="leader_logout"):
+            st.session_state.pop("auth",None)
+            st.session_state["leader_login_open"]=False
+            st.session_state["_remember_action"]="remove"
+            st.rerun()
+        return "📊 Báo cáo tiến độ"
     elif a["role"] == "DOI_TRUONG":
         opts = ["📋 Báo cáo nhiệm vụ", "🗺️ Tìm đường"]
     else:
@@ -1638,7 +1705,8 @@ def dashboard():
 def main():
     try:
         view=menu()
-        if view=="🔐 Đăng nhập":login()
+        if view=="__LEADERSHIP_LOGIN__":leadership_login()
+        elif view=="🔐 Đăng nhập":login()
         elif view=="📝 Đăng ký tham gia":register()
         elif view=="📝 Đăng ký hộ đội trưởng":register(on_behalf=True)
         elif view=="🗺️ Tìm đường":directions()
