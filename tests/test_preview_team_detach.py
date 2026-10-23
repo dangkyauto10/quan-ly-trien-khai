@@ -71,21 +71,28 @@ class CascadeTests(unittest.TestCase):
         self.assertFalse(plan["review"])
         changes=detach_requests(plan,SHEETS,"2026-10-23")
         self.assertEqual(len(changes),6)
+        pending_updates=[r["repeatCell"] for r in changes if "repeatCell" in r]
+        self.assertEqual(len(pending_updates),2)
+        self.assertEqual({r["range"]["sheetId"] for r in pending_updates},
+                         {SHEETS["VAN_CHUYEN"],SHEETS["LAP_DAT"]})
+        self.assertTrue(all(r["range"]["startColumnIndex"]==6 and
+                            r["range"]["endColumnIndex"]==7 and
+                            r["cell"]["userEnteredValue"]["stringValue"]==""
+                            for r in pending_updates))
         cell_values=[]
         for r in changes:
+            if "updateCells" not in r:
+                continue
             c=r["updateCells"]
             cell_values.append((
                 c["range"]["sheetId"],c["range"]["startColumnIndex"],
                 c["rows"][0]["values"][0]["userEnteredValue"]["stringValue"]))
-        self.assertIn((SHEETS["VAN_CHUYEN"],6,""),cell_values)
-        self.assertIn((SHEETS["LAP_DAT"],6,""),cell_values)
         self.assertIn((SHEETS["QUAN_LY_DOI"],5,DETACHED),cell_values)
         self.assertIn((SHEETS["TAI_KHOAN_DOI"],6,DETACHED),cell_values)
         self.assertIn((SHEETS["LIEN_KET_DANG_KY_DOI"],3,DETACHED),cell_values)
         # Absolutely no physical stock/point allocation adjustment.
         self.assertNotIn("KHO_PHAN_BO",SHEETS)
-        self.assertTrue(all(x["updateCells"]["range"]["startColumnIndex"]==6
-                            for x in changes[:2]))
+        self.assertEqual(len(pending_updates),2)
 
     def test_completed_proof_not_removed_and_team_needs_reconciliation(self):
         closed={**VC,"Trạng thái":"Đã giao hàng",
@@ -100,8 +107,9 @@ class CascadeTests(unittest.TestCase):
                          SHEETS["QUAN_LY_DOI"])
         self.assertEqual(team_change["rows"][0]["values"][0]
                          ["userEnteredValue"]["stringValue"],NEEDS_REVIEW)
-        self.assertFalse(any(x["updateCells"]["range"]["sheetId"]==
-                             SHEETS["VAN_CHUYEN"] for x in changes))
+        self.assertFalse(any(
+            x.get("repeatCell",{}).get("range",{}).get("sheetId")==
+            SHEETS["VAN_CHUYEN"] for x in changes))
 
     def test_signed_hub_is_protected(self):
         signed={"Mã đội KTV nhận":TID,"Mã dự án":PROJECT,
