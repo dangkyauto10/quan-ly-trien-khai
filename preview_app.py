@@ -1549,6 +1549,65 @@ def teams_and_approval():
         read_sheet=read_sheet, sheet=sheet, client=client, auth=auth,
         audit=audit, lookup=lookup, sheet_datetime_serial=sheet_datetime_serial,
         secret_accounts=st.secrets.get("accounts",{}),current_time=now)
+    # Read-only impact preview: assess consequence BEFORE deleting an
+    # approved registration in Sheets; no task/stock/account writes.
+    links=[x for x in read_sheet("LIEN_KET_DANG_KY_DOI")
+           if x.get("Trạng thái liên kết")==LINK_ACTIVE]
+    with st.expander("🔎 XEM ẢNH HƯỞNG KHI XÓA ĐỘI TRƯỞNG",
+                     expanded=False):
+        st.caption("Chỉ mô phỏng bằng dữ liệu hiện tại, KHÔNG xóa. "
+                   "ADMIN thấy nhiệm vụ nào có thể giao lại ngay, "
+                   "nhiệm vụ nào phải bàn giao thực tế/đối soát trước. "
+                   "Hàng phân bổ cho xã luôn giữ nguyên.")
+        if not links:
+            st.info("Chưa có đội nào gắn được với hồ sơ đăng ký. "
+                    "Các đội nhập thủ công/cũ phải đối chiếu riêng.")
+        else:
+            all_teams=read_sheet("QUAN_LY_DOI")
+            by_code={(t.get("Mã dự án"),t.get("Mã đội")):t for t in all_teams}
+            selected=st.selectbox(
+                "Chọn đội trưởng để xem tác động",
+                links,
+                format_func=lambda link:(
+                    by_code.get((link.get("Mã dự án"),link.get("Mã đội")),{})
+                    .get("Tên đội/đội trưởng","Đội trưởng")+
+                    " • "+str(link.get("Mã dự án",""))),
+                key="admin_detach_impact_team")
+            try:
+                impact=plan_detach(
+                    selected,all_teams,read_sheet("TAI_KHOAN_DOI"),
+                    read_sheet("VAN_CHUYEN"),read_sheet("LAP_DAT"),
+                    read_sheet("BAO_CAO_TRIEN_KHAI"),
+                    read_sheet("BAN_GIAO_TAP_KET"))
+                c1,c2=st.columns(2)
+                c1.metric("SKU-nhiệm vụ trả chờ giao",
+                          len(impact["pending_tasks"]))
+                c2.metric("Nhiệm vụ/chứng từ giữ đối soát",
+                          len(impact["protected_tasks"]))
+                st.caption(f"Địa điểm có việc trả về: "
+                           f"{impact['released_sites']} • "
+                           f"Địa điểm có hàng KTV giữ tại tập kết: "
+                           f"{impact['custody_sites']}")
+                if impact["protected_details"]:
+                    st.warning("Có hàng đã nhận, báo cáo hoặc chứng từ "
+                               "cần xử lý bàn giao. Không tự giải phóng "
+                               "trách nhiệm KTV đang giữ hàng.")
+                display=impact["pending_details"]+impact["protected_details"]
+                if display:
+                    st.dataframe([{
+                        "Công đoạn":r["table"],"Mã điểm":r["point_id"],
+                        "SKU":r["sku"],"SL nhiệm vụ":r["quantity"],
+                        "Xử lý":r["state"],
+                        "Lý do":r.get("reason","")
+                    } for r in display],
+                        hide_index=True,use_container_width=True,height=230)
+                else:
+                    st.info("Đội chưa có nhiệm vụ VC/LĐ cần xử lý.")
+                st.caption("Nếu V xóa hồ sơ ở Google Sheets, ADMIN "
+                           "mở/làm mới app sẽ đối soát theo bảng liên kết; "
+                           "báo cáo đã hoàn tất và KHO_PHAN_BO giữ nguyên.")
+            except ValueError as exc:
+                st.error("Liên kết hoặc đội chưa hợp lệ: "+str(exc))
     provision_team_password()
     st.caption("Chỉ quản lý đội trưởng. Thành viên của đội do đội trưởng tự quản lý.")
     with st.expander("➕ Thêm đội trưởng thủ công (không phải gán nhiệm vụ)", expanded=False):
