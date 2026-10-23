@@ -135,7 +135,7 @@
 
 ## 🔐 Đội trưởng TỰ ĐẶT MẬT KHẨU khi đăng ký (PREVIEW)
 
-- **Luồng mới:** Đội trưởng mở **📝 Đăng ký tham gia**, nhập họ tên/số điện thoại/dự án/địa bàn, rồi tự nhập **Mật khẩu tự chọn** và **Nhập lại mật khẩu**. Gợi ý dùng một cụm từ dễ nhớ **14–128 ký tự có chữ và số**, tránh tên, số điện thoại và các chuỗi dễ đoán. Khi xác nhận, app **không ghi mật khẩu nguyên văn** vào bất kỳ bảng nào.
+- **Luồng mới:** Đội trưởng mở **📝 Đăng ký tham gia**, nhập họ tên/số điện thoại/dự án/địa bàn, rồi tự nhập **Mật khẩu tự chọn** và **Nhập lại mật khẩu**. Gợi ý dùng một cụm từ dễ nhớ **10–128 ký tự có chữ và số**, tránh tên, số điện thoại và các chuỗi dễ đoán. Khi xác nhận, app **không ghi mật khẩu nguyên văn** vào bất kỳ bảng nào.
 - Trong **cùng một lần ghi Google Sheets**, hệ thống tạo bản ghi DANG_KY_THANH_VIEN trạng thái Chờ duyệt và MAT_KHAU_DANG_KY gồm mã hồ sơ/dự án + salt ngẫu nhiên + mã băm PBKDF2-SHA256 (390.000 vòng) + trạng thái Chờ duyệt. Chưa có tài khoản đăng nhập và chưa gán nhiệm vụ.
 - ADMIN vào **👥 Đăng ký & quản lý đội**, chọn **Đã duyệt** sau khi đối chiếu hồ sơ. Cùng một lệnh Sheets, app tạo/ghép đội, tạo tài khoản DOI_TRUONG trong bảng TAI_KHOAN_DOI với **mã băm do chính người dùng đã tạo**, cập nhật hồ sơ Đã duyệt và dọn salt/hash khỏi bản chờ, đánh dấu Đã kích hoạt. Sau đó ADMIN gán địa bàn; người dùng đăng nhập bằng **họ tên + mật khẩu đã chọn**. ADMIN không cần gửi mật khẩu riêng.
 - Nếu chọn **Từ chối**, mã băm trong MAT_KHAU_DANG_KY được xóa, đánh dấu Đã từ chối, không tạo tài khoản. Nếu hash chờ bị thiếu/trùng/sai dự án, trạng thái không thể kích hoạt và cần ADMIN đối soát; không cấp quyền mặc định.
@@ -143,3 +143,9 @@
 - **Quyền:** tài khoản ADMIN và LÃNH ĐẠO chỉ từ Streamlit Secrets; bảng tự đăng ký tuyệt đối không thể tạo quyền này. Cần giữ Google Sheet chứa mã băm chỉ cho ADMIN và service account, không cấp Editor/view nếu không có nhu cầu. Đây là triển khai thử trên PREVIEW, chưa phải hệ thống quản lý định danh phù hợp cho production.
 - **Lối tắt điện thoại:** trang đăng ký có mục bấm hướng dẫn 2 bước: iPhone (Zalo → Safari → Chia sẻ → Thêm vào màn hình chính); Android (Zalo → Chrome → ⋮ → Cài đặt và tạo lối tắt → Thêm). Các bước do chính chủ điện thoại xác nhận; website không thể tự cài icon.
 - Chưa nghiệm thu thực tế trên điện thoại và chưa có chức năng tự gửi tin nhắn xác minh số điện thoại. ADMIN **phải kiểm tra người đăng ký** trước khi duyệt. Tuyệt đối không gửi hay lưu mật khẩu rõ trong ảnh Zalo, trong Sheets hoặc nhật ký GitHub.
+
+### Bổ sung PREVIEW: mật khẩu tự chọn dễ nhớ (10 ký tự) và nhập hộ
+
+- Khi đội trưởng đăng ký mới trên điện thoại, nhập mật khẩu **tự chọn từ 10–128 ký tự, có chữ và số**, nhập lần hai để xác nhận. Mật khẩu bị từ chối nếu quá ngắn, trùng họ tên/số điện thoại hoặc chứa các mẫu dễ đoán. Hệ thống không ép dùng mã ngẫu nhiên 18 ký tự.
+- Với người **đã đăng ký / đã được duyệt trước phiên bản này**, không cho nộp lại hồ sơ để đổi mật khẩu. ADMIN vào **👥 Đăng ký & quản lý đội → 🔐 CẤP / ĐẶT LẠI MẬT KHẨU**, chọn người, chọn **Đội trưởng đề nghị / ADMIN nhập hộ** (hoặc **Hệ thống tự tạo**), nhập mật khẩu theo đề nghị hai lần rồi xác nhận. Mật khẩu cũ và phiên ghi nhớ cũ bị vô hiệu hóa sau thay đổi.
+- Chỉ mã băm/salt được lưu ở TAI_KHOAN_DOI. Mật khẩu rõ không gửi lên Google Sheets, không ghi nhật ký, không nhúng mã nguồn. Giữ kiểm tra quyền ADMIN và trạng thái đội đã duyệt.
