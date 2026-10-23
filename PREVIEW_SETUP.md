@@ -75,3 +75,15 @@
 - DM_CHUAN hiện là nhật ký phân bổ, KHÔNG phải danh mục định mức độc lập lấy từ hồ sơ thầu. ADMIN cần đối chiếu bản gốc trước khi ghi.
 - Giới hạn 3.000 dòng điểm×SKU/đợt trong PREVIEW; nhiều hơn thì chia nhóm, không cho vượt tồn hoặc phân bổ trùng.
 - Phân bổ khởi tạo nhiệm vụ VC/LĐ chứ chưa phải xuất kho hay đã giao hàng. Chỉ một ADMIN phân bổ tại một thời điểm; dữ liệu PREVIEW cần nghiệm thu trước sản xuất.
+
+## Truy cập nhanh cho LÃNH ĐẠO — chỉ mật khẩu (PREVIEW)
+
+- Trang chưa đăng nhập có nút lớn **📊 LÃNH ĐẠO – XEM BÁO CÁO**. Bấm nút → nhập **Mật khẩu Lãnh đạo** → vào thẳng báo cáo tiến độ chỉ đọc, không gõ mã tài khoản, không chọn chức năng.
+- Trên form có dấu tích **Ghi nhớ đăng nhập trên thiết bị này (30 ngày)**. Chỉ sử dụng thiết bị cá nhân; dùng cơ chế cookie ký HMAC hiện có, KHÔNG ghi PIN/mật khẩu trong cookie.
+- Cần tối thiểu một tài khoản riêng `[accounts.leader_preview]` với `role = "LANH_DAO"`, salt và PBKDF2 hash mạnh trong **Streamlit Secrets**. Không tạo quyền LÃNH ĐẠO bằng cách dùng tài khoản ADMIN, không nhúng mã PIN hay hash vào repository.
+- Nếu chỉ có **một** tài khoản LANH_DAO trong Secrets, app tự tìm đúng tài khoản; nếu có nhiều tài khoản lãnh đạo, cấu hình thêm `leader_login_username = "leader_preview"` tại Secrets để chọn tài khoản dùng trên nút. Không có tài khoản hợp lệ thì nút chỉ thông báo cần cấu hình, không cấp quyền.
+- Ghi nhớ chỉ hoạt động khi đã có `remember_login_secret` đủ dài; việc đổi mật khẩu, salt, vai trò hoặc khóa ký sẽ vô hiệu cookie cũ.
+- Thử sai mật khẩu bị giới hạn theo cơ chế đăng nhập hiện có. LÃNH ĐẠO không có tùy chọn nhập kho, phân bổ, gán đội, duyệt hồ sơ hoặc báo cáo thay đội trưởng.
+- Có nút **ĐĂNG XUẤT** xóa cookie ghi nhớ; app sẽ yêu cầu mật khẩu ở lần tiếp theo.
+- Cần kiểm tra riêng trên iPhone/Android và máy tính: nhập mật khẩu một lần, bật Ghi nhớ, đóng tab và mở lại phải vào thẳng báo cáo; khi đăng xuất phải yêu cầu mật khẩu lại. Không coi CI là đã kiểm thử trình duyệt thực.
+
