@@ -55,6 +55,7 @@ from preview_team_detach import (
 )
 from preview_remember import account_fingerprint
 from preview_handover import installer_handover, site_may_complete_installation
+from preview_report_commit import (atomic_report_requests, pending_quantity, numeric)
 from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label, verify_vc_assignment
 from preview_user_guide import GUIDE_URL, render_guide
 from io import BytesIO
@@ -2224,6 +2225,7 @@ def report():
         fail("Chưa liên kết mã đội cho tài khoản.")
     if st.button("🔄 CẬP NHẬT HÀNG VC ĐÃ GIAO",use_container_width=True,
                  key="team_report_refresh"):
+        st.session_state.pop("_report_attempt_pending",None)
         read_sheet.clear()
         st.rerun()
     all_vc=read_sheet("VAN_CHUYEN")
@@ -2365,11 +2367,26 @@ def report():
         targets=({"VAN_CHUYEN":vrows} if mode=="Đã giao hàng" else
                  {"LAP_DAT":lrows} if mode=="Đã lắp đặt" else
                  {"VAN_CHUYEN":vrows,"LAP_DAT":lrows})
-        st.write("**Thiết bị và SLHH được giao**")
+        st.write("**NHẬP SL THỰC TẾ VỪA THỰC HIỆN – không tự lấy SL phân bổ**")
+        increments={}
         for tab,rows in targets.items():
             st.caption("VẬN CHUYỂN" if tab=="VAN_CHUYEN" else "LẮP ĐẶT")
+            id_key="Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
+            plan_key="SL giao" if tab=="VAN_CHUYEN" else "SL lắp"
             for r in rows:
-                st.write(f"{r['SKU']} — {r['SL giao' if tab=='VAN_CHUYEN' else 'SL lắp']}")
+                try:
+                    remaining=pending_quantity(r,mode)
+                except ValueError as exc:
+                    st.error(f"{r.get('SKU','')}: {exc}")
+                    return
+                st.caption(f"{r['SKU']} • Kế hoạch: {r.get(plan_key,'')} • "
+                           f"Đã ghi: {r.get('SL thực tế') or 0} • "
+                           f"Còn: {remaining:g}")
+                increments[r[id_key]]=st.number_input(
+                    f"SL vừa {('giao' if tab=='VAN_CHUYEN' else 'lắp')} – "
+                    f"{r['SKU']} ({r[id_key]})",
+                    min_value=0.0,max_value=float(remaining),value=0.0,
+                    step=1.0,format="%.3f",key=f"report_qty_{tab}_{r[id_key]}")
         photos=st.file_uploader("📷 Ảnh hiện trường (bắt buộc, tối đa 10)",
                                type=["jpg","jpeg","png"],accept_multiple_files=True)
         require_gps = mode!="Đã giao hàng"
@@ -2386,17 +2403,28 @@ def report():
             st.info("Cần ảnh và" + (" GPS check-in." if require_gps else " đúng số ảnh quy định."))
             return
         if st.button("✅ GỬI BÁO CÁO",type="primary",use_container_width=True):
+            if not any(v>0 for v in increments.values()):
+                st.error("Phải nhập SL thực tế vừa thực hiện lớn hơn 0.")
+                return
+            if st.session_state.get("_report_attempt_pending"):
+                st.error("Lần gửi trước chưa được đối soát. Bấm CẬP NHẬT HÀNG VC hoặc nhờ ADMIN kiểm tra trước khi gửi lại.")
+                return
             # Server-side recheck: never trust a selected team/name from browser.
             live=[]
             for tab, rows in targets.items():
-                all_rows=read_sheet(tab)
+                all_rows=read_sheet_live(tab)
                 id_col="Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
                 team_col="Mã đội VC" if tab=="VAN_CHUYEN" else "Mã đội KTV"
                 closed="Đã giao hàng" if tab=="VAN_CHUYEN" else "Đã lắp đặt"
                 for row in rows:
                     current=lookup(all_rows,id_col,row[id_col])
-                    if not current or current.get(team_col)!=tid or current.get("Mã dự án")!=chosen[0] or current.get("Mã điểm")!=chosen[1] or current.get("Trạng thái")==closed:
-                        fail("Quyền báo cáo hoặc trạng thái nhiệm vụ đã thay đổi. Vui lòng tải lại.")
+                    if (not current or current.get(team_col)!=tid or
+                            current.get("Mã dự án")!=chosen[0] or
+                            current.get("Mã điểm")!=chosen[1] or
+                            current.get("Trạng thái")==closed or
+                            current.get("Trạng thái")!=row.get("Trạng thái") or
+                            numeric(current.get("SL thực tế"))!=numeric(row.get("SL thực tế"))):
+                        fail("Quyền, SL thực tế hoặc trạng thái đã thay đổi. Vui lòng tải lại.")
                     live.append((tab,current))
             # Re-read live VC status before installation; no stale/cached approval.
             if mode=="Đã lắp đặt":
@@ -2415,12 +2443,13 @@ def report():
             if mode=="Đã giao hàng":
                 read_sheet.clear()
                 current_hub=read_sheet_live("BAN_GIAO_TAP_KET")
-                confirmed={(r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))
-                           for r in current_hub
+                confirmed={(r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"),
+                            r.get("Mã đội VC giao")) for r in current_hub
                            if r.get("Trạng thái")=="KTV đã nhận tại tập kết"
                            and r.get("Số biên bản giấy")
-                           and r.get("Link ảnh biên bản ký")}
-                if any((chosen[0],chosen[1],r.get("SKU")) in confirmed
+                           and r.get("Link ảnh biên bản ký")
+                           and r.get("Mã đội VC giao")}
+                if any((chosen[0],chosen[1],r.get("SKU"),tid) in confirmed
                        for r in vrows):
                     fail("Hàng đã được KTV ký nhận tại điểm tập kết. "
                          "Không báo giao tận xã lần thứ hai.")
@@ -2428,30 +2457,51 @@ def report():
             p=lookup(read_sheet("DANH_SACH_DIEM"),"Mã điểm",chosen[1]) or {}
             dest=p.get("Link Google Maps") or ("https://www.google.com/maps/search/?api=1&query="+quote(p.get("Tên xã/phường/đơn vị",chosen[1])))
             maps=(f"https://www.google.com/maps?q={lat},{lon}" if require_gps else dest)
-            sku_text=", ".join(f"{row['SKU']}:{row['SL giao' if tab=='VAN_CHUYEN' else 'SL lắp']}" for tab,row in live)
+            st.session_state["_report_attempt_pending"]=rid
             try:
                 urls=images_to_drive(photos,rid)
-                row_index=len(sheet("BAO_CAO_TRIEN_KHAI").get_all_values())+1
-                append("BAO_CAO_TRIEN_KHAI",[rid,now(),chosen[0],chosen[1],tid,mode,
-                    ", ".join(row["Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"] for tab,row in live),
-                    sku_text,", ".join(urls),maps,lat if lat is not None else "",lon if lon is not None else "",
-                    "Theo phân bổ","Cần đối soát","Đang cập nhật trạng thái"])
+                # All source rows are refreshed after photo upload. Business
+                # updates are issued together; no half-synced status/report.
+                read_sheet.clear()
+                vc_latest=read_sheet_live("VAN_CHUYEN")
+                ld_latest=read_sheet_live("LAP_DAT")
+                latest_by_tab={"VAN_CHUYEN":vc_latest,"LAP_DAT":ld_latest}
+                refreshed=[]
                 for tab,row in live:
-                    status="Đã giao hàng" if tab=="VAN_CHUYEN" else "Đã lắp đặt"
-                    sheet(tab).update(f"H{row['_row']}:N{row['_row']}",
-                      [[status,now(),", ".join(urls),maps,rid,
-                        row["SL giao" if tab=="VAN_CHUYEN" else "SL lắp"],""]],
-                      value_input_option="RAW")
-                sync_progress(chosen[0],chosen[1])
-                sheet("BAO_CAO_TRIEN_KHAI").update(
-                     f"N{row_index}:O{row_index}",[[READY,""]],value_input_option="RAW")
+                    key="Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
+                    current=lookup(latest_by_tab[tab],key,row[key])
+                    if (not current or
+                            current.get("Trạng thái")!=row.get("Trạng thái") or
+                            numeric(current.get("SL thực tế"))!=numeric(row.get("SL thực tế")) or
+                            current.get("Mã đội VC" if tab=="VAN_CHUYEN" else "Mã đội KTV")!=tid):
+                        raise ValueError("Nhiệm vụ thay đổi trong khi tải ảnh; tải lại và đối soát.")
+                    refreshed.append(current)
+                tabs=("BAO_CAO_TRIEN_KHAI","VAN_CHUYEN","LAP_DAT",
+                      "TIEN_DO","NHAT_KY_HE_THONG")
+                sheets={name:sheet(name).id for name in tabs}
+                prior=read_sheet_live("BAO_CAO_TRIEN_KHAI")
+                prior_ids={str(r.get("Mã báo cáo") or next(iter(r.values()),""))
+                           for r in prior}
+                requests,results=atomic_report_requests(
+                    sheets,rid,now(),a["username"],a["role"],tid,
+                    chosen[0],chosen[1],mode,refreshed,increments,
+                    urls,maps,lat,lon,vc_latest,ld_latest,
+                    read_sheet_live("TIEN_DO"),
+                    p.get("Tên xã/phường/đơn vị",chosen[1]),prior_ids)
+                client()[0].batch_update({"requests":requests})
                 read_sheet.clear()
-                audit(a["username"],"GỬI BÁO CÁO","BAO_CAO_TRIEN_KHAI",rid,"OK")
-                st.success("Đã gửi báo cáo và đồng bộ trạng thái thành công.")
-            except Exception as e:
+                st.session_state.pop("_report_attempt_pending",None)
+                st.success(f"Đã ghi {len(results)} nhiệm vụ theo SL THỰC TẾ. "
+                           "Báo cáo, trạng thái, tiến độ và nhật ký đã ghi cùng giao dịch.")
+            except ValueError as exc:
                 read_sheet.clear()
-                audit(a["username"],"GỬI BÁO CÁO","BAO_CAO_TRIEN_KHAI",rid,"CẦN ĐỐI SOÁT",type(e).__name__)
-                st.error(f"Chưa xác nhận được đồng bộ hoàn tất ({type(e).__name__}). Liên hệ Admin; không gửi lại liên tục.")
+                st.error("KHÔNG ghi số liệu: "+str(exc)+
+                         ". Cần đối soát trước khi gửi lại.")
+            except Exception as exc:
+                read_sheet.clear()
+                st.error("CHƯA XÁC NHẬN ĐƯỢC GIAO DỊCH ("+type(exc).__name__+
+                         "). KHÔNG bấm lại. ADMIN kiểm tra mã "+rid+
+                         " trong BAO_CAO_TRIEN_KHAI rồi mới thử tiếp.")
 
 def dashboard():
     """Read-only progress dashboard: strictly ADMIN / LANH_DAO."""
