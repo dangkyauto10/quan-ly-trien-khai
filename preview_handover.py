@@ -67,6 +67,7 @@ def installer_handover(team_id, ld_rows, vc_rows, place_rows, hub_rows=None):
         needs_check=False
         some_hub=False
         all_hub=True
+        has_installed_partial=False
         for row in assigned_rows:
             sku=row.get("SKU","")
             planned=quantity(row.get("SL lắp"))
@@ -111,7 +112,15 @@ def installer_handover(team_id, ld_rows, vc_rows, place_rows, hub_rows=None):
                 needs_check=True
                 issues.append("VC giao vượt số lượng giao cho đội lắp")
             installed=(row.get("Trạng thái")==DONE_LD)
-            actual_install=quantity(row.get("SL thực tế")) if installed else Decimal(0)
+            partial_install=row.get("Trạng thái")=="Đã lắp một phần"
+            actual_install=(quantity(row.get("SL thực tế"))
+                            if installed or partial_install else Decimal(0))
+            if partial_install:
+                if actual_install is None or actual_install<=0 or actual_install>=planned:
+                    needs_check=True
+                    issues.append("SL lắp một phần không hợp lệ")
+                else:
+                    has_installed_partial=True
             if installed and (actual_install is None or actual_install<planned):
                 needs_check=True
                 issues.append("Lắp đặt xong nhưng thiếu SL thực tế")
@@ -133,6 +142,8 @@ def installer_handover(team_id, ld_rows, vc_rows, place_rows, hub_rows=None):
             label="Cần đối soát"
         elif all_completed and all_ready:
             label="Đã lắp xong"
+        elif all_ready and details and has_installed_partial:
+            label="Đang lắp một phần"
         elif all_ready and details and all_hub and some_hub:
             label="Sẵn sàng lắp (tập kết)"
         elif all_ready and details:
@@ -147,9 +158,11 @@ def installer_handover(team_id, ld_rows, vc_rows, place_rows, hub_rows=None):
             "project":project,"point_id":point,
             "name":locations.get((project,point)) or point,
             "status":label,"sku_count":len(details),"details":details,
-            "ready":label in ("Sẵn sàng lắp","Sẵn sàng lắp (tập kết)")
+            "ready":label in ("Sẵn sàng lắp","Sẵn sàng lắp (tập kết)",
+                              "Đang lắp một phần")
         })
     order={"Sẵn sàng lắp":0,"Sẵn sàng lắp (tập kết)":0,
+           "Đang lắp một phần":0,
            "Đã giao một phần":1,"Đã tập kết một phần":1,
            "Cần đối soát":2,"Chưa giao":3,"Đã lắp xong":4}
     return sorted(result,key=lambda p:(order.get(p["status"],9),
@@ -171,4 +184,5 @@ def site_may_complete_installation(project, point, installer_tasks, all_vc,
     result=installer_handover(next(iter(tids)),selected,all_vc,[],
                               hub_rows=hub_rows)
     return bool(result and result[0]["status"] in (
-        "Sẵn sàng lắp","Sẵn sàng lắp (tập kết)"))
+        "Sẵn sàng lắp","Sẵn sàng lắp (tập kết)",
+        "Đang lắp một phần"))
