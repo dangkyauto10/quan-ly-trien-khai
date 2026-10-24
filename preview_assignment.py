@@ -264,7 +264,7 @@ def registered_site_suggestions(team, links, registrations, catalog):
     rid=str(active[0].get("Mã đăng ký") or "").strip()
     accepted=[row for row in registrations
               if row.get("Mã đăng ký")==rid
-              and row.get("Mã đội")==team_id
+              and row.get("Mã đội được gán")==team_id
               and row.get("Mã dự án đăng ký")==project
               and row.get("Trạng thái duyệt")=="Đã duyệt"]
     if len(accepted)!=1:
@@ -276,6 +276,8 @@ def registered_site_suggestions(team, links, registrations, catalog):
                 "note":"Hồ sơ chưa khai địa bàn; ADMIN chọn thủ công."}
     by_name={}
     for point_id,(location,_status,_counts) in catalog.items():
+        if location.get("Mã dự án")!=project:
+            continue
         name=normalized(location.get("Tên xã/phường/đơn vị"))
         if name:
             by_name.setdefault(name,[]).append(point_id)

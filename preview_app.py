@@ -2025,7 +2025,7 @@ def teams_and_approval():
             st.warning("Địa điểm đăng ký chưa khớp danh mục. ADMIN kiểm tra "
                        "và tự chọn đúng điểm trước khi xác nhận: "+
                        "; ".join(proposal["unmatched"]))
-        selection_key=f"site_assign_multi_{project}_{selected_team['Mã đội']}_{role_mode}"
+        selection_key=f"site_assign_multi_registered_v1_{project}_{selected_team['Mã đội']}_{role_mode}"
         if selection_key not in st.session_state:
             st.session_state[selection_key]=list(proposal["site_ids"])
         chosen=st.multiselect(
