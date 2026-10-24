@@ -46,6 +46,32 @@ class TeamCredentialTests(unittest.TestCase):
         self.assertEqual(resolve_login_username("Nguyễn Văn A",creds,[TEAM]),
                          ("tdv_internal1","ok"))
 
+    def test_same_name_requires_project_and_never_guesses(self):
+        twin={**TEAM,"Mã đội":"KTV-OTHER","Mã dự án":"DA-TEST01"}
+        credentials={"tdv_internal1":{"role":"DOI_TRUONG","team_id":TEAM_ID}}
+        people=[TEAM,twin]
+        self.assertEqual(resolve_login_username("Nguyễn Văn A",credentials,people),
+                         (None,"ambiguous"))
+        self.assertEqual(resolve_login_username(
+            "Nguyễn Văn A",credentials,people,project_id="DA880"),
+            ("tdv_internal1","ok"))
+        self.assertEqual(resolve_login_username(
+            "Nguyễn Văn A",credentials,people,project_id="DA-TEST01"),
+            (None,"missing"))
+        self.assertEqual(resolve_login_username(
+            "tdv_internal1",credentials,people,project_id="DA-TEST01"),
+            (None,"missing"))
+
+    def test_same_name_inside_one_project_still_ambiguous(self):
+        twin={**TEAM,"Mã đội":"KTV-OTHER"}
+        credentials={
+            "tdv_internal1":{"role":"DOI_TRUONG","team_id":TEAM_ID},
+            "tdv_internal2":{"role":"DOI_TRUONG","team_id":"KTV-OTHER"},
+        }
+        self.assertEqual(resolve_login_username(
+            "Nguyễn Văn A",credentials,[TEAM,twin],project_id="DA880"),
+            (None,"ambiguous"))
+
     def test_disabled_or_removed_team_revoked(self):
         self.assertNotIn("tdv_internal1",team_accounts({},[row()],[{
             **TEAM,"Trạng thái":"Tạm khóa"}]))
