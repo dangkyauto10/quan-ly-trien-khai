@@ -673,7 +673,7 @@ def register(on_behalf=False):
         vehicle = st.selectbox("Phương tiện", ["Xe máy", "Xe tải", "Xe bán tải", "Khác"])
         if not on_behalf:
             st.markdown("#### 🔐 Tự đặt mật khẩu đăng nhập")
-            st.caption("V tự chọn mật khẩu dễ nhớ, **từ 10 ký tự có chữ và số**, "
+            st.caption("V tự chọn mật khẩu dễ nhớ, **từ 6 ký tự có chữ và số**, "
                        "ví dụ một cụm từ riêng có số (không dùng ví dụ chung). "
                        "Không dùng họ tên, số điện thoại, ngày sinh hay "
                        "mật khẩu Zalo. Chỉ lưu mã băm; "
@@ -1464,24 +1464,27 @@ def provision_team_password():
             "Cách chọn mật khẩu",
             ["Đội trưởng đề nghị / ADMIN nhập hộ","Hệ thống tự tạo mật khẩu"],
             horizontal=False,key="credential_password_method")
-        if method.startswith("Đội trưởng"):
-            st.caption("Nhập mật khẩu theo mong muốn của người nhận: "
-                       "ít nhất **10 ký tự**, có chữ và số, không dùng "
-                       "tên/số điện thoại hoặc mã dễ đoán. "
-                       "Không gửi mật khẩu trong nhóm Zalo.")
-            custom_password=st.text_input(
-                "Mật khẩu theo đề nghị *",type="password",
-                max_chars=128,key="credential_custom_password")
-            confirm_custom=st.text_input(
-                "Nhập lại mật khẩu *",type="password",
-                max_chars=128,key="credential_custom_confirm")
-        approve=st.checkbox(
-            "Tôi xác nhận đúng người nhận và sẽ chỉ gửi mật khẩu "
-            "qua tin nhắn riêng, không đăng vào nhóm.",
-            key="credential_confirm_private")
-        if not st.button("🔐 "+action,type="primary",
-                         use_container_width=True,
-                         disabled=not approve,key="credential_provision"):
+        # Submit both fields as one Streamlit form to avoid stale widget values.
+        with st.form("credential_provision_form"):
+            if method.startswith("Đội trưởng"):
+                st.caption("Chọn mật khẩu dễ nhớ, từ 6 ký tự; "
+                           "có chữ và số. Gửi riêng cho người nhận.")
+                custom_password=st.text_input(
+                    "Mật khẩu theo đề nghị *",type="password",
+                    max_chars=128,key="credential_custom_password")
+                confirm_custom=st.text_input(
+                    "Nhập lại mật khẩu *",type="password",
+                    max_chars=128,key="credential_custom_confirm")
+            approve=st.checkbox(
+                "Tôi xác nhận đúng người nhận và sẽ chỉ gửi mật khẩu "
+                "qua tin nhắn riêng, không đăng vào nhóm.",
+                key="credential_confirm_private")
+            submitted=st.form_submit_button(
+                "🔐 "+action,type="primary",use_container_width=True)
+        if not submitted:
+            return
+        if not approve:
+            st.error("Vui lòng xác nhận đúng người nhận mật khẩu.")
             return
         if method.startswith("Đội trưởng"):
             if custom_password!=confirm_custom:
