@@ -472,11 +472,20 @@ def login(team_only=False):
         if st.button("← Trở về trang chính",key="team_login_back"):
             st.session_state["team_login_open"]=False
             st.rerun()
+    login_teams=read_sheet("QUAN_LY_DOI")
+    login_projects=sorted({str(t.get("Mã dự án","")).strip()
+                           for t in login_teams
+                           if t.get("Trạng thái")=="Hoạt động" and t.get("Mã dự án")})
     with st.form("team_login_form" if team_only else "login_form_preview"):
         typed=st.text_input(
             "Họ và tên đội trưởng" if team_only else
             "Họ tên đội trưởng hoặc mã tài khoản ADMIN",
             placeholder="Ví dụ: Nguyễn Văn A" if team_only else "")
+        chosen_project=st.selectbox(
+            "Dự án (chỉ chọn khi có đội trưởng trùng họ tên)",
+            ["Tự xác định"]+login_projects,
+            help="Nếu nhiều đội trưởng cùng tên, chọn đúng mã dự án của mình. "
+                 "Không cần chọn khi tên là duy nhất.")
         pin=st.text_input("Mật khẩu riêng",type="password")
         remember_key=remember_signing_key()
         remember=st.checkbox(
@@ -494,10 +503,12 @@ def login(team_only=False):
         return
     accounts=effective_accounts()
     username,reason=resolve_login_username(
-        typed,accounts,read_sheet("QUAN_LY_DOI"))
+        typed,accounts,login_teams,
+        project_id=None if chosen_project=="Tự xác định" else chosen_project)
     if reason=="ambiguous":
-        st.error("Có nhiều hồ sơ trùng tên hoặc thông tin không nhất quán. "
-                 "Nhờ ADMIN kiểm tra, không đăng nhập nhầm tài khoản.")
+        st.error("Có nhiều hồ sơ đội trưởng trùng họ tên. "
+                 "Vui lòng chọn đúng mã dự án ở phía trên; "
+                 "nếu vẫn trùng tên, liên hệ ADMIN. Không tự chọn tài khoản khác.")
         return
     if not username:
         st.error("Họ tên hoặc tài khoản chưa được cấp quyền, hoặc thông tin "
