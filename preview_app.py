@@ -55,7 +55,8 @@ from preview_team_detach import (
 )
 from preview_remember import account_fingerprint
 from preview_handover import installer_handover, site_may_complete_installation
-from preview_report_commit import (atomic_report_requests, pending_quantity, numeric)
+from preview_report_commit import (atomic_report_requests, pending_quantity, numeric,
+                                   allocated_report_item)
 from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label, verify_vc_assignment
 from preview_user_guide import GUIDE_URL, render_guide
 from io import BytesIO
@@ -2382,26 +2383,33 @@ def report():
         targets=({"VAN_CHUYEN":vrows} if mode=="Đã giao hàng" else
                  {"LAP_DAT":lrows} if mode=="Đã lắp đặt" else
                  {"VAN_CHUYEN":vrows,"LAP_DAT":lrows})
-        st.write("**SỐ LƯỢNG TỪ PHÂN BỔ – CHỈ XÁC NHẬN SAU KHI HOÀN THÀNH**")
-        st.caption("Hệ thống tự hiển thị số lượng còn phải giao/lắp theo nhiệm vụ đã phân bổ. "
-                   "Chỉ gửi báo cáo khi đã thực hiện đủ số lượng dưới đây.")
+        st.write("**HÀNG HÓA ĐƯỢC PHÂN BỔ TẠI ĐIỂM**")
+        st.caption("Tên hàng, đơn vị tính và số lượng lấy trực tiếp từ "
+                   "KHO_PHAN_BO theo đúng dự án và địa điểm được chọn. "
+                   "Chỉ xác nhận khi đã hoàn thành công việc.")
+        site_allocations=[row for row in read_sheet("KHO_PHAN_BO")
+                          if row.get("Mã dự án")==chosen[0]
+                          and row.get("Mã điểm")==chosen[1]]
         increments={}
         for tab,rows in targets.items():
             st.caption("VẬN CHUYỂN" if tab=="VAN_CHUYEN" else "LẮP ĐẶT")
             id_key="Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
-            plan_key="SL giao" if tab=="VAN_CHUYEN" else "SL lắp"
             for r in rows:
                 try:
-                    remaining=pending_quantity(r,mode)
+                    item=allocated_report_item(r,site_allocations,mode)
+                    remaining=item["remaining"]
                 except ValueError as exc:
-                    st.error(f"{r.get('SKU','')}: {exc}")
+                    st.error("Phân bổ hàng tại điểm cần đối soát: "+str(exc))
                     return
                 if remaining<=0:
-                    st.error(f"{r['SKU']}: SL còn lại không hợp lệ. Cần ADMIN đối soát.")
+                    st.error("Số lượng còn lại không hợp lệ. Cần ADMIN đối soát.")
                     return
-                st.write(f"**{r['SKU']}** • SL được cấp: {r.get(plan_key,'')} • "
-                         f"Đã ghi nhận: {r.get('SL thực tế') or 0} • "
-                         f"**SL xác nhận hoàn thành: {remaining:g}**")
+                with st.container(border=True):
+                    st.markdown(f"**{item['name']}**")
+                    st.write(f"Đơn vị tính: {item['unit']}")
+                    st.write(f"**Số lượng phân bổ tại điểm: {item['allocated']:g} {item['unit']}**")
+                    st.write(f"Đã xác nhận: {item['already']:g} {item['unit']}")
+                    st.write(f"**Số lượng cần xác nhận hoàn thành: {remaining:g} {item['unit']}**")
                 increments[r[id_key]]=remaining
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
         captured=st.camera_input(
