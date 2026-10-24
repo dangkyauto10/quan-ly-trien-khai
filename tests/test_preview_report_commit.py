@@ -1,3 +1,5 @@
+import ast
+from pathlib import Path
 import unittest
 from preview_report_commit import atomic_report_requests, pending_quantity
 
@@ -31,6 +33,25 @@ class ReportAtomicTests(unittest.TestCase):
         self.assertEqual(pending_quantity(VC,"Đã giao hàng"),10)
         with self.assertRaisesRegex(ValueError,"lớn hơn 0"):
             request(VC,{"VC-A":0})
+
+    def test_full_allocated_quantity_completes_transport(self):
+        full=pending_quantity(VC,"Đã giao hàng")
+        requests,states=request(VC,{"VC-A":full})
+        self.assertEqual(states["VC-A"],"Đã giao hàng")
+        self.assertEqual(requests[1]["updateCells"]["rows"][0]
+                         ["values"][5]["userEnteredValue"],{"numberValue":10})
+
+    def test_report_ui_shows_allocated_quantities_without_manual_inputs(self):
+        source=(Path(__file__).resolve().parents[1]/"preview_app.py").read_text(encoding="utf-8")
+        report=next(node for node in ast.parse(source).body
+                    if isinstance(node,ast.FunctionDef) and node.name=="report")
+        snippet=ast.get_source_segment(source,report)
+        self.assertIn("increments[r[id_key]]=remaining",snippet)
+        self.assertNotIn("st.number_input(",snippet)
+        self.assertIn('require_gps = mode!="Đã giao hàng"',snippet)
+        self.assertIn('eligible=bool(photos)',snippet)
+        self.assertLess(snippet.index('if not eligible:'),
+                        snippet.index('if st.button("✅ GỬI BÁO CÁO"'))
 
     def test_partial_transport_is_not_marked_delivered(self):
         requests,states=request(VC,{"VC-A":3})
