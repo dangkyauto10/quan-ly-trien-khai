@@ -132,7 +132,12 @@ def atomic_report_requests(sheet_ids, rid, stamp, actor, role, team_id,
         progress_request={"appendCells":{
             "sheetId":sheet_ids["TIEN_DO"],
             "rows":[_row(progress_values)],"fields":"userEnteredValue"}}
-    reported=[rid,stamp,project,point,team_id,mode,
+    relevant=vc if tab=="VAN_CHUYEN" else ld
+    if not relevant:
+        raise ValueError("Không tìm thấy nhiệm vụ tại địa điểm.")
+    reported_kind=(mode if all(updated_status(r,tab)==done for r in relevant)
+                   else partial)
+    reported=[rid,stamp,project,point,team_id,reported_kind,
               ", ".join(id_ for id_,_,_ in items),
               ", ".join(sku+":"+format(q,"f") for _,sku,q in items),
               ", ".join(photo_urls),maps_url,
