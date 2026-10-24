@@ -12,16 +12,17 @@ def normalized_name(value):
     return " ".join(unicodedata.normalize("NFKC",str(value or "")).split()).casefold()
 
 
-def resolve_login_username(typed, accounts, teams):
-    """Return (username, reason): reasons ok/missing/ambiguous.
+def resolve_login_username(typed, accounts, teams, project_id=None):
+    """Resolve an approved team by name and, only if needed, project.
 
-    Human name is accepted only for a single active team leader whose
-    account's team_id matches the approved team. A collision with any
-    configured username is rejected, never guessed.
+    Without project selection a duplicate active name must remain ambiguous,
+    including teams that have no credentials yet. The original password,
+    account lockout and team role checks are enforced by the caller.
     """
     raw=str(typed or "").strip()
     if not raw or not isinstance(accounts,Mapping):
         return None,"missing"
+    project=str(project_id or "").strip()
     candidates=set()
     if raw in accounts and isinstance(accounts.get(raw),Mapping):
         candidates.add(raw)
@@ -35,10 +36,10 @@ def resolve_login_username(typed, accounts, teams):
             teams_by_id.setdefault(tid,[]).append(row)
     matched_ids={
         tid for tid,rows in teams_by_id.items()
-        if any(normalized_name(r.get("Tên đội/đội trưởng"))==needle for r in rows)
+        if any(normalized_name(r.get("Tên đội/đội trưởng"))==needle
+               and (not project or str(r.get("Mã dự án","")).strip()==project)
+               for r in rows)
     }
-    # Never guess between two approved people with the same name,
-    # including one who does not yet have an account.
     if len(matched_ids)>1:
         return None,"ambiguous"
     ambiguous=False
@@ -47,15 +48,21 @@ def resolve_login_username(typed, accounts, teams):
             continue
         tid=str(info.get("team_id","") or "").strip()
         if tid in matched_ids:
-            # Reused id or mismatched team records cannot be a unique identity.
             if len(teams_by_id[tid])!=1:
                 ambiguous=True
                 continue
             candidates.add(str(username))
+    # Selecting a project must never allow a team username from another
+    # project to bypass the project filter.
+    if project and raw in accounts:
+        raw_info=accounts.get(raw)
+        if (isinstance(raw_info,Mapping)
+                and str(raw_info.get("role","")).upper()=="DOI_TRUONG"
+                and str(raw_info.get("team_id","") or "").strip() not in matched_ids):
+            return None,"missing"
     if ambiguous or len(candidates)>1:
         return None,"ambiguous"
     if len(candidates)!=1:
-        # Names of approved leaders who are not yet credentialed fail closed.
         return None,"missing"
     return next(iter(candidates)),"ok"
 
