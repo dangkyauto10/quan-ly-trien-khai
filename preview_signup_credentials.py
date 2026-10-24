@@ -9,6 +9,7 @@ from preview_credential_accounts import create_hash
 WAITING="Chờ duyệt"
 ACTIVATED="Đã kích hoạt"
 REJECTED="Đã từ chối"
+REUSED="Đã bỏ qua (tài khoản đã có)"
 HEADERS=("Mã đăng ký","Mã dự án","Salt hex","Mã băm PBKDF2",
          "Trạng thái","Thời gian đăng ký","Ghi chú")
 
@@ -67,12 +68,12 @@ def pending_row(registration_id, project, password, timestamp):
 
 def approval_credential_requests(pending_sheet_id,credential_sheet_id,
                                  pending_record,credential_row=None,
-                                 rejected=False):
-    """Atomic addition to a team account and final pending-state update."""
+                                 rejected=False, reused=False):
+    """Finalize pending hash atomically: activate, reject, or reuse existing login."""
     if not pending_record or not isinstance(pending_record.get("_row"),int):
         raise ValueError("Cannot finalize ungrounded pending password.")
-    if rejected == bool(credential_row):
-        raise ValueError("Specify activation row OR rejection.")
+    if sum((credential_row is not None, bool(rejected), bool(reused))) != 1:
+        raise ValueError("Specify exactly one pending-password outcome.")
     if credential_row is not None:
         if len(credential_row)!=10 or credential_row[3]!="DOI_TRUONG" or (
             credential_row[4]!=pending_record.get("Salt hex") or
@@ -96,7 +97,7 @@ def approval_credential_requests(pending_sheet_id,credential_sheet_id,
                  "endRowIndex":pending_record["_row"],
                  "startColumnIndex":2,"endColumnIndex":5},
         "rows":[{"values":[text_cell(""),text_cell(""),
-                           text_cell(REJECTED if rejected else ACTIVATED)]}],
+                           text_cell(REJECTED if rejected else REUSED if reused else ACTIVATED)]}],
         "fields":"userEnteredValue"
     }})
     return requests
