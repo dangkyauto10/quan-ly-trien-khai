@@ -99,8 +99,18 @@ def atomic_report_requests(sheet_ids, rid, stamp, actor, role, team_id,
         raise ValueError("Thiếu bảng dữ liệu hoặc loại báo cáo không hợp lệ.")
     if not rid or rid in existing_report_ids or not photo_urls:
         raise ValueError("Trùng mã báo cáo hoặc thiếu ảnh hiện trường.")
-    if mode=="Đã lắp đặt" and (latitude is None or longitude is None):
-        raise ValueError("Lắp đặt phải có GPS thực tế.")
+    if mode=="Đã lắp đặt":
+        if latitude is None or longitude is None:
+            raise ValueError("Lắp đặt phải có GPS thực tế.")
+        try:
+            lat=Decimal(str(latitude))
+            lon=Decimal(str(longitude))
+        except (ValueError,ArithmeticError):
+            raise ValueError("GPS không hợp lệ.")
+        if (not lat.is_finite() or not lon.is_finite() or
+                not (-90 <= lat <= 90 and -180 <= lon <= 180)
+                or (lat==0 and lon==0)):
+            raise ValueError("GPS không hợp lệ hoặc chưa được thiết bị xác định.")
     tab,id_key,team_key,planned_key,done,partial,allowed=CONFIG[mode]
     task_updates=[]
     changes={}

@@ -40,8 +40,10 @@ def site_progress(project, point, transports, installations,
         actual = _amount(actuals.get(task_id, r.get("SL thực tế")))
         return planned is not None and planned > 0 and actual == planned
 
-    vc_done = sum(complete(r, "Mã nhiệm vụ VC", "SL giao", "Đã giao hàng")
-                  for r in vc)
+    vc_done = sum(
+        complete(r, "Mã nhiệm vụ VC", "SL giao", "Đã giao hàng")
+        or complete(r, "Mã nhiệm vụ VC", "SL giao", "Đã bàn giao tập kết")
+        for r in vc)
     ld_done = sum(complete(r, "Mã nhiệm vụ LD", "SL lắp", "Đã lắp đặt")
                   for r in ld)
     finished = bool(ld) and ld_done == len(ld)

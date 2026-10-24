@@ -62,7 +62,8 @@ from preview_handover import installer_handover, site_may_complete_installation
 from preview_report_commit import (atomic_report_requests, pending_quantity, numeric,
                                    allocated_report_item)
 from preview_progress_rules import site_progress
-from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label, verify_vc_assignment
+from preview_hub import (hub_plan, received_by_site, signed_receipt_lines, qty_label,
+                         verify_vc_assignment, atomic_hub_receipt_requests)
 from preview_user_guide import GUIDE_URL, render_guide
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
@@ -2456,15 +2457,24 @@ def hub_admin():
                     area.strip(),hub.strip(),address.strip(),
                     giver.strip(),paper.strip(),urls[0],now(),
                     vc_team_id=vc_team["Mã đội"])
-                sheet("BAN_GIAO_TAP_KET").append_rows(rows,
-                                                      value_input_option="RAW")
+                # One transaction: signed lines + VC hub status + TIEN_DO + journal.
+                # Re-read after the photo upload; never half-commit independent tabs.
                 read_sheet.clear()
-                audit(auth()["username"],"BÀN GIAO TẬP KẾT",
-                      "BAN_GIAO_TAP_KET",batch,"OK",
-                      f"{len(selected)} điểm, {len(rows)} dòng; số giấy {paper}")
-                st.success("Đã ghi biên bản tập kết. KTV nhận hàng theo "
-                           "từng SKU của các xã đã chọn; chưa đánh dấu "
-                           "VC giao tận xã hoặc lắp đặt xong.")
+                required=("BAN_GIAO_TAP_KET","VAN_CHUYEN","TIEN_DO",
+                          "NHAT_KY_HE_THONG")
+                ids={name:sheet(name).id for name in required}
+                requests=atomic_hub_receipt_requests(
+                    ids,rows,read_sheet_live("BAN_GIAO_TAP_KET"),
+                    read_sheet_live("VAN_CHUYEN"),
+                    read_sheet_live("LAP_DAT"),
+                    read_sheet_live("TIEN_DO"),
+                    read_sheet_live("DANH_SACH_DIEM"),
+                    now(),auth()["username"],auth()["role"])
+                client()[0].batch_update({"requests":requests})
+                read_sheet.clear()
+                st.success("Đã ghi biên bản tập kết, hoàn thành việc VC tại "
+                           "tập kết và đồng bộ TIEN_DO. Chưa đánh dấu "
+                           "VC giao tận xã hoặc KTV lắp đặt xong.")
                 st.rerun()
             except Exception as exc:
                 read_sheet.clear()
@@ -2506,7 +2516,7 @@ def report():
         and r.get("Mã đội VC giao")
     }
     vc=[x for x in all_vc if x.get("Mã đội VC")==tid
-        and x.get("Trạng thái")!="Đã giao hàng"
+        and x.get("Trạng thái") not in ("Đã giao hàng","Đã bàn giao tập kết")
         and (x.get("Mã dự án"),x.get("Mã điểm"),x.get("SKU"),tid)
         not in accepted_hub]
     ld=[x for x in all_ld if x.get("Mã đội KTV")==tid
@@ -2679,9 +2689,17 @@ def report():
             st.caption("Vận chuyển không bắt buộc GPS check-in.")
         lat=gps.get("latitude") if isinstance(gps,dict) else None
         lon=gps.get("longitude") if isinstance(gps,dict) else None
-        eligible=bool(photos) and len(photos)<=10 and (not require_gps or (lat is not None and lon is not None))
+        gps_valid=False
+        if require_gps and lat is not None and lon is not None:
+            try:
+                gps_valid=(-90 <= float(lat) <= 90
+                           and -180 <= float(lon) <= 180
+                           and not (float(lat)==0 and float(lon)==0))
+            except (TypeError,ValueError,OverflowError):
+                gps_valid=False
+        eligible=bool(photos) and len(photos)<=10 and (not require_gps or gps_valid)
         if not eligible:
-            st.info("Cần ảnh và" + (" GPS check-in." if require_gps else " đúng số ảnh quy định."))
+            st.info("Cần ảnh và" + (" GPS thật từ điện thoại (bật Định vị trong Safari)." if require_gps else " đúng số ảnh quy định."))
             return
         if st.button("✅ GỬI BÁO CÁO",type="primary",use_container_width=True):
             if not any(v>0 for v in increments.values()):

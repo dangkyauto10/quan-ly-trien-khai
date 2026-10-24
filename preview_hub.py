@@ -188,10 +188,19 @@ def verified_vc_hub_receipts(hub_rows, vc_tasks, install_tasks):
                 ktv.get("Mã đội KTV")!=proof["Mã đội KTV nhận"]):
             warnings.append("Đội VC/KTV trong biên bản không khớp phân công: "+str(key))
             continue
-        if (vc.get("Trạng thái")!="Chưa giao" or
-                str(vc.get("Mã báo cáo") or "").strip() or
-                str(vc.get("SL thực tế") or "").strip()):
-            warnings.append("VC có giao trực tiếp/báo cáo trước bàn giao: "+str(key))
+        status=vc.get("Trạng thái")
+        if status=="Chưa giao":
+            if (str(vc.get("Mã báo cáo") or "").strip() or
+                    str(vc.get("SL thực tế") or "").strip()):
+                warnings.append("VC có dữ liệu mà chưa hoàn thành tập kết: "+str(key))
+                continue
+        elif status==HUB_VC_DONE:
+            if (vc.get("Mã báo cáo")!=proof.get("Mã dòng") or
+                    vc.get("Link ảnh")!=proof.get("Link ảnh biên bản ký")):
+                warnings.append("VC đã tập kết nhưng chứng từ khác nhau: "+str(key))
+                continue
+        else:
+            warnings.append("VC giao trực tiếp/trạng thái không đúng tập kết: "+str(key))
             continue
         try:
             quantity=q(proof.get("SL KTV thực nhận"))
@@ -203,5 +212,122 @@ def verified_vc_hub_receipts(hub_rows, vc_tasks, install_tasks):
         if planned<=0 or quantity!=planned or quantity!=need:
             warnings.append("Bàn giao chưa đủ hoặc lệch định mức: "+str(key))
             continue
+        if status==HUB_VC_DONE:
+            try:
+                if q(vc.get("SL thực tế"))!=quantity:
+                    raise ValueError("Không khớp")
+            except ValueError:
+                warnings.append("VC tập kết khác SL thực nhận: "+str(key))
+                continue
         completed[key]=quantity
     return completed,warnings
+
+
+HUB_VC_DONE = "Đã bàn giao tập kết"
+
+
+def atomic_hub_receipt_requests(sheet_ids, receipt_rows, existing_receipts,
+                                vc_tasks, ld_tasks, progress_rows, places,
+                                stamp, actor, role):
+    """One atomic commit: signed receipt, VC hub completion, site progress and audit.
+
+    This is a pure request builder; the caller must confirm the paper image
+    is uploaded, reread the live sheets, and send this as ONE batchUpdate.
+    """
+    from preview_bulk_allocation import _row
+    from preview_progress_rules import site_progress
+
+    needed={"BAN_GIAO_TAP_KET","VAN_CHUYEN","TIEN_DO","NHAT_KY_HE_THONG"}
+    if not needed.issubset(sheet_ids) or not receipt_rows:
+        raise ValueError("Thiếu sheet hoặc dòng bàn giao.")
+    if not all(str(v or "").strip() for v in (stamp,actor,role)):
+        raise ValueError("Thiếu người thực hiện hoặc thời điểm.")
+    occupied={(r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"))
+              for r in existing_receipts if r.get("Trạng thái")==ACCEPTED}
+    vc_index=defaultdict(list)
+    ld_index=defaultdict(list)
+    for task in vc_tasks:
+        vc_index[(task.get("Mã dự án"),task.get("Mã điểm"),task.get("SKU"))].append(task)
+    for task in ld_tasks:
+        ld_index[(task.get("Mã dự án"),task.get("Mã điểm"),task.get("SKU"))].append(task)
+    # Existing signed_receipt_lines order; do not recast a hub as delivery to xã.
+    requests=[{"appendCells":{"sheetId":sheet_ids["BAN_GIAO_TAP_KET"],
+                              "rows":[_row(r) for r in receipt_rows],
+                              "fields":"userEnteredValue"}}]
+    updates={}
+    affected=set()
+    batch_ids=set()
+    for receipt in receipt_rows:
+        if len(receipt)!=21 or receipt[18]!=ACCEPTED or not all(
+            str(receipt[i] or "").strip() for i in (0,1,2,3,8,10,15,16,20)
+        ):
+            raise ValueError("Biên bản thiếu mã, chữ ký, ảnh hoặc đội nhận.")
+        line_id,batch,project,ktv_team,point,sku=(
+            receipt[0],receipt[1],receipt[2],receipt[3],receipt[8],receipt[10])
+        key=(project,point,sku)
+        if key in occupied or key in updates:
+            raise ValueError("SKU/địa điểm đã có biên bản hoặc bị trùng.")
+        if len(vc_index[key])!=1 or len(ld_index[key])!=1:
+            raise ValueError("Thiếu hoặc trùng nhiệm vụ VC/KTV.")
+        vc=vc_index[key][0]
+        ld=ld_index[key][0]
+        if (vc.get("Mã đội VC")!=receipt[20] or
+                ld.get("Mã đội KTV")!=ktv_team or
+                vc.get("Trạng thái")!="Chưa giao" or
+                str(vc.get("Mã báo cáo") or "").strip() or
+                str(vc.get("SL thực tế") or "").strip()):
+            raise ValueError("Đội nhận, đội giao hoặc VC đã báo không khớp.")
+        need=q(vc.get("SL giao"))
+        if (need<=0 or q(ld.get("SL lắp"))!=need or
+                q(receipt[11])!=need or q(receipt[12])!=need):
+            raise ValueError("SL tập kết không đủ hoặc khác phân bổ.")
+        row_num=vc.get("_row")
+        if not isinstance(row_num,int) or row_num<2:
+            raise ValueError("Thiếu vị trí dòng VC.")
+        requests.append({"updateCells":{
+            "start":{"sheetId":sheet_ids["VAN_CHUYEN"],
+                     "rowIndex":row_num-1,"columnIndex":7},
+            "rows":[_row([HUB_VC_DONE,stamp,receipt[16],"",
+                          line_id,qty_label(need),
+                          "Bàn giao tại điểm tập kết, KHÔNG giao tận xã"])],
+            "fields":"userEnteredValue"}})
+        updates[key]={"Trạng thái":HUB_VC_DONE,"SL thực tế":qty_label(need),
+                      "Mã báo cáo":line_id}
+        affected.add((project,point))
+        batch_ids.add(batch)
+    names={(r.get("Mã dự án"),r.get("Mã điểm")):
+           r.get("Tên xã/phường/đơn vị","") for r in places}
+    for project,point in sorted(affected):
+        future=[dict(r,**updates[(project,point,r.get("SKU"))])
+                if (project,point,r.get("SKU")) in updates else r
+                for r in vc_tasks]
+        snap=site_progress(project,point,future,ld_tasks)
+        values=[project,point,names.get((project,point),point),
+                snap["total_vc"],snap["vc_done"],
+                snap["total_ld"],snap["ld_done"],snap["status"],stamp]
+        matches=[r for r in progress_rows
+                 if r.get("Mã dự án")==project and r.get("Mã điểm")==point]
+        if len(matches)>1:
+            raise ValueError("TIEN_DO có dòng trùng.")
+        if matches:
+            row_num=matches[0].get("_row")
+            if not isinstance(row_num,int) or row_num<2:
+                raise ValueError("Dòng TIEN_DO không hợp lệ.")
+            requests.append({"updateCells":{
+                "start":{"sheetId":sheet_ids["TIEN_DO"],
+                         "rowIndex":row_num-1,"columnIndex":0},
+                "rows":[_row(values)],"fields":"userEnteredValue"}})
+        else:
+            requests.append({"appendCells":{
+                "sheetId":sheet_ids["TIEN_DO"],"rows":[_row(values)],
+                "fields":"userEnteredValue"}})
+    if len(batch_ids)!=1:
+        raise ValueError("Một lần ghi chỉ nhận một biên bản.")
+    batch=next(iter(batch_ids))
+    requests.append({"appendCells":{
+        "sheetId":sheet_ids["NHAT_KY_HE_THONG"],
+        "rows":[_row([stamp,actor,role,"BÀN GIAO TẬP KẾT",
+                      "BAN_GIAO_TAP_KET",batch,"OK",
+                      str(len(affected))+" điểm / "+str(len(receipt_rows))+" SKU"])],
+        "fields":"userEnteredValue"}})
+    return requests
