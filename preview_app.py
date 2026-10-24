@@ -30,7 +30,8 @@ from preview_registration import role_for_specialty, team_id_from_registration, 
 from preview_approval_ui import render_pending_approvals
 from preview_assignment import (
     assignment_rows, assignment_batch_requests, allowed_modes,
-    eligible_site_tasks, project_site_catalog, site_assignment_plan, compact_site_assignment_requests
+    eligible_site_tasks, project_site_catalog, site_assignment_plan, compact_site_assignment_requests,
+    registered_site_suggestions
 )
 from preview_bulk_allocation import (
     inventory_by_sku, allocation_waiting_summary,
@@ -2011,11 +2012,27 @@ def teams_and_approval():
         options=sorted(catalog,key=lambda pid:(
             catalog[pid][1]!="Sẵn sàng giao",
             (catalog[pid][0].get("Tên xã/phường/đơn vị","") or pid).casefold()))
+        # Proposed sites come only from this team's approved registration.
+        # Seed the widget ONCE; never overwrite ADMIN's subsequent corrections.
+        proposal=registered_site_suggestions(
+            selected_team,read_sheet("LIEN_KET_DANG_KY_DOI"),
+            read_sheet("DANG_KY_THANH_VIEN"),catalog)
+        if proposal["raw"]:
+            st.caption("Địa bàn đội đã đăng ký: "+proposal["raw"])
+        if proposal["note"]:
+            st.info(proposal["note"])
+        if proposal["unmatched"]:
+            st.warning("Địa điểm đăng ký chưa khớp danh mục. ADMIN kiểm tra "
+                       "và tự chọn đúng điểm trước khi xác nhận: "+
+                       "; ".join(proposal["unmatched"]))
+        selection_key=f"site_assign_multi_{project}_{selected_team['Mã đội']}_{role_mode}"
+        if selection_key not in st.session_state:
+            st.session_state[selection_key]=list(proposal["site_ids"])
         chosen=st.multiselect(
-            "4. 🔎 Tìm và chọn nhiều địa điểm theo hợp đồng",
+            "4. 🔎 Địa điểm đăng ký – ADMIN kiểm tra, thêm/bỏ nếu cần",
             options,format_func=site_name,
             placeholder="Gõ tên xã, đơn vị hoặc mã điểm để tìm...",
-            key=f"site_assign_multi_{project}_{selected_team['Mã đội']}_{role_mode}")
+            key=selection_key)
         st.caption("Gõ tên hoặc mã điểm để lọc gợi ý. "
                    "Danh sách không biến mất khi chọn xong một điểm. "
                    "Chỉ điểm 'Sẵn sàng giao' mới được xác nhận phân công.")

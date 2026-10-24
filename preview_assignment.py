@@ -236,3 +236,61 @@ def project_site_catalog(team, mode, locations, tasksets):
             status = "Không còn nhiệm vụ chờ gán"
         result[pid] = (loc, status, {})
     return result
+
+
+def registered_site_suggestions(team, links, registrations, catalog):
+    """Prefill Admin's *reviewable* selection only from an approved linked form.
+
+    Exact project-scoped names only; unmatched/ambiguous free text remains
+    visible to Admin. Never creates a task or writes registration data.
+    """
+    import re
+
+    def normalized(value):
+        return " ".join(str(value or "").strip().casefold().split())
+
+    project=str(team.get("Mã dự án") or "").strip()
+    team_id=str(team.get("Mã đội") or "").strip()
+    active=[row for row in links
+            if row.get("Mã đội")==team_id
+            and row.get("Mã dự án")==project
+            and row.get("Trạng thái liên kết")=="Đang liên kết"]
+    if not active:
+        return {"site_ids":[],"unmatched":[],"raw":"",
+                "note":"Đội chưa có hồ sơ đăng ký liên kết; ADMIN chọn địa điểm thủ công."}
+    if len(active)!=1:
+        return {"site_ids":[],"unmatched":[],"raw":"",
+                "note":"Có nhiều liên kết hồ sơ; chưa tự chọn địa bàn, cần đối soát."}
+    rid=str(active[0].get("Mã đăng ký") or "").strip()
+    accepted=[row for row in registrations
+              if row.get("Mã đăng ký")==rid
+              and row.get("Mã đội")==team_id
+              and row.get("Mã dự án đăng ký")==project
+              and row.get("Trạng thái duyệt")=="Đã duyệt"]
+    if len(accepted)!=1:
+        return {"site_ids":[],"unmatched":[],"raw":"",
+                "note":"Không xác minh được hồ sơ đã duyệt; ADMIN chọn thủ công."}
+    raw=str(accepted[0].get("Địa bàn đề xuất") or "").strip()
+    if not raw:
+        return {"site_ids":[],"unmatched":[],"raw":"",
+                "note":"Hồ sơ chưa khai địa bàn; ADMIN chọn thủ công."}
+    by_name={}
+    for point_id,(location,_status,_counts) in catalog.items():
+        name=normalized(location.get("Tên xã/phường/đơn vị"))
+        if name:
+            by_name.setdefault(name,[]).append(point_id)
+    chosen=[]
+    unmatched=[]
+    for part in re.split(r"[,;\n]+",raw):
+        label=part.strip()
+        if not label:
+            continue
+        matches=by_name.get(normalized(label),[])
+        if len(matches)==1:
+            if matches[0] not in chosen:
+                chosen.append(matches[0])
+        else:
+            unmatched.append(label + (" (trùng tên nhiều điểm)" if matches else
+                                      " (chưa khớp danh mục)"))
+    return {"site_ids":chosen,"unmatched":unmatched,"raw":raw,
+            "note":""}
