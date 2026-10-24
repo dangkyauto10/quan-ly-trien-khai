@@ -1,7 +1,8 @@
 import ast
 from pathlib import Path
 import unittest
-from preview_report_commit import atomic_report_requests, pending_quantity
+from preview_report_commit import (atomic_report_requests, pending_quantity,
+                                   allocated_report_item)
 
 
 IDS={"BAO_CAO_TRIEN_KHAI":1,"VAN_CHUYEN":2,"LAP_DAT":3,
@@ -40,6 +41,40 @@ class ReportAtomicTests(unittest.TestCase):
         self.assertEqual(states["VC-A"],"Đã giao hàng")
         self.assertEqual(requests[1]["updateCells"]["rows"][0]
                          ["values"][5]["userEnteredValue"],{"numberValue":10})
+
+    def test_display_reads_exact_site_allocation_and_product_name(self):
+        allocation={"Mã dự án":"DA880","Mã điểm":"X-01",
+                    "SKU":"SKU-A","Tên hàng hóa":"Máy tính để bàn",
+                    "ĐVT":"Bộ","SL phân bổ":"10"}
+        line=allocated_report_item(VC,[allocation],"Đã giao hàng")
+        self.assertEqual(line["name"],"Máy tính để bàn")
+        self.assertEqual(line["unit"],"Bộ")
+        self.assertEqual(line["allocated"],10)
+        self.assertEqual(line["remaining"],10)
+        self.assertEqual(line["already"],0)
+
+    def test_display_rejects_wrong_site_duplicate_or_mismatched_quota(self):
+        allocation={"Mã dự án":"DA880","Mã điểm":"X-01",
+                    "SKU":"SKU-A","Tên hàng":"Máy tính để bàn",
+                    "Đơn vị tính":"Bộ","SL phân bổ":"10"}
+        with self.assertRaisesRegex(ValueError,"Thiếu hoặc trùng"):
+            allocated_report_item(VC,[{**allocation,"Mã điểm":"X-02"}],
+                                  "Đã giao hàng")
+        with self.assertRaisesRegex(ValueError,"Thiếu hoặc trùng"):
+            allocated_report_item(VC,[allocation,allocation],"Đã giao hàng")
+        with self.assertRaisesRegex(ValueError,"không khớp"):
+            allocated_report_item(VC,[{**allocation,"SL phân bổ":"2"}],
+                                  "Đã giao hàng")
+
+    def test_staff_report_shows_descriptions_not_internal_sku_codes(self):
+        source=(Path(__file__).resolve().parents[1]/"preview_app.py").read_text(encoding="utf-8")
+        report=next(node for node in ast.parse(source).body
+                    if isinstance(node,ast.FunctionDef) and node.name=="report")
+        snippet=ast.get_source_segment(source,report)
+        self.assertIn('site_allocations=[row for row in read_sheet("KHO_PHAN_BO")',snippet)
+        self.assertIn('item=allocated_report_item(r,site_allocations,mode)',snippet)
+        self.assertIn("st.markdown(f\"**{item['name']}**\")",snippet)
+        self.assertNotIn("st.write(f\"**{r['SKU']}**",snippet)
 
     def test_report_ui_shows_allocated_quantities_without_manual_inputs(self):
         source=(Path(__file__).resolve().parents[1]/"preview_app.py").read_text(encoding="utf-8")
