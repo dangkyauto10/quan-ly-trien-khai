@@ -284,6 +284,16 @@ def atomic_hub_receipt_requests(sheet_ids, receipt_rows, existing_receipts,
         row_num=vc.get("_row")
         if not isinstance(row_num,int) or row_num<2:
             raise ValueError("Thiếu vị trí dòng VC.")
+        # H column is validation-backed on the copied workbook.
+        # Allow the distinct hub outcome only on this exact VC task row.
+        requests.append({"setDataValidation":{
+            "range":{"sheetId":sheet_ids["VAN_CHUYEN"],
+                     "startRowIndex":row_num-1,"endRowIndex":row_num,
+                     "startColumnIndex":7,"endColumnIndex":8},
+            "rule":{"condition":{"type":"ONE_OF_LIST","values":[
+                {"userEnteredValue":value} for value in (
+                    "Chưa giao","Đã giao hàng","Cần đối soát",HUB_VC_DONE)]},
+                "strict":True,"showCustomUi":True}}})
         requests.append({"updateCells":{
             "start":{"sheetId":sheet_ids["VAN_CHUYEN"],
                      "rowIndex":row_num-1,"columnIndex":7},
