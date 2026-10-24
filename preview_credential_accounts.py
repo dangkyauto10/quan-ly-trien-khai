@@ -36,8 +36,8 @@ def validate_custom_password(password, full_name="", phone=""):
     """
     if not isinstance(password, str):
         return "Mật khẩu chưa hợp lệ."
-    if len(password)<10 or len(password)>128:
-        return "Mật khẩu cần ít nhất 10 ký tự (gồm chữ và số), tối đa 128 ký tự."
+    if len(password)<6 or len(password)>128:
+        return "Mật khẩu cần từ 6 đến 128 ký tự."
     if password != password.strip():
         return "Không nhập khoảng trắng ở đầu hoặc cuối mật khẩu."
     if any(ord(ch)<32 or ord(ch)==127 for ch in password):
@@ -47,10 +47,9 @@ def validate_custom_password(password, full_name="", phone=""):
     if not any(ch.isdigit() for ch in password):
         return "Mật khẩu cần có ít nhất một chữ số."
     compact="".join(ch for ch in password.casefold() if ch.isalnum())
-    if (len(set(password.casefold()))<6 or
-            any(x in compact for x in ("123456","654321","password",
-                                       "matkhau","qwerty","abcdef",
-                                       "admin123","111111","000000"))):
+    if any(x in compact for x in ("123456","654321","password",
+                                "matkhau","qwerty","abcdef",
+                                "admin123","111111","000000")):
         return "Mật khẩu quá dễ đoán hoặc có chuỗi đơn giản. Hãy chọn cụm từ khác."
     # Block name/phone substring in both accented and unaccented forms.
     from unicodedata import normalize
@@ -70,7 +69,7 @@ def validate_custom_password(password, full_name="", phone=""):
 
 
 def create_hash(password, salt=None):
-    if not isinstance(password, str) or len(password) < 10:
+    if not isinstance(password, str) or len(password) < 6:
         raise ValueError("Password too short.")
     salt = salt if salt is not None else secrets.token_hex(16)
     if not re.fullmatch(r"[0-9a-fA-F]{32}", salt):
