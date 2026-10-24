@@ -5,7 +5,7 @@ import unittest
 
 from preview_credential_accounts import (
     HEADERS, create_hash, new_password, team_accounts,
-    visible_credential_state, next_account_id
+    visible_credential_state, next_account_id, validate_custom_password
 )
 from preview_team_access import resolve_login_username
 from preview_remember import issue_remember_token, verify_remember_token
@@ -38,6 +38,25 @@ class TeamCredentialTests(unittest.TestCase):
             "sha256",p.encode(),bytes.fromhex(salt),390000).hex())
         self.assertNotIn(p,digest)
         self.assertNotIn("Mật khẩu gốc",HEADERS)
+
+    def test_memorable_six_character_password_for_preview(self):
+        for password in ("Ax1234", "Ve2026x"):
+            self.assertIsNone(validate_custom_password(
+                password,"Nguyễn Văn A","0912345678"))
+            salt,digest=create_hash(password)
+            self.assertEqual(digest,hashlib.pbkdf2_hmac(
+                "sha256",password.encode(),bytes.fromhex(salt),390000).hex())
+        self.assertIsNotNone(validate_custom_password("Ax123","Nguyễn Văn A"))
+        with self.assertRaises(ValueError):
+            create_hash("Ax123")
+
+    def test_admin_password_form_submits_both_inputs_together(self):
+        source=(ROOT/"preview_app.py").read_text(encoding="utf-8")
+        provision=source.split("def provision_team_password():",1)[1].split(
+            "def teams_and_approval():",1)[0]
+        self.assertIn('with st.form("credential_provision_form"):',provision)
+        self.assertIn('submitted=st.form_submit_button(',provision)
+        self.assertNotIn('if not st.button("🔐 "+action',provision)
 
     def test_team_account_valid_and_name_based_login(self):
         creds=team_accounts({},[row()],[TEAM])
