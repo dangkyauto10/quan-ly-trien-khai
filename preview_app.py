@@ -74,7 +74,7 @@ APP_ICON = Path(__file__).resolve().parent / "assets" / "tdv_icon_144.png"
 st.set_page_config(
     page_title="QUẢN LÝ DỰ ÁN • PREVIEW",
     page_icon=str(APP_ICON),
-    layout="centered"
+    layout="wide"
 )
 APP_ICON_DATA = base64.b64encode(APP_ICON.read_bytes()).decode("ascii")
 
@@ -116,8 +116,18 @@ def sync_remembered_login():
 st.markdown("""
 <style>
 .block-container {
-  max-width: 720px;
-  padding: 2.1rem 1rem 3rem !important;
+  /* Wide PC workspace for admin tables and project dashboards. */
+  max-width: 100% !important;
+  width: 100% !important;
+  padding: 2.1rem clamp(1rem, 2vw, 2.5rem) 3rem !important;
+}
+/* Preserve the already-approved compact tablet/phone experience. */
+@media (max-width: 900px) {
+  .block-container {
+    max-width: 720px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
 }
 .tdv-hero {
   box-sizing: border-box;
