@@ -47,8 +47,10 @@ class SignupCredentialTests(unittest.TestCase):
         salt,digest=create_hash(valid)
         self.assertEqual(len(salt),32)
         self.assertEqual(len(digest),64)
-        self.assertIsNotNone(validate_custom_password(
+        self.assertIsNone(validate_custom_password(
             "Abc12Xyz","Nguyễn Văn A","0912345678"))
+        self.assertIsNotNone(validate_custom_password(
+            "Abc12","Nguyễn Văn A","0912345678"))
         self.assertIsNotNone(validate_custom_password(
             "1234567890","Nguyễn Văn A","0912345678"))
         self.assertIsNotNone(validate_custom_password(
