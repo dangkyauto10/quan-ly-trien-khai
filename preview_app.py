@@ -2259,14 +2259,14 @@ def report():
                        "Số liệu VC được đối chiếu theo từng SKU và SL THỰC GIAO; "
                        "phân bổ hàng chưa phải đã giao hàng.")
             c1,c2=st.columns(2)
-            c1.metric("Sẵn sàng đi lắp",
+            c1.metric("Đủ hàng để lắp",
                       sum(r["ready"] for r in handover))
             c2.metric("Chưa sẵn sàng",
                       sum(r["status"] in ("Chưa giao","Đã giao một phần",
                                           "Đã tập kết một phần","Cần đối soát")
                           for r in handover))
             labels=["Tất cả","Sẵn sàng lắp","Sẵn sàng lắp (tập kết)",
-                    "Đã tập kết một phần","Đã giao một phần",
+                    "Đang lắp một phần","Đã tập kết một phần","Đã giao một phần",
                     "Chưa giao","Cần đối soát","Đã lắp xong"]
             kind=st.selectbox("Lọc trạng thái hàng VC",labels,
                               key="team_handover_filter")
