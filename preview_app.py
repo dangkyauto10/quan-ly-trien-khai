@@ -2370,7 +2370,9 @@ def report():
         targets=({"VAN_CHUYEN":vrows} if mode=="Đã giao hàng" else
                  {"LAP_DAT":lrows} if mode=="Đã lắp đặt" else
                  {"VAN_CHUYEN":vrows,"LAP_DAT":lrows})
-        st.write("**NHẬP SL THỰC TẾ VỪA THỰC HIỆN – không tự lấy SL phân bổ**")
+        st.write("**SỐ LƯỢNG TỪ PHÂN BỔ – CHỈ XÁC NHẬN SAU KHI HOÀN THÀNH**")
+        st.caption("Hệ thống tự hiển thị số lượng còn phải giao/lắp theo nhiệm vụ đã phân bổ. "
+                   "Chỉ gửi báo cáo khi đã thực hiện đủ số lượng dưới đây.")
         increments={}
         for tab,rows in targets.items():
             st.caption("VẬN CHUYỂN" if tab=="VAN_CHUYEN" else "LẮP ĐẶT")
@@ -2382,14 +2384,13 @@ def report():
                 except ValueError as exc:
                     st.error(f"{r.get('SKU','')}: {exc}")
                     return
-                st.caption(f"{r['SKU']} • Kế hoạch: {r.get(plan_key,'')} • "
-                           f"Đã ghi: {r.get('SL thực tế') or 0} • "
-                           f"Còn: {remaining:g}")
-                increments[r[id_key]]=st.number_input(
-                    f"SL vừa {('giao' if tab=='VAN_CHUYEN' else 'lắp')} – "
-                    f"{r['SKU']} ({r[id_key]})",
-                    min_value=0.0,max_value=float(remaining),value=0.0,
-                    step=1.0,format="%.3f",key=f"report_qty_{tab}_{r[id_key]}")
+                if remaining<=0:
+                    st.error(f"{r['SKU']}: SL còn lại không hợp lệ. Cần ADMIN đối soát.")
+                    return
+                st.write(f"**{r['SKU']}** • SL được cấp: {r.get(plan_key,'')} • "
+                         f"Đã ghi nhận: {r.get('SL thực tế') or 0} • "
+                         f"**SL xác nhận hoàn thành: {remaining:g}**")
+                increments[r[id_key]]=remaining
         photos=st.file_uploader("📷 Ảnh hiện trường (bắt buộc, tối đa 10)",
                                type=["jpg","jpeg","png"],accept_multiple_files=True)
         require_gps = mode!="Đã giao hàng"
