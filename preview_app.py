@@ -53,6 +53,10 @@ from preview_team_detach import (
     lost_registrations, revoked_team_ids, plan_detach,
     detach_requests, ACTIVE as LINK_ACTIVE
 )
+from preview_team_reassignment import (
+    team_change_plan, change_signature, team_change_requests
+)
+from preview_assignment import ROLE_TABS, TASK_SCHEMA
 from preview_remember import account_fingerprint
 from preview_handover import installer_handover, site_may_complete_installation
 from preview_report_commit import (atomic_report_requests, pending_quantity, numeric,
@@ -1570,6 +1574,192 @@ def provision_team_password():
                      "Cần kiểm tra bảng tài khoản trước khi làm lại.")
 
 
+
+def team_reassignment_admin():
+    """Explicit ADMIN operation; never alter KHO_PHAN_BO or completed evidence."""
+    require_role("ADMIN")
+    with st.expander("♻️ THU HỒI PHÂN CÔNG / GIAO LẠI ĐỘI KHÁC",
+                     expanded=False):
+        notice=st.session_state.pop("team_change_notice",None)
+        if notice:
+            st.success(notice)
+        teams=[r for r in read_sheet("QUAN_LY_DOI")
+               if r.get("Mã đội") and r.get("Mã dự án")
+               and r.get("Trạng thái")=="Hoạt động"
+               and allowed_modes(r)]
+        if not teams:
+            st.info("Chưa có đội VC/KTV đang hoạt động.")
+            return
+        projects=sorted(set(r["Mã dự án"] for r in teams))
+        project=st.selectbox("1. Dự án",projects,key="team_change_project")
+        candidates=[r for r in teams if r["Mã dự án"]==project]
+        source=st.selectbox("2. Đội đang phụ trách",
+                            candidates,
+                            format_func=lambda t:t.get("Tên đội/đội trưởng",t["Mã đội"])
+                            +" • "+t.get("Loại nhiệm vụ",""),
+                            key=f"team_change_source_{project}")
+        actions=("Thu hồi – trả nhiệm vụ về chờ cấp lại",
+                 "Giao lại trực tiếp cho đội khác",
+                 "Đội nghỉ/ngừng hoạt động – khóa tài khoản và nhả việc chưa làm")
+        action=st.radio("3. Hình thức xử lý",actions,
+                         key=f"team_change_action_{project}")
+        suspend=action.startswith("Đội nghỉ")
+        transfer=action.startswith("Giao lại")
+        tasks={"VAN_CHUYEN":read_sheet("VAN_CHUYEN"),
+               "LAP_DAT":read_sheet("LAP_DAT")}
+        hubs=read_sheet("BAN_GIAO_TAP_KET")
+        chosen=[]
+        target=None
+        mode=""
+        if suspend:
+            st.warning("Đội sẽ ngừng đăng nhập. Mọi nhiệm vụ CHƯA LÀM, "
+                       "chưa có chứng từ sẽ được nhả; việc đang làm dở "
+                       "hoặc có bàn giao được giữ lại để đối soát.")
+        else:
+            labels={"VC":"Vận chuyển", "LD":"Lắp đặt",
+                    "VC+LD":"Vận chuyển và lắp đặt"}
+            modes=allowed_modes(source)
+            mode=st.radio("4. Loại công việc cần chuyển",modes,
+                          format_func=lambda value:labels[value],
+                          key=f"team_change_mode_{project}_{source['Mã đội']}")
+            kinds=ROLE_TABS[mode]
+            sites=sorted({str(r.get("Mã điểm") or "") for tab in kinds
+                          for r in tasks[tab]
+                          if r.get("Mã dự án")==project
+                          and r.get(TASK_SCHEMA[tab][1])==source["Mã đội"]
+                          and r.get("Mã điểm")})
+            if not sites:
+                st.info("Đội không có nhiệm vụ thuộc loại đang chọn.")
+                return
+            locs={(r.get("Mã dự án"),r.get("Mã điểm")):
+                  r.get("Tên xã/phường/đơn vị","")
+                  for r in read_sheet("DANH_SACH_DIEM")}
+            chosen=st.multiselect(
+                "5. Tìm và chọn các điểm cần thu hồi / giao lại",
+                sites,
+                format_func=lambda pid:
+                    f"{locs.get((project,pid),pid)} • {pid}",
+                placeholder="Gõ tên điểm hoặc mã điểm để tìm...",
+                key=f"team_change_sites_{project}_{source['Mã đội']}_{mode}")
+            if transfer:
+                destinations=[t for t in candidates
+                              if t["Mã đội"]!=source["Mã đội"]
+                              and mode in allowed_modes(t)]
+                if not destinations:
+                    st.warning("Chưa có đội khác cùng dự án, đúng chuyên môn "
+                               "và đang hoạt động để nhận việc.")
+                    return
+                target=st.selectbox(
+                    "6. Đội sẽ nhận việc",
+                    destinations,
+                    format_func=lambda t:t.get("Tên đội/đội trưởng",t["Mã đội"])
+                    +" • "+t.get("Loại nhiệm vụ",""),
+                    key=f"team_change_target_{project}_{source['Mã đội']}_{mode}")
+            if not chosen:
+                st.info("Chọn một hoặc nhiều điểm để xem nhiệm vụ được phép chuyển.")
+                return
+        try:
+            planned=team_change_plan(
+                source,chosen,mode,tasks,hubs,
+                target_team=target,suspend=suspend)
+        except ValueError as exc:
+            st.warning(str(exc))
+            return
+        c1,c2=st.columns(2)
+        c1.metric("Nhiệm vụ có thể chuyển",len(planned["changes"]))
+        c2.metric("Nhiệm vụ giữ đối soát",len(planned["protected"]))
+        st.caption(f"Điểm có thể nhả/chuyển: {planned['released_sites']}. "
+                   "Không đổi SL phân bổ cho điểm; không xóa báo cáo hay ảnh.")
+        if planned["changes"]:
+            with st.expander("Xem các nhiệm vụ sẽ thay đổi"):
+                st.dataframe([{"Công đoạn":r["tab"],"Mã điểm":r["point"],
+                              "SKU":r["sku"],"Xử lý":
+                              ("Giao cho "+planned["target_id"]
+                               if planned["target_id"] else "Chờ phân công lại")}
+                             for r in planned["changes"]],
+                             hide_index=True,use_container_width=True)
+        if planned["protected"]:
+            st.warning("Các dòng đã làm/có chứng từ không bị chuyển tự động.")
+            with st.expander("Xem nhiệm vụ phải bàn giao / đối soát"):
+                st.dataframe([{"Công đoạn":r["tab"],"Mã điểm":r["point"],
+                              "SKU":r["sku"],"Lý do":r["reason"]}
+                             for r in planned["protected"]],
+                             hide_index=True,use_container_width=True)
+        digest=hashlib.sha256(repr(change_signature(planned)).encode()).hexdigest()[:16]
+        ack=st.checkbox(
+            "Tôi đã kiểm tra đúng đội, địa điểm và các nhiệm vụ sẽ thay đổi. "
+            "Tôi đồng ý thực hiện trên PREVIEW.",
+            key=f"team_change_confirm_{digest}")
+        label=("✅ XÁC NHẬN NGỪNG ĐỘI / THU HỒI VIỆC" if suspend else
+               "✅ XÁC NHẬN GIAO LẠI ĐỘI KHÁC" if transfer else
+               "✅ XÁC NHẬN TRẢ VỀ CHỜ PHÂN CÔNG")
+        if st.button(label,type="primary",use_container_width=True,
+                     disabled=not ack,key=f"team_change_commit_{digest}"):
+            try:
+                read_sheet.clear()
+                live_teams=read_sheet_live("QUAN_LY_DOI")
+                matches=[r for r in live_teams
+                         if r.get("Mã đội")==source["Mã đội"]
+                         and r.get("Mã dự án")==project]
+                if len(matches)!=1:
+                    fail("Không xác định được đội nguồn duy nhất.")
+                live_source=matches[0]
+                live_target=None
+                if transfer:
+                    matches=[r for r in live_teams
+                             if r.get("Mã đội")==target["Mã đội"]
+                             and r.get("Mã dự án")==project]
+                    if len(matches)!=1:
+                        fail("Không xác định được đội nhận duy nhất.")
+                    live_target=matches[0]
+                fresh_tasks={"VAN_CHUYEN":read_sheet_live("VAN_CHUYEN"),
+                             "LAP_DAT":read_sheet_live("LAP_DAT")}
+                live_plan=team_change_plan(
+                    live_source,chosen,mode,fresh_tasks,
+                    read_sheet_live("BAN_GIAO_TAP_KET"),
+                    target_team=live_target,suspend=suspend)
+                if change_signature(live_plan)!=change_signature(planned):
+                    fail("Nhiệm vụ hoặc bằng chứng đã thay đổi. Tải lại để đối soát.")
+                account_rows=[]
+                link_rows=[]
+                if suspend:
+                    accounts=[r for r in read_sheet_live("TAI_KHOAN_DOI")
+                              if r.get("Mã đội")==source["Mã đội"]
+                              and r.get("Mã dự án")==project
+                              and r.get("Trạng thái")=="Hoạt động"]
+                    if len(accounts)>1:
+                        fail("Đội có nhiều tài khoản hoạt động; cần đối soát.")
+                    account_rows=[r.get("_row") for r in accounts]
+                    links=[r for r in read_sheet_live("LIEN_KET_DANG_KY_DOI")
+                           if r.get("Mã đội")==source["Mã đội"]
+                           and r.get("Mã dự án")==project
+                           and r.get("Trạng thái liên kết")==LINK_ACTIVE]
+                    if len(links)>1:
+                        fail("Đội có nhiều hồ sơ liên kết; cần đối soát.")
+                    link_rows=[r.get("_row") for r in links]
+                sheetnames=["VAN_CHUYEN","LAP_DAT","NHAT_KY_HE_THONG"]
+                if suspend:
+                    sheetnames+=["QUAN_LY_DOI","TAI_KHOAN_DOI",
+                                 "LIEN_KET_DANG_KY_DOI"]
+                sheet_ids={tab:sheet(tab).id for tab in sheetnames}
+                requests=team_change_requests(
+                    live_plan,sheet_ids,now(),auth()["username"],
+                    account_rows=account_rows,active_links=link_rows)
+                client()[0].batch_update({"requests":requests})
+                read_sheet.clear()
+                st.session_state["team_change_notice"]=(
+                    f"Đã xử lý {len(live_plan['changes'])} nhiệm vụ cho đội "
+                    f"{live_plan['team_id']}; giữ {len(live_plan['protected'])} "
+                    "nhiệm vụ/chứng từ để đối soát. KHO_PHAN_BO không thay đổi.")
+                st.rerun()
+            except Exception as exc:
+                read_sheet.clear()
+                st.error("Chưa xác nhận được kết quả thu hồi ("+
+                         type(exc).__name__+"). KHÔNG bấm lại ngay; "
+                         "ADMIN cần đối soát các sheet VAN_CHUYEN, LAP_DAT.")
+
+
+
 def teams_and_approval():
     require_role("ADMIN")
     st.subheader("👥 Quản lý đội / Duyệt đăng ký")
@@ -1663,6 +1853,7 @@ def teams_and_approval():
             except ValueError as exc:
                 st.error("Liên kết hoặc đội chưa hợp lệ: "+str(exc))
     provision_team_password()
+    team_reassignment_admin()
     st.caption("Chỉ quản lý đội trưởng. Thành viên của đội do đội trưởng tự quản lý.")
     with st.expander("➕ Thêm đội trưởng thủ công (không phải gán nhiệm vụ)", expanded=False):
         saved_team_message=st.session_state.pop("team_saved_message", None)
