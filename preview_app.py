@@ -1951,12 +1951,23 @@ def sync_progress(project_id, point_id):
         append("TIEN_DO",values)
     read_sheet.clear()
 
-def images_to_drive(files, report_id):
+def images_to_drive(files, report_id, project_id="", point_id="", point_name="", recorded_at=""):
     sh, cred=client()
     folder=st.secrets.get("photos_folder_id", "")
     if not folder:
         raise RuntimeError("Thiếu photos_folder_id.")
     drive=build("drive","v3",credentials=cred,cache_discovery=False)
+    # Searchable Drive filename/description; the report Sheet stores the URL.
+    if project_id and point_id and recorded_at:
+        safe=lambda x: "".join(c for c in str(x) if c.isalnum() or c in "-_")[:48]
+        stamp="".join(c for c in recorded_at if c.isdigit() or c=="T")[:15]
+        photo_prefix=f"{safe(project_id)}_{safe(point_id)}_{stamp}_{report_id}"
+        description=(f"TDV PREVIEW | Dự án: {project_id} | "
+                     f"Điểm: {point_name} ({point_id}) | "
+                     f"Thời điểm gửi: {recorded_at} | Mã báo cáo: {report_id}")
+    else:
+        photo_prefix=report_id
+        description=f"TDV PREVIEW | Mã chứng từ: {report_id}"
     urls=[]
     for i, f in enumerate(files[:10]):
         img=Image.open(f)
@@ -1966,7 +1977,8 @@ def images_to_drive(files, report_id):
         img.save(buf,format="JPEG",quality=77,optimize=True)
         buf.seek(0)
         uploaded=drive.files().create(
-            body={"name":f"{report_id}_{i+1}.jpg","parents":[folder]},
+            body={"name":f"{photo_prefix}_{i+1}.jpg",
+                  "parents":[folder],"description":description},
             media_body=MediaIoBaseUpload(buf,mimetype="image/jpeg",resumable=False),
             fields="id,webViewLink").execute()
         urls.append(uploaded.get("webViewLink") or
@@ -2391,8 +2403,15 @@ def report():
                          f"Đã ghi nhận: {r.get('SL thực tế') or 0} • "
                          f"**SL xác nhận hoàn thành: {remaining:g}**")
                 increments[r[id_key]]=remaining
-        photos=st.file_uploader("📷 Ảnh hiện trường (bắt buộc, tối đa 10)",
-                               type=["jpg","jpeg","png"],accept_multiple_files=True)
+        photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
+        captured=st.camera_input(
+            "📸 CHỤP ẢNH HIỆN TRƯỜNG",key=f"report_camera_{photo_key}")
+        uploaded=st.file_uploader(
+            "🖼️ HOẶC CHỌN ẢNH CÓ SẴN (tối đa 10)",
+            type=["jpg","jpeg","png"],accept_multiple_files=True,
+            key=f"report_files_{photo_key}")
+        photos=([captured] if captured is not None else [])+list(uploaded or [])
+        st.caption(f"Ảnh minh chứng đã chọn: {len(photos)}/10")
         require_gps = mode!="Đã giao hàng"
         gps=None
         if require_gps:
@@ -2458,12 +2477,15 @@ def report():
                     fail("Hàng đã được KTV ký nhận tại điểm tập kết. "
                          "Không báo giao tận xã lần thứ hai.")
             rid="BC-"+uuid.uuid4().hex[:16].upper()
+            submitted_at=now()
             p=lookup(read_sheet("DANH_SACH_DIEM"),"Mã điểm",chosen[1]) or {}
             dest=p.get("Link Google Maps") or ("https://www.google.com/maps/search/?api=1&query="+quote(p.get("Tên xã/phường/đơn vị",chosen[1])))
             maps=(f"https://www.google.com/maps?q={lat},{lon}" if require_gps else dest)
             st.session_state["_report_attempt_pending"]=rid
             try:
-                urls=images_to_drive(photos,rid)
+                urls=images_to_drive(
+                    photos,rid,chosen[0],chosen[1],
+                    p.get("Tên xã/phường/đơn vị",chosen[1]),submitted_at)
                 # All source rows are refreshed after photo upload. Business
                 # updates are issued together; no half-synced status/report.
                 read_sheet.clear()
@@ -2487,7 +2509,7 @@ def report():
                 prior_ids={str(r.get("Mã báo cáo") or next(iter(r.values()),""))
                            for r in prior}
                 requests,results=atomic_report_requests(
-                    sheets,rid,now(),a["username"],a["role"],tid,
+                    sheets,rid,submitted_at,a["username"],a["role"],tid,
                     chosen[0],chosen[1],mode,refreshed,increments,
                     urls,maps,lat,lon,vc_latest,ld_latest,
                     read_sheet_live("TIEN_DO"),
