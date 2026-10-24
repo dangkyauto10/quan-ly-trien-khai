@@ -144,3 +144,64 @@ def signed_receipt_lines(batch_id, team, lines, area, hub_name, hub_address,
             vc_team_id
         ])
     return result
+
+def verified_vc_hub_receipts(hub_rows, vc_tasks, install_tasks):
+    """Prove completed VC work at a hub without claiming delivery to each xã.
+
+    Only one signed, full-quantity receipt per project/point/SKU qualifies.
+    Its VC and KTV must match the *assigned* tasks. No Sheets writes occur.
+    """
+    transport=defaultdict(list)
+    installation=defaultdict(list)
+    accepted=defaultdict(list)
+    for task in vc_tasks:
+        key=(task.get("Mã dự án"),task.get("Mã điểm"),task.get("SKU"))
+        if all(key):
+            transport[key].append(task)
+    for task in install_tasks:
+        key=(task.get("Mã dự án"),task.get("Mã điểm"),task.get("SKU"))
+        if all(key):
+            installation[key].append(task)
+    for receipt in hub_rows:
+        if receipt.get("Trạng thái")!=ACCEPTED:
+            continue
+        key=(receipt.get("Mã dự án"),receipt.get("Mã điểm"),receipt.get("SKU"))
+        if not all(key):
+            continue
+        accepted[key].append(receipt)
+
+    completed={}
+    warnings=[]
+    for key, receipts in accepted.items():
+        if len(receipts)!=1 or len(transport[key])!=1 or len(installation[key])!=1:
+            warnings.append("Trùng/thiếu chứng từ hoặc nhiệm vụ tập kết: "+str(key))
+            continue
+        proof=receipts[0]
+        vc=transport[key][0]
+        ktv=installation[key][0]
+        if not all(str(proof.get(field) or "").strip() for field in (
+                "Số biên bản giấy","Link ảnh biên bản ký",
+                "Mã đội VC giao","Mã đội KTV nhận")):
+            warnings.append("Biên bản tập kết thiếu chứng từ/đội: "+str(key))
+            continue
+        if (vc.get("Mã đội VC")!=proof["Mã đội VC giao"] or
+                ktv.get("Mã đội KTV")!=proof["Mã đội KTV nhận"]):
+            warnings.append("Đội VC/KTV trong biên bản không khớp phân công: "+str(key))
+            continue
+        if (vc.get("Trạng thái")!="Chưa giao" or
+                str(vc.get("Mã báo cáo") or "").strip() or
+                str(vc.get("SL thực tế") or "").strip()):
+            warnings.append("VC có giao trực tiếp/báo cáo trước bàn giao: "+str(key))
+            continue
+        try:
+            quantity=q(proof.get("SL KTV thực nhận"))
+            planned=q(vc.get("SL giao"))
+            need=q(ktv.get("SL lắp"))
+        except ValueError:
+            warnings.append("Số lượng tập kết không hợp lệ: "+str(key))
+            continue
+        if planned<=0 or quantity!=planned or quantity!=need:
+            warnings.append("Bàn giao chưa đủ hoặc lệch định mức: "+str(key))
+            continue
+        completed[key]=quantity
+    return completed,warnings

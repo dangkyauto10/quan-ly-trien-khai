@@ -2844,8 +2844,10 @@ def dashboard():
                  f"({m['sites_installed']/total:.1%})")
         st.progress(min(1.,m["sites_installed"]/total))
     with st.expander("Chi tiết nhiệm vụ và việc chưa giao đội",expanded=False):
-        st.write(f"VC báo giao tận xã: **{m['vc_tasks_done']}/{m['vc_tasks']}** nhiệm vụ/SKU. "
-                 f"VC bàn giao tập kết đủ: **{m['sites_vc_hub_done']}** địa điểm "
+        st.write(f"VC hoàn thành: **{m['vc_tasks_done']}/{m['vc_tasks']}** nhiệm vụ/SKU "
+                 f"(giao tận xã: {m['vc_tasks_direct_done']}; "
+                 f"bàn giao tập kết hợp lệ: {m['vc_tasks_hub_done']}).")
+        st.write(f"VC bàn giao tập kết đủ: **{m['sites_vc_hub_done']}** địa điểm "
                  "(xác nhận theo biên bản có mã đội VC).")
         st.write(f"LĐ báo hoàn thành: **{m['ld_tasks_done']}/{m['ld_tasks']}** nhiệm vụ/SKU.")
         st.write(f"Nhiệm vụ VC chưa có đội: **{m['vc_unassigned']}**; "

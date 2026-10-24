@@ -5,7 +5,7 @@ for physical warehouse inventory. No writes and no personal contact details.
 """
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
-from preview_hub import received_by_site
+from preview_hub import received_by_site, verified_vc_hub_receipts
 
 
 VC_DONE = "Đã giao hàng"
@@ -117,28 +117,10 @@ def build_progress(project_id, projects, sites, receipts, allocations,
 
     vci=task_index(vc,"Mã nhiệm vụ VC","Mã đội VC",VC_DONE)
     ldi=task_index(ld,"Mã nhiệm vụ LD","Mã đội KTV",LD_DONE)
-    # Proven signed VC -> KTV handovers are separately completed VC work,
-    # not "VC delivered to each commune". Only count an unambiguous assigned
-    # transport crew with a real paper/photo receipt.
-    hub_vc_index=defaultdict(Decimal)
-    for receipt in hub_rows:
-        if (receipt.get("Trạng thái")!="KTV đã nhận tại tập kết"
-                or not receipt.get("Số biên bản giấy")
-                or not receipt.get("Link ảnh biên bản ký")
-                or not receipt.get("Mã đội VC giao")):
-            continue
-        key=(receipt.get("Mã dự án"),receipt.get("Mã điểm"),receipt.get("SKU"))
-        if not all(key):
-            continue
-        transport_tasks=vci.get(key,[])
-        if (len(transport_tasks)!=1 or
-            transport_tasks[0].get("Mã đội VC")!=receipt.get("Mã đội VC giao")):
-            anomalies.append("Biên bản tập kết không khớp đội VC được gán: "+str(key))
-            continue
-        try:
-            hub_vc_index[key]+=qty(receipt.get("SL KTV thực nhận"))
-        except ValueError:
-            anomalies.append("Biên bản tập kết có SL nhận không hợp lệ: "+str(key))
+    # A signed, fully matched hub receipt closes the VC team's task,
+    # but it is never counted as direct delivery to a xã.
+    hub_vc_index,hub_warnings=verified_vc_hub_receipts(hub_rows,vc,ld)
+    anomalies.extend(hub_warnings)
     hub_index=defaultdict(Decimal)
     for t in team_rows:
         teamid=t.get("Mã đội")
@@ -224,6 +206,10 @@ def build_progress(project_id, projects, sites, receipts, allocations,
         full_vc_hub=allocated and all(
             x["vc_hub"]>=x["planned"] and x["hub"]>=x["planned"]
             for x in skus)
+        full_vc_work=allocated and all(
+            x["vc_count"]==1 and
+            (x["delivered"]>=x["planned"] or x["vc_hub"]>=x["planned"])
+            for x in skus)
         full_supply=allocated and all(
             (x["delivered"]>=x["planned"] or x["hub"]>=x["planned"])
             and not (x["delivered"]>0 and x["hub"]>0) for x in skus)
@@ -259,10 +245,13 @@ def build_progress(project_id, projects, sites, receipts, allocations,
             "status":status,"skus":skus,"sku_count":len(skus),
             "delivery_full":bool(full_vc),"hub_received_full":bool(full_hub),
             "vc_hub_full":bool(full_vc_hub),
+            "vc_work_full":bool(full_vc_work),
             "supply_full":bool(full_supply),
             "installation_full":bool(full_ld),
             "has_partial_delivery":bool(some_vc and not full_vc),
-            "vc_done":sum(x["delivered"]>=x["planned"] and x["vc_count"]>0 for x in skus),
+            "vc_done":sum(x["vc_count"]==1 and
+                           (x["delivered"]>=x["planned"] or x["vc_hub"]>=x["planned"])
+                           for x in skus),
             "ld_done":sum(x["installed_full"]>=x["planned"] and x["ld_count"]==1 for x in skus),
             "vc_teams":sorted({name for x in skus for name in x["vc_team_names"]}),
             "ld_teams":sorted({name for x in skus for name in x["ld_team_names"]})
@@ -298,7 +287,19 @@ def build_progress(project_id, projects, sites, receipts, allocations,
     vc_hub_complete=sum(p["vc_hub_full"] for p in result_sites)
     unassigned_vc=sum(1 for row in vc if not row.get("Mã đội VC"))
     unassigned_ld=sum(1 for row in ld if not row.get("Mã đội KTV"))
-    delivery_tasks=sum(r.get("Trạng thái")==VC_DONE for r in vc)
+    def direct_vc_complete(row):
+        if row.get("Trạng thái")!=VC_DONE:
+            return False
+        try:
+            planned=qty(row.get("SL giao"))
+            actual=qty(row.get("SL thực tế"))
+            return planned>0 and actual==planned
+        except ValueError:
+            return False
+
+    direct_tasks=sum(direct_vc_complete(r) for r in vc)
+    hub_tasks=len(hub_vc_index)
+    delivery_tasks=direct_tasks+hub_tasks
     install_tasks=sum(r.get("Trạng thái")==LD_DONE for r in ld)
     activity=sorted(rs,key=lambda r:str(r.get("Thời gian máy chủ","")),
                     reverse=True)[:40]
@@ -311,10 +312,13 @@ def build_progress(project_id, projects, sites, receipts, allocations,
             "sites_delivered":vc_complete,
             "sites_at_hub":hub_complete,
             "sites_vc_hub_done":vc_hub_complete,
+            "sites_vc_work_done":sum(p["vc_work_full"] for p in result_sites),
             "sites_installed":ld_complete,
             "sites_ready_install":sum(p["supply_full"] and
                                        not p["installation_full"] for p in result_sites),
             "vc_tasks":len(vc),"vc_tasks_done":delivery_tasks,
+            "vc_tasks_direct_done":direct_tasks,
+            "vc_tasks_hub_done":hub_tasks,
             "ld_tasks":len(ld),"ld_tasks_done":install_tasks,
             "vc_unassigned":unassigned_vc,"ld_unassigned":unassigned_ld
         }
