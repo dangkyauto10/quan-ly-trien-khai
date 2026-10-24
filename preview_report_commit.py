@@ -36,6 +36,51 @@ def pending_quantity(row, mode):
     return planned-already
 
 
+
+def allocated_report_item(task, allocation_rows, mode):
+    """Read the user-visible product and site quota from KHO_PHAN_BO.
+
+    The VC/KTV task is a workflow record. It may never silently override
+    the quantity allocated to this project, location and SKU.
+    """
+    if mode not in CONFIG:
+        raise ValueError("Loại báo cáo không hợp lệ.")
+    project=str(task.get("Mã dự án") or "").strip()
+    point=str(task.get("Mã điểm") or "").strip()
+    sku=str(task.get("SKU") or "").strip()
+    matches=[
+        row for row in allocation_rows
+        if str(row.get("Mã dự án") or "").strip()==project
+        and str(row.get("Mã điểm") or "").strip()==point
+        and str(row.get("SKU") or "").strip()==sku
+    ]
+    if len(matches)!=1:
+        raise ValueError("Thiếu hoặc trùng phân bổ tại điểm; cần ADMIN đối soát.")
+    allocation=matches[0]
+    allocated=numeric(allocation.get("SL phân bổ"))
+    planned_key=CONFIG[mode][3]
+    task_planned=numeric(task.get(planned_key))
+    if allocated<=0 or allocated!=task_planned:
+        raise ValueError("Số lượng nhiệm vụ không khớp KHO_PHAN_BO tại điểm.")
+    task_alloc=str(task.get("Mã phân bổ") or "").strip()
+    source_alloc=str(allocation.get("Mã phân bổ") or "").strip()
+    if task_alloc and source_alloc and task_alloc!=source_alloc:
+        raise ValueError("Mã phân bổ nhiệm vụ không khớp KHO_PHAN_BO.")
+    name=str(allocation.get("Tên hàng hóa") or
+             allocation.get("Tên hàng") or "").strip()
+    unit=str(allocation.get("ĐVT") or
+             allocation.get("Đơn vị tính") or "").strip()
+    if not name or not unit:
+        raise ValueError("Phân bổ tại điểm thiếu tên hàng hoặc đơn vị tính.")
+    return {
+        "name":name,
+        "unit":unit,
+        "allocated":allocated,
+        "already":numeric(task.get("SL thực tế")),
+        "remaining":pending_quantity(task,mode)
+    }
+
+
 def atomic_report_requests(sheet_ids, rid, stamp, actor, role, team_id,
                            project, point, mode, live_rows, increments,
                            photo_urls, maps_url, latitude, longitude,
