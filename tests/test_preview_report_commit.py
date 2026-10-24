@@ -53,6 +53,22 @@ class ReportAtomicTests(unittest.TestCase):
         self.assertLess(snippet.index('if not eligible:'),
                         snippet.index('if st.button("✅ GỬI BÁO CÁO"'))
 
+    def test_report_camera_and_searchable_evidence_metadata(self):
+        source=(Path(__file__).resolve().parents[1]/"preview_app.py").read_text(encoding="utf-8")
+        funcs={n.name:n for n in ast.parse(source).body
+               if isinstance(n,ast.FunctionDef)}
+        report=ast.get_source_segment(source,funcs["report"])
+        save=ast.get_source_segment(source,funcs["images_to_drive"])
+        self.assertIn('st.camera_input(',report)
+        self.assertIn('key=f"report_camera_{photo_key}"',report)
+        self.assertIn('photos=([captured] if captured is not None else [])+list(uploaded or [])',report)
+        self.assertIn('submitted_at=now()',report)
+        self.assertIn('sheets,rid,submitted_at,',report)
+        self.assertIn('urls=images_to_drive(',report)
+        for detail in ('safe(project_id)','safe(point_id)','stamp','photo_prefix',
+                       'Thời điểm gửi:','Mã báo cáo:','"description":description'):
+            self.assertIn(detail,save)
+
     def test_partial_transport_is_not_marked_delivered(self):
         requests,states=request(VC,{"VC-A":3})
         self.assertEqual(states,{"VC-A":"Đã giao một phần"})
