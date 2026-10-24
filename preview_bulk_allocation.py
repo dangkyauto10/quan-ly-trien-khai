@@ -6,6 +6,7 @@ Sheets before committing any rows. No stock or assignments are modified here.
 from decimal import Decimal, InvalidOperation
 from collections import Counter, defaultdict
 import math
+from preview_progress_rules import site_progress
 
 
 def quantity(value):
@@ -193,26 +194,28 @@ def atomic_requests(sheet_ids, entries, batch_id, project, inventory, point_name
                                      sku, qty, "", "Chưa giao", "", "", "", "", "", ""])
         records["LAP_DAT"].append([f"LD-{alloc_id}", alloc_id, project, pid,
                                   sku, qty, "", "Chưa lắp", "", "", "", "", "", ""])
-    old_progress = {r.get("Mã điểm"):r for r in (progress or [])
-                    if r.get("Mã dự án") == project}
-    oldvc = Counter(r.get("Mã điểm") for r in (existing_tasks or {}).get("VAN_CHUYEN", [])
-                    if r.get("Mã dự án") == project)
-    oldld = Counter(r.get("Mã điểm") for r in (existing_tasks or {}).get("LAP_DAT", [])
-                    if r.get("Mã dự án") == project)
+    old_progress = {}
+    for row in (progress or []):
+        if row.get("Mã dự án") != project:
+            continue
+        pid=row.get("Mã điểm")
+        if pid in old_progress:
+            raise ValueError("TIEN_DO có nhiều dòng cùng dự án và địa điểm.")
+        old_progress[pid]=row
+    vc_old=(existing_tasks or {}).get("VAN_CHUYEN", [])
+    ld_old=(existing_tasks or {}).get("LAP_DAT", [])
     new_progress_updates = []
     for pid in vc_per_point:
         prior = old_progress.get(pid)
-        v_count = oldvc[pid] + vc_per_point[pid]
-        l_count = oldld[pid] + ld_per_point[pid]
+        snapshot=site_progress(project,pid,vc_old,ld_old)
+        v_count=snapshot["total_vc"]+vc_per_point[pid]
+        l_count=snapshot["total_ld"]+ld_per_point[pid]
+        # Adding new SKU tasks makes a previously finished site incomplete.
+        status=("Chưa thực hiện" if snapshot["status"]=="Chưa thực hiện"
+                else "Đang thực hiện")
+        vals=[project,pid,point_names[pid],v_count,snapshot["vc_done"],
+              l_count,snapshot["ld_done"],status,stamp]
         if prior:
-            v_done = sum(r.get("Mã điểm") == pid and r.get("Mã dự án") == project and
-                         r.get("Trạng thái") == "Đã giao hàng"
-                         for r in (existing_tasks or {}).get("VAN_CHUYEN", []))
-            l_done = sum(r.get("Mã điểm") == pid and r.get("Mã dự án") == project and
-                         r.get("Trạng thái") == "Đã lắp đặt"
-                         for r in (existing_tasks or {}).get("LAP_DAT", []))
-            status = "Đang thực hiện" if v_done or l_done else "Chưa thực hiện"
-            vals = [project, pid, point_names[pid], v_count, v_done, l_count, l_done, status, stamp]
             row_num = prior.get("_row")
             if not isinstance(row_num,int) or row_num < 2:
                 raise ValueError("Dòng tiến độ hiện tại không có vị trí ghi hợp lệ.")
@@ -220,8 +223,7 @@ def atomic_requests(sheet_ids, entries, batch_id, project, inventory, point_name
                 "start":{"sheetId":sheet_ids["TIEN_DO"],"rowIndex":row_num-1,"columnIndex":0},
                 "rows":[_row(vals)],"fields":"userEnteredValue"}})
         else:
-            records["TIEN_DO"].append([project, pid, point_names[pid],v_count,0,
-                                       l_count,0,"Chưa thực hiện",stamp])
+            records["TIEN_DO"].append(vals)
     records["NHAT_KY_HE_THONG"].append(
         [stamp,actor,"ADMIN","PHÂN BỔ HÀNG LOẠT","KHO_PHAN_BO",batch_id,"OK",
          f"{project}: {len(entries)} dòng, {len(vc_per_point)} địa điểm"])

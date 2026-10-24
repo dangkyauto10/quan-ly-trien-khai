@@ -61,6 +61,7 @@ from preview_remember import account_fingerprint
 from preview_handover import installer_handover, site_may_complete_installation
 from preview_report_commit import (atomic_report_requests, pending_quantity, numeric,
                                    allocated_report_item)
+from preview_progress_rules import site_progress
 from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label, verify_vc_assignment
 from preview_user_guide import GUIDE_URL, render_guide
 from io import BytesIO
@@ -1352,64 +1353,111 @@ def allocate():
 
 
 def allocate_single():
+    """ADMIN single-location allocation, using the same atomic path as bulk."""
     require_role("ADMIN")
     st.subheader("📦 Phân bổ SLHH theo từng điểm")
-    prows=read_sheet("DANH_SACH_DU_AN")
-    projects=[r["Mã dự án"] for r in prows if r.get("Mã dự án")]
+    st.caption("Chỉ phân bổ hàng; không ghi xuất kho hoặc hoàn thành lắp đặt.")
+    projects=[r["Mã dự án"] for r in read_sheet("DANH_SACH_DU_AN")
+              if r.get("Mã dự án")]
     if not projects:
         st.info("Cần tạo dự án trước.")
         return
     project=st.selectbox("Dự án",projects)
-    points=[x for x in read_sheet("DANH_SACH_DIEM") if x.get("Mã dự án")==project and x.get("Mã điểm")]
+    points=[x for x in read_sheet("DANH_SACH_DIEM")
+            if x.get("Mã dự án")==project and x.get("Mã điểm")
+            and x.get("Trạng thái")=="Hoạt động"]
     if not points:
-        st.info("Cần có điểm thuộc dự án này.")
+        st.info("Cần có điểm đang hoạt động thuộc dự án này.")
+        return
+    if len(points)!=len({x["Mã điểm"] for x in points}):
+        st.error("Danh sách địa điểm trùng mã; ADMIN cần đối soát trước.")
         return
     pmap={f"{x['Tên xã/phường/đơn vị']} • {x['Mã điểm']}":x for x in points}
     point=pmap[st.selectbox("Điểm cần phân bổ",list(pmap))]
-    imports=[r for r in read_sheet("NHAP_KHO") if r.get("Mã dự án")==project and r.get("SKU")]
-    allocations=[r for r in read_sheet("KHO_PHAN_BO") if r.get("Mã dự án")==project]
-    items={}
-    for r in imports:
-        sku=r["SKU"]
-        if sku not in items:
-            items[sku]={"name":r["Tên hàng hóa"],"unit":r["Đơn vị tính"],"in":0}
-        items[sku]["in"]+=float(r.get("SL thực nhận") or 0)
-    for r in allocations:
-        if r.get("SKU") in items:
-            items[r["SKU"]]["in"]-=float(r.get("SL phân bổ") or 0)
+    inventory,issues=inventory_by_sku(
+        project,read_sheet("NHAP_KHO"),read_sheet("KHO_PHAN_BO"))
+    if issues:
+        for issue in issues:
+            st.error(issue)
+        st.warning("Cần đối soát hàng nhập và phân bổ trước khi tiếp tục.")
+        return
+    if not inventory:
+        st.info("Chưa có hàng nhập kho của dự án.")
+        return
     with st.form("allocate_batch"):
         quantities={}
-        for sku,item in items.items():
-            remain=max(0,item["in"])
-            st.caption(f"{sku} • {item['name']} • Tồn khả dụng: {remain:g} {item['unit']}")
-            quantities[sku]=st.number_input(f"SL phân bổ {sku}",min_value=0.0,max_value=float(remain),step=1.0,key=f"alloc_{sku}")
-        if st.form_submit_button("PHÂN BỔ",use_container_width=True):
-            chosen={sku:v for sku,v in quantities.items() if v>0}
-            if not chosen:
-                st.warning("Chưa nhập SLHH.")
-                return
-            bid="PB-"+uuid.uuid4().hex[:12].upper()
-            try:
-                # Re-check stock just before writing. One Admin should allocate at a time.
-                freshin=read_sheet("NHAP_KHO")
-                freshpb=read_sheet("KHO_PHAN_BO")
-                for sku,qty in chosen.items():
-                    available=(sum(float(r.get("SL thực nhận") or 0) for r in freshin if r.get("Mã dự án")==project and r.get("SKU")==sku)
-                               -sum(float(r.get("SL phân bổ") or 0) for r in freshpb if r.get("Mã dự án")==project and r.get("SKU")==sku))
-                    if qty>available: fail(f"SKU {sku}: vượt số lượng còn lại.")
-                for sku,qty in chosen.items():
-                    pid="PB-"+uuid.uuid4().hex[:12].upper()
-                    item=items[sku]
-                    append("DM_CHUAN",[bid,project,sku,item["name"],item["unit"],qty,point["Mã điểm"],point["Tên xã/phường/đơn vị"],"Đã phân bổ",auth()["username"],now(),""])
-                    append("KHO_PHAN_BO",[pid,bid,project,point["Mã điểm"],sku,item["name"],item["unit"],qty,now(),"Đã phân bổ",""])
-                    append("VAN_CHUYEN",["VC-"+uuid.uuid4().hex[:12].upper(),pid,project,point["Mã điểm"],sku,qty,"","Chưa giao","","","","","",""])
-                    append("LAP_DAT",["LD-"+uuid.uuid4().hex[:12].upper(),pid,project,point["Mã điểm"],sku,qty,"","Chưa lắp","","","","","",""])
-                sync_progress(project, point["Mã điểm"])
-                audit(auth()["username"],"PHÂN BỔ","KHO_PHAN_BO",bid,"OK")
-                st.success(f"Đã phân bổ {len(chosen)} SKU. Tiếp theo Admin gán đội VC/KTV.")
-            except Exception as e:
-                audit(auth()["username"],"PHÂN BỔ","KHO_PHAN_BO",bid,"CẦN ĐỐI SOÁT",str(e))
-                st.error("Có lỗi giữa quá trình phân bổ. Cần đối soát trước khi thử lại.")
+        for sku,item in inventory.items():
+            remain=max(0,item["remaining"])
+            st.caption(f"{sku} • {item['name']} • Hàng còn chờ phân bổ: "
+                       f"{remain:g} {item['unit']}")
+            quantities[sku]=st.number_input(
+                f"SL phân bổ {sku}",min_value=0.0,
+                max_value=float(remain),step=1.0,
+                key=f"alloc_{project}_{point['Mã điểm']}_{sku}")
+        submitted=st.form_submit_button("PHÂN BỔ",use_container_width=True)
+    if not submitted:
+        return
+
+    chosen={sku:qty for sku,qty in quantities.items() if qty>0}
+    if not chosen:
+        st.warning("Chưa nhập SLHH.")
+        return
+    proposed=[{"Mã điểm":point["Mã điểm"],"quantities":chosen}]
+    errors,candidates,_=verify_plan(
+        project,proposed,inventory,read_sheet("KHO_PHAN_BO"),points)
+    if errors:
+        for issue in errors:
+            st.error(issue)
+        return
+    batch_id="PB-"+uuid.uuid4().hex[:12].upper()
+    try:
+        # Re-read LIVE sheets before any write; same validation as bulk mode.
+        spreadsheet=client()[0]
+        live_projects=read_sheet_live("DANH_SACH_DU_AN")
+        if project not in {r.get("Mã dự án") for r in live_projects}:
+            raise ValueError("Dự án không còn tồn tại.")
+        live_points=read_sheet_live("DANH_SACH_DIEM")
+        live_allocations=read_sheet_live("KHO_PHAN_BO")
+        live_inventory,inventory_issues=inventory_by_sku(
+            project,read_sheet_live("NHAP_KHO"),live_allocations)
+        if inventory_issues:
+            raise ValueError("Tồn hàng cần đối soát: "+
+                             "; ".join(inventory_issues[:3]))
+        live_errors,live_candidates,_=verify_plan(
+            project,proposed,live_inventory,live_allocations,live_points)
+        if live_errors:
+            raise ValueError("; ".join(live_errors[:3]))
+        if live_candidates!=candidates:
+            raise ValueError("Phân bổ đã thay đổi trong lúc xác nhận.")
+        point_live=next((r for r in live_points
+                         if r.get("Mã dự án")==project
+                         and r.get("Mã điểm")==point["Mã điểm"]),None)
+        if point_live is None:
+            raise ValueError("Không còn tìm thấy địa điểm trong dự án.")
+        tables=("DM_CHUAN","KHO_PHAN_BO","VAN_CHUYEN","LAP_DAT",
+                "TIEN_DO","NHAT_KY_HE_THONG")
+        ids={name:spreadsheet.worksheet(name).id for name in tables}
+        existing_tasks={"VAN_CHUYEN":read_sheet_live("VAN_CHUYEN"),
+                        "LAP_DAT":read_sheet_live("LAP_DAT")}
+        reqs=atomic_requests(
+            ids,live_candidates,batch_id,project,live_inventory,
+            {point["Mã điểm"]:point_live["Tên xã/phường/đơn vị"]},
+            auth()["username"],now(),existing_tasks,
+            read_sheet_live("TIEN_DO"))
+        # One all-or-nothing Sheets transaction: NO sequential appends.
+        spreadsheet.batch_update({"requests":reqs})
+        read_sheet.clear()
+        st.success(f"Đã phân bổ đồng bộ {len(live_candidates)} SKU tại "
+                   f"{point_live['Tên xã/phường/đơn vị']}. "
+                   "Nhiệm vụ VC/KTV đang chờ phân công đội.")
+    except ValueError as exc:
+        read_sheet.clear()
+        st.error("Chưa phân bổ: "+str(exc))
+    except Exception as exc:
+        read_sheet.clear()
+        st.error("CHƯA XÁC NHẬN ĐƯỢC KẾT QUẢ GHI ("+type(exc).__name__+
+                 "). KHÔNG bấm lại. ADMIN cần đối chiếu các sheet liên quan.")
+
 
 def provision_team_password():
     """ADMIN-only provisioning. Password is shown ONCE and never stored clear.
@@ -2125,23 +2173,24 @@ def teams_and_approval():
                      "). Không bấm lại ngay; cần kiểm tra sheet "+tab+".")
 
 def sync_progress(project_id, point_id):
-    """Derived per-point summary; not a substitute for source task rows."""
+    """Legacy ADMIN reconciliation; use the same KTV rules as atomic reports."""
     read_sheet.clear()
-    vc=[r for r in read_sheet("VAN_CHUYEN") if r.get("Mã dự án")==project_id and r.get("Mã điểm")==point_id]
-    ld=[r for r in read_sheet("LAP_DAT") if r.get("Mã dự án")==project_id and r.get("Mã điểm")==point_id]
-    vc_done=sum(r.get("Trạng thái")=="Đã giao hàng" for r in vc)
-    ld_done=sum(r.get("Trạng thái")=="Đã lắp đặt" for r in ld)
-    all_done=bool(vc or ld) and vc_done==len(vc) and ld_done==len(ld)
-    some_done=vc_done+ld_done>0
-    status="Hoàn thành" if all_done else ("Đang thực hiện" if some_done else "Chưa thực hiện")
-    loc=lookup(read_sheet("DANH_SACH_DIEM"),"Mã điểm",point_id) or {}
-    current=next((r for r in read_sheet("TIEN_DO") if r.get("Mã dự án")==project_id and r.get("Mã điểm")==point_id),None)
-    values=[project_id,point_id,loc.get("Tên xã/phường/đơn vị",""),len(vc),vc_done,len(ld),ld_done,status,now()]
+    summary=site_progress(project_id,point_id,
+                          read_sheet("VAN_CHUYEN"),read_sheet("LAP_DAT"))
+    loc=next((r for r in read_sheet("DANH_SACH_DIEM")
+              if r.get("Mã dự án")==project_id and r.get("Mã điểm")==point_id),{})
+    current=next((r for r in read_sheet("TIEN_DO")
+                  if r.get("Mã dự án")==project_id and r.get("Mã điểm")==point_id),None)
+    values=[project_id,point_id,loc.get("Tên xã/phường/đơn vị",""),
+            summary["total_vc"],summary["vc_done"],
+            summary["total_ld"],summary["ld_done"],summary["status"],now()]
     if current:
-        sheet("TIEN_DO").update(f"A{current['_row']}:I{current['_row']}",[values],value_input_option="RAW")
+        sheet("TIEN_DO").update(f"A{current['_row']}:I{current['_row']}",
+                               [values],value_input_option="RAW")
     else:
         append("TIEN_DO",values)
     read_sheet.clear()
+
 
 def images_to_drive(files, report_id, project_id="", point_id="", point_name="", recorded_at=""):
     sh, cred=client()
@@ -2744,9 +2793,9 @@ def dashboard():
     if not ids:
         st.info("Chưa có dự án để báo cáo.")
         return
-    options=ids+["Tất cả"]
+    # Always show KPIs per project, never merge unrelated project points.
     preferred=ids.index("DA880") if "DA880" in ids else 0
-    project=st.selectbox("Dự án cần xem",options,index=preferred,
+    project=st.selectbox("Dự án cần xem",ids,index=preferred,
                          key="leadership_project")
     progress=build_progress(
         project,projects,
@@ -2791,10 +2840,10 @@ def dashboard():
         st.write(f"LĐ báo hoàn thành: **{m['ld_tasks_done']}/{m['ld_tasks']}** nhiệm vụ/SKU.")
         st.write(f"Nhiệm vụ VC chưa có đội: **{m['vc_unassigned']}**; "
                  f"LĐ chưa có đội: **{m['ld_unassigned']}**.")
-        st.caption("VC giao tận xã và KTV nhận hàng ở điểm tập kết là "
-                   "HAI chỉ tiêu khác nhau. Lắp đặt hoàn thành cần báo cáo "
-                   "tại xã với ảnh/GPS và hàng đã giao đủ theo một trong hai "
-                   "hình thức. Số nhiệm vụ không phải số xã hoàn thành.")
+        st.caption("VC giao tận xã và KTV nhận hàng tập kết là hai chỉ tiêu "
+                   "riêng. Chỉ báo cáo KTV có ảnh/GPS và đủ SL lắp mới tính "
+                   "điểm hoàn thành. Thiếu chứng từ giao hàng sẽ cảnh báo "
+                   "đối soát, không tự xóa số liệu KTV đã báo.")
 
     if progress["pending_report_count"]:
         st.warning(f"⚠️ Có {progress['pending_report_count']} báo cáo chưa đồng bộ "
@@ -2843,7 +2892,9 @@ def dashboard():
                 "SKU":item["sku"],"SL phân bổ":display_amount(item["planned"]),
                 "VC giao tận xã":display_amount(item["delivered"]),
                 "KTV nhận tập kết":display_amount(item["hub"]),
-                "LĐ đã báo lắp":display_amount(item["installed"])
+                "LĐ đã báo lắp":display_amount(item["installed"]),
+                "Đã phân bổ chưa lắp":display_amount(
+                    item["planned"]-item["installed"])
             } for item in site["skus"]],hide_index=True,use_container_width=True)
         else:
             st.info("Địa điểm chưa được phân bổ hàng.")
@@ -2851,9 +2902,10 @@ def dashboard():
         st.info("Không có địa điểm khớp điều kiện tìm kiếm.")
 
     st.markdown("#### 3. Nhập kho – Phân bổ – Giao – Lắp theo SKU")
-    st.caption("VC giao tận xã và KTV nhận tập kết được báo riêng, "
-               "KHÔNG cộng hai lần. ĐVT theo từng SKU; "
-               "'Còn chờ phân bổ' không phải tồn kho vật lý.")
+    st.caption("VC giao tận xã và KTV nhận tập kết được báo riêng. "
+               "'Đã phân bổ chưa lắp' = SL phân bổ trừ SL KTV đã báo lắp "
+               "(kể cả lắp một phần); KHÔNG phải tồn kho vật lý. "
+               "Mỗi SKU giữ nguyên ĐVT của mình.")
     if progress["skus"]:
         st.dataframe(progress["skus"],hide_index=True,use_container_width=True)
     else:

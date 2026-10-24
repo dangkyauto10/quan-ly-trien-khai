@@ -113,6 +113,25 @@ class MultiSkuAllocationTests(unittest.TestCase):
 
 
 
+    def test_new_sku_does_not_reset_partly_installed_site(self):
+        prior=[{"Mã dự án":PROJECT,"Mã điểm":"DD-1","_row":2}]
+        tasks={"VAN_CHUYEN":[{"Mã dự án":PROJECT,"Mã điểm":"DD-1",
+                                "Mã nhiệm vụ VC":"VC-OLD",
+                                "Trạng thái":"Chưa giao","SL giao":"2",
+                                "SL thực tế":""}],
+               "LAP_DAT":[{"Mã dự án":PROJECT,"Mã điểm":"DD-1",
+                           "Mã nhiệm vụ LD":"LD-OLD","SL lắp":"2",
+                           "Trạng thái":"Đã lắp một phần","SL thực tế":"1"}]}
+        reqs=atomic_requests(
+            IDS,[("DD-1","TB-02",Decimal("1"))],"PB-TEST2",
+            PROJECT,self.stock(),{"DD-1":"Phường A"},
+            "admin","date",tasks,prior)
+        progress=next(r["updateCells"]["rows"][0]["values"]
+                      for r in reqs if "updateCells" in r)
+        self.assertEqual(progress[7]["userEnteredValue"],
+                         {"stringValue":"Đang thực hiện"})
+        self.assertEqual(progress[6]["userEnteredValue"],{"numberValue":0})
+
     def test_all_receipts_allocated_waiting_zero(self):
         allocations=[
             {"Mã dự án":PROJECT,"SKU":"TB-01","SL phân bổ":"20"},

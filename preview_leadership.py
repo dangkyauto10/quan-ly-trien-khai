@@ -39,8 +39,9 @@ def build_progress(project_id, projects, sites, receipts, allocations,
                    transport, installs, reports, teams, hub_rows=None):
     """Return a consistent snapshot filtered by project (or 'Tất cả').
 
-    Site delivered/installed counts require a matching status AND confirmed
-    actual quantities for EVERY SKU of the site, not just completed task count.
+    Installation counts use KTV's reported actual quantities for every SKU.
+    VC delivery/hub handover is tracked independently and cannot substitute
+    for KTV installation evidence.
     """
     all_projects={r.get("Mã dự án") for r in projects if r.get("Mã dự án")}
     selected=all_projects if project_id == "Tất cả" else {project_id}
@@ -147,21 +148,32 @@ def build_progress(project_id, projects, sites, receipts, allocations,
         for (p,pid,sku),v in received_by_site(hub_rows,project,teamid).items():
             hub_index[(p,pid,sku,teamid)]+=v
 
-    def accomplished(rows, done):
+    def accomplished(rows, done, partial=None):
+        """Cumulative quantities from real team reports, including KTV partials."""
         value=Decimal("0")
+        accepted=(done,partial) if partial else (done,)
         for r in rows:
-            if r.get("Trạng thái") != done:
+            if r.get("Trạng thái") not in accepted:
                 continue
-            # Missing actual quantity cannot prove a full delivery.
             raw=r.get("SL thực tế")
             if raw is None or str(raw).strip()=="":
-                anomalies.append("Nhiệm vụ hoàn thành thiếu SL thực tế: "+
+                anomalies.append("Nhiệm vụ đã báo thiếu SL thực tế: "+
                                  str(r.get("Mã nhiệm vụ VC") or r.get("Mã nhiệm vụ LD","")))
                 continue
             try:
-                value+=qty(raw)
+                actual=qty(raw)
+                if partial and str(r.get("SL lắp") or "").strip():
+                    planned=qty(r["SL lắp"])
+                    invalid=(actual>planned or
+                             (r.get("Trạng thái")==done and actual!=planned) or
+                             (r.get("Trạng thái")==partial and actual>=planned))
+                    if invalid:
+                        anomalies.append("KTV báo lắp có trạng thái/SL không khớp: "+
+                                         str(r.get("Mã nhiệm vụ LD","")))
+                        continue
+                value+=actual
             except ValueError:
-                anomalies.append("Nhiệm vụ hoàn thành có SL thực tế sai.")
+                anomalies.append("Nhiệm vụ đã báo có SL thực tế sai.")
         return value
 
     by_point=defaultdict(list)
@@ -172,7 +184,8 @@ def build_progress(project_id, projects, sites, receipts, allocations,
         vrows=vci.get(key,[])
         lrows=ldi.get(key,[])
         delivered=accomplished(vrows,VC_DONE)
-        installed=accomplished(lrows,LD_DONE)
+        installed_full=accomplished(lrows,LD_DONE)
+        installed=accomplished(lrows,LD_DONE,"Đã lắp một phần")
         hub_total=sum((hub_index.get((project,pid,sku,r.get("Mã đội KTV")),
                                       Decimal("0")) for r in lrows),Decimal("0"))
         vc_hub=hub_vc_index.get(key,Decimal("0"))
@@ -185,6 +198,7 @@ def build_progress(project_id, projects, sites, receipts, allocations,
                 "sku":sku, "planned":amount,
                 "delivered":delivered, "hub":hub_total,
                 "vc_hub":vc_hub, "installed":installed,
+                "installed_full":installed_full,
                 "vc_count":len(vrows),"ld_count":len(lrows),
                 "vc_assigned":any(r.get("Mã đội VC") for r in vrows),
                 "ld_assigned":any(r.get("Mã đội KTV") for r in lrows),
@@ -213,8 +227,10 @@ def build_progress(project_id, projects, sites, receipts, allocations,
         full_supply=allocated and all(
             (x["delivered"]>=x["planned"] or x["hub"]>=x["planned"])
             and not (x["delivered"]>0 and x["hub"]>0) for x in skus)
-        full_ld=full_supply and all(x["ld_count"] and
-                                    x["installed"]>=x["planned"] for x in skus)
+        # Reported installation is authoritative. Missing VC/hub proof is
+        # an audit warning, not a reason to suppress a valid KTV report.
+        full_ld=allocated and all(x["ld_count"]==1 and
+                                  x["installed_full"]>=x["planned"] for x in skus)
         some_vc=any(x["delivered"]>0 for x in skus)
         some_hub=any(x["hub"]>0 for x in skus)
         some_ld=any(x["installed"]>0 for x in skus)
@@ -224,7 +240,7 @@ def build_progress(project_id, projects, sites, receipts, allocations,
             status="Chưa phân bổ"
         elif full_ld:
             status="Đã lắp xong"
-        elif full_supply and some_ld:
+        elif some_ld:
             status="Đang lắp đặt"
         elif full_hub:
             status="KTV đã nhận tại điểm tập kết"
@@ -247,7 +263,7 @@ def build_progress(project_id, projects, sites, receipts, allocations,
             "installation_full":bool(full_ld),
             "has_partial_delivery":bool(some_vc and not full_vc),
             "vc_done":sum(x["delivered"]>=x["planned"] and x["vc_count"]>0 for x in skus),
-            "ld_done":sum(x["installed"]>=x["planned"] and x["ld_count"]>0 for x in skus),
+            "ld_done":sum(x["installed_full"]>=x["planned"] and x["ld_count"]==1 for x in skus),
             "vc_teams":sorted({name for x in skus for name in x["vc_team_names"]}),
             "ld_teams":sorted({name for x in skus for name in x["ld_team_names"]})
         })
@@ -261,6 +277,8 @@ def build_progress(project_id, projects, sites, receipts, allocations,
         allocated=values["allocated"]
         if allocated>imported:
             anomalies.append("Phân bổ vượt thực nhập: "+str(key))
+        if values["ld"]>allocated:
+            anomalies.append("KTV báo lắp vượt tổng phân bổ: "+str(key))
         progress_skus.append({
             "Dự án":project,"SKU":sku,"Hàng hóa":name,"ĐVT":unit,
             "Nhập":display_amount(imported),
@@ -268,7 +286,8 @@ def build_progress(project_id, projects, sites, receipts, allocations,
             "Còn chờ phân bổ":display_amount(imported-allocated),
             "VC giao tận xã":display_amount(values["vc"]),
             "KTV nhận tập kết":display_amount(values["hub"]),
-            "LĐ đã báo lắp":display_amount(values["ld"])
+            "LĐ đã báo lắp":display_amount(values["ld"]),
+            "Đã phân bổ chưa lắp":display_amount(allocated-values["ld"])
         })
 
     pending=[r for r in rs if r.get("Trạng thái đồng bộ") != SYNCED]

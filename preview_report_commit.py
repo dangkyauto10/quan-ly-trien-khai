@@ -6,6 +6,7 @@ returned requests in one spreadsheets.batchUpdate operation.
 """
 from decimal import Decimal
 from preview_bulk_allocation import _row, quantity
+from preview_progress_rules import site_progress
 
 
 CONFIG={
@@ -103,6 +104,7 @@ def atomic_report_requests(sheet_ids, rid, stamp, actor, role, team_id,
     tab,id_key,team_key,planned_key,done,partial,allowed=CONFIG[mode]
     task_updates=[]
     changes={}
+    actuals={}
     items=[]
     seen=set()
     for row in live_rows:
@@ -138,6 +140,7 @@ def atomic_report_requests(sheet_ids, rid, stamp, actor, role, team_id,
             "rows":[_row([status,stamp,", ".join(photo_urls),maps_url,
                           rid,actual,note])],"fields":"userEnteredValue"}})
         changes[task_id]=status
+        actuals[task_id]=actual
         items.append((task_id,str(row.get("SKU") or ""),inc))
     if not items:
         raise ValueError("Phải nhập ít nhất một SL thực tế lớn hơn 0.")
@@ -147,20 +150,13 @@ def atomic_report_requests(sheet_ids, rid, stamp, actor, role, team_id,
         r.get("Mã điểm")==point]
     ld=[r for r in all_ld if r.get("Mã dự án")==project and
         r.get("Mã điểm")==point]
-    def updated_status(r, which):
-        key="Mã nhiệm vụ VC" if which=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
-        return changes.get(str(r.get(key) or ""),r.get("Trạng thái")) if tab==which else r.get("Trạng thái")
-    vc_done=sum(updated_status(r,"VAN_CHUYEN")=="Đã giao hàng" for r in vc)
-    ld_done=sum(updated_status(r,"LAP_DAT")=="Đã lắp đặt" for r in ld)
-    total_vc,total_ld=len(vc),len(ld)
-    all_done=bool(total_vc or total_ld) and vc_done==total_vc and ld_done==total_ld
-    started=any(updated_status(r,"VAN_CHUYEN") in
-                ("Đã giao hàng","Đã giao một phần","Giao một phần") for r in vc)
-    started|=any(updated_status(r,"LAP_DAT") in
-                 ("Đã lắp đặt","Đã lắp một phần") for r in ld)
-    pstatus="Hoàn thành" if all_done else ("Đang thực hiện" if started else "Chưa thực hiện")
-    progress_values=[project,point,place_name,total_vc,vc_done,
-                     total_ld,ld_done,pstatus,stamp]
+    # KTV's verified cumulative installed quantity is authoritative for
+    # completion. VC progress remains independent (direct delivery or hub).
+    snapshot=site_progress(project,point,vc,ld,changes,actuals)
+    progress_values=[project,point,place_name,
+                     snapshot["total_vc"],snapshot["vc_done"],
+                     snapshot["total_ld"],snapshot["ld_done"],
+                     snapshot["status"],stamp]
     matches=[r for r in progress if r.get("Mã dự án")==project and
              r.get("Mã điểm")==point]
     if len(matches)>1:
@@ -180,8 +176,9 @@ def atomic_report_requests(sheet_ids, rid, stamp, actor, role, team_id,
     relevant=vc if tab=="VAN_CHUYEN" else ld
     if not relevant:
         raise ValueError("Không tìm thấy nhiệm vụ tại địa điểm.")
-    reported_kind=(mode if all(updated_status(r,tab)==done for r in relevant)
-                   else partial)
+    reported_kind=(mode if all(
+        changes.get(str(r.get(id_key) or ""),r.get("Trạng thái"))==done
+        for r in relevant) else partial)
     reported=[rid,stamp,project,point,team_id,reported_kind,
               ", ".join(id_ for id_,_,_ in items),
               ", ".join(sku+":"+format(q,"f") for _,sku,q in items),

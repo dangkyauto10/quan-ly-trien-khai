@@ -56,11 +56,33 @@ class LeadershipProgressTests(unittest.TestCase):
         self.assertEqual([r for r in result["sites"] if r["point_id"]=="P1"][0]["status"],
                          "Sẵn sàng lắp")
 
-    def test_installation_only_counts_when_delivery_confirmed(self):
+    def test_ktv_completed_report_counts_even_if_vc_has_not_reported(self):
         ld=[{**r,"Trạng thái":"Đã lắp đặt","SL thực tế":"2"} for r in LD]
-        m=view(ld=ld)["metrics"]
-        self.assertEqual(m["sites_installed"],0)
-        self.assertEqual(m["sites_delivered"],0)
+        result=view(ld=ld)
+        self.assertEqual(result["metrics"]["sites_installed"],2)
+        self.assertEqual(result["metrics"]["sites_delivered"],0)
+        self.assertTrue(any("Đối soát" in issue for issue in result["anomalies"]))
+        self.assertEqual(result["sites"][0]["status"],"Đã lắp xong")
+        sku=result["skus"][0]
+        self.assertEqual(sku["Đã phân bổ chưa lắp"],0)
+
+    def test_partial_ktv_report_reduces_pending_install_not_full_site(self):
+        ld=[{**LD[0],"Trạng thái":"Đã lắp một phần","SL lắp":"2",
+             "SL thực tế":"1"},LD[1]]
+        result=view(ld=ld)
+        self.assertEqual(result["metrics"]["sites_installed"],0)
+        self.assertEqual(result["sites"][0]["status"],"Đang lắp đặt")
+        self.assertEqual(result["skus"][0]["LĐ đã báo lắp"],1)
+        self.assertEqual(result["skus"][0]["Đã phân bổ chưa lắp"],3)
+
+    def test_ktv_data_never_crosses_project_boundary(self):
+        ld=[{**LD[0],"Trạng thái":"Đã lắp đặt","SL thực tế":"2"},
+            {**LD[1],"Trạng thái":"Chưa lắp","SL thực tế":""},
+            {**LD[0],"Mã dự án":"DA-OTHER","Mã điểm":"P1",
+             "Trạng thái":"Đã lắp đặt","SL thực tế":"100"}]
+        result=view(ld=ld)
+        self.assertEqual(result["metrics"]["sites_installed"],1)
+        self.assertEqual(result["skus"][0]["LĐ đã báo lắp"],2)
 
     def test_full_delivery_and_installation(self):
         vc=[{**r,"Trạng thái":"Đã giao hàng","SL thực tế":"2"} for r in VC]

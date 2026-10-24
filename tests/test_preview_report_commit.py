@@ -156,6 +156,30 @@ class ReportAtomicTests(unittest.TestCase):
         self.assertEqual(states["LD-A"],"Đã lắp một phần")
         self.assertEqual(reqs[1]["updateCells"]["start"]["sheetId"],3)
 
+    def test_ktv_full_report_completes_site_without_vc_delivery(self):
+        reqs,changes=request(LD,{"LD-A":10},mode="Đã lắp đặt",
+                             team_id="KTV-1",latitude=20.1,longitude=105.2)
+        self.assertEqual(changes["LD-A"],"Đã lắp đặt")
+        progress=reqs[-2]["updateCells"]["rows"][0]["values"]
+        self.assertEqual(progress[7]["userEnteredValue"],
+                         {"stringValue":"Hoàn thành"})
+        self.assertEqual(progress[4]["userEnteredValue"],{"numberValue":0})
+        self.assertEqual(progress[6]["userEnteredValue"],{"numberValue":1})
+
+    def test_ktv_partial_does_not_complete_site(self):
+        reqs,_=request(LD,{"LD-A":3},mode="Đã lắp đặt",
+                       team_id="KTV-1",latitude=20.1,longitude=105.2)
+        progress=reqs[-2]["updateCells"]["rows"][0]["values"]
+        self.assertEqual(progress[7]["userEnteredValue"],
+                         {"stringValue":"Đang thực hiện"})
+        self.assertEqual(progress[6]["userEnteredValue"],{"numberValue":0})
+
+    def test_vc_full_without_ktv_report_is_not_site_completion(self):
+        reqs,_=request(VC,{"VC-A":10})
+        progress=reqs[-2]["updateCells"]["rows"][0]["values"]
+        self.assertEqual(progress[7]["userEnteredValue"],
+                         {"stringValue":"Đang thực hiện"})
+
     def test_inconsistent_legacy_quantity_fails_closed(self):
         wrong={**VC,"SL thực tế":"5","Trạng thái":"Chưa giao"}
         with self.assertRaisesRegex(ValueError,"cần đối soát"):
