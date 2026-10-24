@@ -79,6 +79,16 @@ class InstallerHandoverTests(unittest.TestCase):
         result=installer_handover(KTV,[done],[vc("TB01",2,"Đã giao hàng",2)],PLACES)
         self.assertEqual(result[0]["status"],"Đã lắp xong")
 
+    def test_partial_installation_can_continue_after_full_delivery(self):
+        task={**ld("TB01",2),"Trạng thái":"Đã lắp một phần",
+              "SL thực tế":"1"}
+        delivered=[vc("TB01",2,"Đã giao hàng",2)]
+        state=installer_handover(KTV,[task],delivered,PLACES)[0]
+        self.assertEqual(state["status"],"Đang lắp một phần")
+        self.assertEqual(state["details"][0]["installed"],"1")
+        self.assertTrue(site_may_complete_installation(
+            PROJECT,SITE,[task],delivered))
+
     def test_source_requires_guard_at_final_submit(self):
         tree=ast.parse((Path(__file__).resolve().parents[1]/"preview_app.py").read_text(encoding="utf-8"))
         report=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=="report")
