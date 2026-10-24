@@ -45,6 +45,8 @@ class ReportAtomicTests(unittest.TestCase):
                          {"numberValue":3})
         report=requests[0]["appendCells"]["rows"][0]["values"]
         self.assertEqual(report[7]["userEnteredValue"],{"stringValue":"SKU-A:3"})
+        self.assertEqual(report[5]["userEnteredValue"],
+                         {"stringValue":"Đã giao một phần"})
         self.assertEqual(report[13]["userEnteredValue"],{"stringValue":"Đã đồng bộ"})
         progress=requests[2]["updateCells"]["rows"][0]["values"]
         self.assertEqual(progress[7]["userEnteredValue"],
