@@ -8,7 +8,8 @@ from preview_registration import (
     role_for_specialty, team_id_from_registration, matching_teams
 )
 from preview_signup_credentials import (
-    pending_for_registration, approval_credential_requests
+    pending_for_registration, approval_credential_requests,
+    valid_secret_fields
 )
 from preview_credential_accounts import (
     visible_credential_state, next_account_id
@@ -153,6 +154,7 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
             new_team=None
             credential_changes=[]
             activated=False
+            reused_account=False
             if decision=="Đã duyệt":
                 if role_for_specialty(live.get("Chuyên môn",""))!=kind:
                     st.error("Chuyên môn đăng ký đã đổi; không thể duyệt.")
@@ -196,26 +198,63 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
             # no pending password and retain the manual provisioning path.
             if pending and decision=="Đã duyệt":
                 credentials=read_sheet("TAI_KHOAN_DOI")
-                state,_=visible_credential_state(
+                state,account=visible_credential_state(
                     {"Mã đội":tid},credentials,secret_accounts)
-                if state!="missing":
-                    st.error("Đội trưởng đã có tài khoản. Không tạo tài khoản "
-                             "trùng; cần ADMIN đối soát trước khi duyệt.")
+                if state=="missing":
+                    usernames={r.get("Mã tài khoản") for r in credentials}
+                    usernames.update(secret_accounts.keys())
+                    username=next_account_id(usernames)
+                    hashed_account=[
+                        username,tid,project,"DOI_TRUONG",
+                        pending["Salt hex"],pending["Mã băm PBKDF2"],
+                        "Hoạt động",current_time(),auth()["username"],
+                        "Kích hoạt theo hồ sơ "+rid
+                    ]
+                    credential_changes=approval_credential_requests(
+                        sheet("MAT_KHAU_DANG_KY").id,
+                        sheet("TAI_KHOAN_DOI").id,
+                        pending,hashed_account)
+                    activated=True
+                elif state=="active" and existing is not None:
+                    # A second signup for the SAME previously approved captain.
+                    # Preserve the current account/password; dispose of the
+                    # second signup's unused hash in the same approval batch.
+                    linked=[
+                        r for r in read_sheet("LIEN_KET_DANG_KY_DOI")
+                        if r.get("Mã đội")==tid
+                        and r.get("Mã dự án")==project
+                        and r.get("Trạng thái liên kết")=="Đang liên kết"
+                    ]
+                    old_approvals=[
+                        r for r in read_sheet("DANG_KY_THANH_VIEN")
+                        if r.get("Mã đăng ký")!=rid
+                        and r.get("Trạng thái duyệt")=="Đã duyệt"
+                        and r.get("Mã đội được gán")==tid
+                        and r.get("Mã dự án đăng ký")==project
+                        and r.get("Họ tên")==live.get("Họ tên")
+                        and r.get("Số điện thoại")==live.get("Số điện thoại")
+                        and role_for_specialty(r.get("Chuyên môn",""))==kind
+                    ]
+                    if (len(linked)!=1
+                        or not any(r.get("Mã đăng ký")==linked[0].get("Mã đăng ký")
+                                   for r in old_approvals)
+                        or account.get("Mã dự án")!=project
+                        or account.get("Vai trò")!="DOI_TRUONG"
+                        or not valid_secret_fields(account.get("Salt hex"),
+                                                   account.get("Mã băm PBKDF2"))):
+                        st.error("Có tài khoản nhưng chưa xác minh được "
+                                 "hồ sơ đã duyệt và liên kết đội. "
+                                 "ADMIN phải đối soát; chưa ghi dữ liệu.")
+                        continue
+                    credential_changes=approval_credential_requests(
+                        sheet("MAT_KHAU_DANG_KY").id,
+                        sheet("TAI_KHOAN_DOI").id,
+                        pending,reused=True)
+                    reused_account=True
+                else:
+                    st.error("Đội trưởng đã có tài khoản hoặc tài khoản "
+                             "bị xung đột. Cần ADMIN đối soát trước khi duyệt.")
                     continue
-                usernames={r.get("Mã tài khoản") for r in credentials}
-                usernames.update(secret_accounts.keys())
-                username=next_account_id(usernames)
-                hashed_account=[
-                    username,tid,project,"DOI_TRUONG",
-                    pending["Salt hex"],pending["Mã băm PBKDF2"],
-                    "Hoạt động",current_time(),auth()["username"],
-                    "Kích hoạt theo hồ sơ "+rid
-                ]
-                credential_changes=approval_credential_requests(
-                    sheet("MAT_KHAU_DANG_KY").id,
-                    sheet("TAI_KHOAN_DOI").id,
-                    pending,hashed_account)
-                activated=True
             elif pending and decision=="Từ chối":
                 credential_changes=approval_credential_requests(
                     sheet("MAT_KHAU_DANG_KY").id,
@@ -250,6 +289,9 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
                         "Mã đội đã được lưu nội bộ để gán nhiệm vụ. "
                         +("Mật khẩu đã tự đặt khi đăng ký ĐÃ KÍCH HOẠT. "
                           if activated else
+                          "Đã xác nhận đăng ký lại: giữ nguyên tài khoản "
+                          "và mật khẩu hiện có. "
+                          if reused_account else
                           "Đây là hồ sơ cũ/ADMIN đăng ký hộ, cần ADMIN cấp "
                           "mật khẩu riêng. ")
                         +"Chưa tự gán điểm, SKU hoặc số lượng.")
