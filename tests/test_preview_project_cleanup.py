@@ -51,11 +51,11 @@ class CleanupTests(unittest.TestCase):
             plan = make_cleanup_plan("DA880", mode, grids)
             reqs = cleanup_requests(plan, {tab: i for i, tab in enumerate(ALL_TABS, 1)})
             for req in reqs:
-                cell_range = req["repeatCell"]["range"]
-                self.assertNotIn(3 - 1, range(cell_range["startRowIndex"],
-                                              cell_range["endRowIndex"]))
-                self.assertGreaterEqual(cell_range["startRowIndex"], 1)
-                self.assertEqual(req["repeatCell"]["fields"], "userEnteredValue,note")
+                cell_range = req["deleteDimension"]["range"]
+                self.assertNotIn(3 - 1, range(cell_range["startIndex"],
+                                              cell_range["endIndex"]))
+                self.assertGreaterEqual(cell_range["startIndex"], 1)
+                self.assertEqual(cell_range["dimension"], "ROWS")
 
     def test_reject_nonexistent_or_ambiguous_project(self):
         sheets = sample_grids()
@@ -92,11 +92,18 @@ class CleanupTests(unittest.TestCase):
         plan = make_cleanup_plan("DA880", RESET, sheets)
         ids = {tab: i for i, tab in enumerate(ALL_TABS, 1)}
         reqs = cleanup_requests(plan, ids)
-        stock = [r for r in reqs if r["repeatCell"]["range"]["sheetId"]
+        stock = [r for r in reqs if r["deleteDimension"]["range"]["sheetId"]
                  == ids["NHAP_KHO"]]
         self.assertEqual(len(stock), 1)
-        self.assertEqual(stock[0]["repeatCell"]["range"]["startRowIndex"], 1)
-        self.assertEqual(stock[0]["repeatCell"]["range"]["endRowIndex"], 4)
+        self.assertEqual(stock[0]["deleteDimension"]["range"]["startIndex"], 1)
+        self.assertEqual(stock[0]["deleteDimension"]["range"]["endIndex"], 4)
+
+    def test_deletes_disjoint_ranges_from_bottom_up(self):
+        plan = make_cleanup_plan("DA880", RESET, sample_grids())
+        ids = {tab: i for i, tab in enumerate(ALL_TABS, 1)}
+        stock = [r["deleteDimension"]["range"] for r in cleanup_requests(plan, ids)
+                 if r["deleteDimension"]["range"]["sheetId"] == ids["NHAP_KHO"]]
+        self.assertEqual([r["startIndex"] for r in stock], [3, 1])
 
 
 if __name__ == "__main__":

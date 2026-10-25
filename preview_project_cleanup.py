@@ -105,7 +105,11 @@ def make_cleanup_plan(project, mode, grids):
 
 
 def cleanup_requests(plan, sheet_ids):
-    """One atomic Sheets batch: clear target *row values*, leave grid intact."""
+    """One atomic batch: delete only target data rows, never sheet/header tabs.
+
+    Deleting rows from bottom to top avoids empty gaps, so the application's
+    subsequent Google Sheets append will not land inside another project.
+    """
     missing = [tab for tab in plan["rows"] if tab not in sheet_ids]
     if missing:
         raise ValueError("Không xác định được sheet: " + ", ".join(missing))
@@ -123,11 +127,11 @@ def cleanup_requests(plan, sheet_ids):
                 ranges.append((start, last))
                 start = last = row_no
         ranges.append((start, last))
-        for first, last in ranges:
-            requests.append({"repeatCell": {
+        for first, last in reversed(ranges):
+            requests.append({"deleteDimension": {
                 "range": {"sheetId": int(sheet_ids[tab]),
-                          "startRowIndex": first - 1, "endRowIndex": last},
-                "cell": {}, "fields": "userEnteredValue,note"}})
+                          "dimension": "ROWS",
+                          "startIndex": first - 1, "endIndex": last}}})
     return requests
 
 
