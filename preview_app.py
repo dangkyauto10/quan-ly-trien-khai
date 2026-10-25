@@ -58,7 +58,8 @@ from preview_team_reassignment import (
     team_change_plan, change_signature, team_change_requests
 )
 from preview_site_rights import (
-    allocation_owners, active_registration, site_ids, RIGHT_FIELDS
+    allocation_owners, active_registration, site_ids, RIGHT_FIELDS,
+    approved_team_site_overview
 )
 from preview_assignment import ROLE_TABS, TASK_SCHEMA
 from preview_remember import account_fingerprint
@@ -2533,6 +2534,31 @@ def report():
     all_vc=read_sheet("VAN_CHUYEN")
     all_ld=read_sheet("LAP_DAT")
     hub_rows=read_sheet("BAN_GIAO_TAP_KET")
+    # Site-level rights are visible before any SKU allocation.
+    # This table is read-only; submitting a report still requires a task.
+    team=next((r for r in read_sheet("QUAN_LY_DOI")
+               if r.get("Mã đội")==tid),None)
+    if team is not None:
+        try:
+            approved_sites=approved_team_site_overview(
+                team,read_sheet("DANG_KY_THANH_VIEN"),
+                read_sheet("DANH_SACH_DIEM"),
+                {"VAN_CHUYEN":all_vc,"LAP_DAT":all_ld})
+        except ValueError as exc:
+            st.warning("Quyền địa điểm cần ADMIN đối soát: "+str(exc))
+            approved_sites=[]
+        if approved_sites:
+            with st.expander("📍 ĐỊA ĐIỂM ADMIN ĐÃ DUYỆT",expanded=True):
+                st.dataframe([{
+                    "Địa điểm":r["site_name"],
+                    "Công việc":r["role"],
+                    "Số nhiệm vụ SKU":r["sku_tasks"],
+                    "Đã liên kết":r["linked_tasks"],
+                    "Trạng thái":r["status"]
+                } for r in approved_sites],
+                hide_index=True,use_container_width=True)
+                st.caption("Được duyệt địa điểm chưa có nghĩa hàng đã phân bổ "
+                           "hoặc VC/LĐ đã hoàn thành.")
     accepted_hub={
         (r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"),
          r.get("Mã đội VC giao"))
