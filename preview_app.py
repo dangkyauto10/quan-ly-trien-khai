@@ -8,6 +8,7 @@ import uuid
 import hmac
 import hashlib
 import time
+import threading
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import quote, urlparse
@@ -644,6 +645,12 @@ def menu():
         st.session_state["site_assign_project"]=project_to_assign
     return st.selectbox("CHỌN CHỨC NĂNG", opts, key="preview_menu")
 
+@st.cache_resource
+def registration_submit_lock():
+    """One lock per app process for signup checks and writes."""
+    return threading.Lock()
+
+
 def register(on_behalf=False):
     """Public registration and Admin-assisted registration use the same pending queue."""
     acting_admin = require_role("ADMIN") if on_behalf else None
@@ -717,53 +724,56 @@ def register(on_behalf=False):
             elif project not in [p["Mã dự án"] for p in read_sheet("DANH_SACH_DU_AN")]:
                 st.error("Dự án không còn tồn tại, vui lòng kiểm tra lại.")
             else:
-                existing = read_sheet("DANG_KY_THANH_VIEN")
-                same = [row for row in existing
-                    if row.get("Mã dự án đăng ký") == project
-                    and "".join(c for c in row.get("Số điện thoại","") if c.isdigit()) == normalized_phone
-                    and " ".join(row.get("Họ tên","").casefold().split()) ==
-                        " ".join(full_name.casefold().split())
-                    and row.get("Trạng thái duyệt") in ("Chờ duyệt", "Đã duyệt")]
-                if same:
-                    st.warning("Hồ sơ này đã đăng ký trước đó. "
-                               "Không được đăng ký lại để đổi mật khẩu. "
-                               "Nếu muốn đổi mật khẩu tự chọn hoặc hồ sơ cũ "
-                               "chưa có mật khẩu, hãy nhờ ADMIN vào mục "
-                               "CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG "
-                               "và nhập mật khẩu theo đề nghị.")
-                else:
-                    rid = "DK-" + uuid.uuid4().hex[:12].upper()
-                    submitter = ("ADMIN:" + acting_admin["username"]) if acting_admin else "Tự đăng ký"
-                    try:
-                        date_serial = sheet_datetime_serial()
-                        registration=[rid, date_serial, full_name.strip(),
-                                      normalized_phone,described_areas,
-                                      specialty,vehicle,"Chờ duyệt",
-                                      "","","",project,submitter]
-                        if on_behalf:
-                            sheet("DANG_KY_THANH_VIEN").append_row(
-                                registration,value_input_option="RAW")
-                            notice="ADMIN cần cấp mật khẩu riêng sau khi duyệt."
-                        else:
-                            pending=pending_row(rid,project,desired_password,now())
-                            # One atomic Sheets request: no registration without
-                            # its corresponding salted password hash.
-                            batch=registration_requests(
-                                sheet("DANG_KY_THANH_VIEN").id,
-                                sheet("MAT_KHAU_DANG_KY").id,
-                                registration,pending)
-                            client()[0].batch_update({"requests":batch})
-                            notice=("Mật khẩu đã được lưu an toàn dưới dạng mã "
-                                    "băm. Chỉ đăng nhập được sau khi ADMIN duyệt.")
-                        read_sheet.clear()
-                        st.session_state["registered_notice"] = (
-                            f"Đã nhận hồ sơ {rid} — đang chờ ADMIN duyệt. "+notice)
-                        st.session_state["registration_form_revision"] = revision + 1
-                        st.rerun()
-                    except Exception as e:
-                        st.error("Chưa xác nhận gửi hồ sơ thành công (" +
-                                 type(e).__name__ +
-                                 "). Hãy nhờ ADMIN kiểm tra danh sách trước khi gửi lại.")
+                with registration_submit_lock():
+                    # Prevent concurrent duplicate signups; bypass cached rows.
+                    read_sheet.clear()
+                    existing = read_sheet("DANG_KY_THANH_VIEN")
+                    same = [row for row in existing
+                        if row.get("Mã dự án đăng ký") == project
+                        and "".join(c for c in row.get("Số điện thoại","") if c.isdigit()) == normalized_phone
+                        and " ".join(row.get("Họ tên","").casefold().split()) ==
+                            " ".join(full_name.casefold().split())
+                        and row.get("Trạng thái duyệt") in ("Chờ duyệt", "Đã duyệt")]
+                    if same:
+                        st.warning("Hồ sơ này đã đăng ký trước đó. "
+                                   "Không được đăng ký lại để đổi mật khẩu. "
+                                   "Nếu muốn đổi mật khẩu tự chọn hoặc hồ sơ cũ "
+                                   "chưa có mật khẩu, hãy nhờ ADMIN vào mục "
+                                   "CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG "
+                                   "và nhập mật khẩu theo đề nghị.")
+                    else:
+                        rid = "DK-" + uuid.uuid4().hex[:12].upper()
+                        submitter = ("ADMIN:" + acting_admin["username"]) if acting_admin else "Tự đăng ký"
+                        try:
+                            date_serial = sheet_datetime_serial()
+                            registration=[rid, date_serial, full_name.strip(),
+                                          normalized_phone,described_areas,
+                                          specialty,vehicle,"Chờ duyệt",
+                                          "","","",project,submitter]
+                            if on_behalf:
+                                sheet("DANG_KY_THANH_VIEN").append_row(
+                                    registration,value_input_option="RAW")
+                                notice="ADMIN cần cấp mật khẩu riêng sau khi duyệt."
+                            else:
+                                pending=pending_row(rid,project,desired_password,now())
+                                # One atomic Sheets request: no registration without
+                                # its corresponding salted password hash.
+                                batch=registration_requests(
+                                    sheet("DANG_KY_THANH_VIEN").id,
+                                    sheet("MAT_KHAU_DANG_KY").id,
+                                    registration,pending)
+                                client()[0].batch_update({"requests":batch})
+                                notice=("Mật khẩu đã được lưu an toàn dưới dạng mã "
+                                        "băm. Chỉ đăng nhập được sau khi ADMIN duyệt.")
+                            read_sheet.clear()
+                            st.session_state["registered_notice"] = (
+                                f"Đã nhận hồ sơ {rid} — đang chờ ADMIN duyệt. "+notice)
+                            st.session_state["registration_form_revision"] = revision + 1
+                            st.rerun()
+                        except Exception as e:
+                            st.error("Chưa xác nhận gửi hồ sơ thành công (" +
+                                     type(e).__name__ +
+                                     "). Hãy nhờ ADMIN kiểm tra danh sách trước khi gửi lại.")
 
 def directions():
     st.subheader("🗺️ Tìm địa điểm – Dẫn đường")
