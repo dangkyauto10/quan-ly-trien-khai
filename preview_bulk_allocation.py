@@ -168,7 +168,7 @@ def _row(values):
 
 
 def atomic_requests(sheet_ids, entries, batch_id, project, inventory, point_names,
-                    actor, stamp, existing_tasks=None, progress=None):
+                    actor, stamp, existing_tasks=None, progress=None, approved_owners=None):
     """One spreadsheets.batchUpdate for 4 business sheets + progress + journal.
 
     entries is [(point_id,sku,qty)] pre-validated against freshly loaded data.
@@ -178,6 +178,7 @@ def atomic_requests(sheet_ids, entries, batch_id, project, inventory, point_name
                 "TIEN_DO", "NHAT_KY_HE_THONG")
     if any(k not in sheet_ids for k in required):
         raise ValueError("Thiếu sheet để phân bổ và ghi nhận tiến độ.")
+    approved_owners = approved_owners or {}
     records = {k: [] for k in required}
     vc_per_point = Counter()
     ld_per_point = Counter()
@@ -191,9 +192,11 @@ def atomic_requests(sheet_ids, entries, batch_id, project, inventory, point_name
         records["KHO_PHAN_BO"].append([alloc_id, batch_id, project, pid, sku, name,
                                       unit, qty, stamp, "Đã phân bổ", ""])
         records["VAN_CHUYEN"].append([f"VC-{alloc_id}", alloc_id, project, pid,
-                                     sku, qty, "", "Chưa giao", "", "", "", "", "", ""])
+                                     sku, qty, approved_owners.get(("VAN_CHUYEN", pid), ""),
+                                      "Chưa giao", "", "", "", "", "", ""])
         records["LAP_DAT"].append([f"LD-{alloc_id}", alloc_id, project, pid,
-                                  sku, qty, "", "Chưa lắp", "", "", "", "", "", ""])
+                                  sku, qty, approved_owners.get(("LAP_DAT", pid), ""),
+                                   "Chưa lắp", "", "", "", "", "", ""])
     old_progress = {}
     for row in (progress or []):
         if row.get("Mã dự án") != project:
