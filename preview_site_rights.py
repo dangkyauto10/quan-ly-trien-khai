@@ -49,6 +49,51 @@ def active_registration(registrations, project, team_id):
     raise ValueError("Đội chưa có hồ sơ đăng ký đã duyệt.")
 
 
+def approved_team_site_overview(team, registrations, locations, tasksets):
+    """Display already-approved site rights even before SKU allocation.
+
+    This is read-only. Actual VC/KTV reports still require allocated tasks.
+    """
+    project = str(team.get("Mã dự án") or "").strip()
+    team_id = str(team.get("Mã đội") or "").strip()
+    role = team.get("Loại nhiệm vụ")
+    if (not project or not team_id or role not in ROLE_MODES or
+            team.get("Trạng thái") != "Hoạt động"):
+        raise ValueError("Đội chưa hoạt động hoặc thiếu mã dự án/chuyên môn.")
+    registration = active_registration(registrations, project, team_id)
+    project_sites = {r.get("Mã điểm"): r for r in locations
+                     if r.get("Mã dự án") == project and r.get("Mã điểm")}
+    overview = []
+    for tab in ROLE_MODES[role]:
+        field, _ = RIGHT_FIELDS[tab]
+        _, assigned_field, _ = TASK_SCHEMA[tab]
+        for site_id in site_ids(registration.get(field)):
+            site = project_sites.get(site_id)
+            if site is None:
+                raise ValueError("Địa điểm đã duyệt không còn thuộc dự án: " + site_id)
+            tasks = [r for r in tasksets.get(tab, [])
+                     if r.get("Mã dự án") == project and
+                     r.get("Mã điểm") == site_id]
+            linked = sum(r.get(assigned_field) == team_id for r in tasks)
+            if site.get("Trạng thái") != "Hoạt động":
+                status = "Địa điểm tạm dừng – cần Admin kiểm tra"
+            elif not tasks:
+                status = "Đã duyệt điểm – Chưa phân bổ SKU"
+            elif linked == len(tasks):
+                status = "Đã duyệt điểm – Đã có nhiệm vụ SKU"
+            else:
+                status = "Đã duyệt điểm – Cần đối soát nhiệm vụ SKU"
+            overview.append({
+                "site_id": site_id,
+                "site_name": site.get("Tên xã/phường/đơn vị") or site_id,
+                "role": "Vận chuyển" if tab == "VAN_CHUYEN" else "Lắp đặt",
+                "sku_tasks": len(tasks),
+                "linked_tasks": linked,
+                "status": status,
+            })
+    return overview
+
+
 def owner_index(registrations, teams, project):
     """(task tab, site id) -> (team id, registration record)."""
     team_by_id = {t.get("Mã đội"): t for t in teams
