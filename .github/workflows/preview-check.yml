@@ -1,7 +1,7 @@
 name: Preview syntax checks
 on:
   push:
-    branches: [preview-20261022, fix-preview-20261026-approved-sites]
+    branches: [preview-20261022, fix-preview-20261026-approved-sites, fix-preview-20261026-streamlit-import]
   workflow_dispatch:
 jobs:
   compile:
