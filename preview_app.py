@@ -68,6 +68,7 @@ from preview_report_commit import (atomic_report_requests, pending_quantity, num
 from preview_progress_rules import site_progress
 from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label, verify_vc_assignment
 from preview_user_guide import GUIDE_URL, render_guide
+from preview_project_cleanup import project_cleanup_admin
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
@@ -605,7 +606,8 @@ def menu():
         opts = ["🔐 Đăng nhập ADMIN / tài khoản khác",
                 "📝 Đăng ký tham gia"]
     elif a["role"] == "ADMIN":
-        opts = ["📊 Báo cáo tiến độ", "📁 Dự án/Điểm/Nhập kho", "📦 Phân bổ",
+        opts = ["📊 Báo cáo tiến độ", "📁 Dự án/Điểm/Nhập kho",
+                "🧹 RESET / XÓA DỰ ÁN", "📦 Phân bổ",
                 "👥 Đăng ký & quản lý đội", "📦 Bàn giao tập kết",
                 "📝 Đăng ký hộ đội trưởng", "📋 Báo cáo nhiệm vụ",
                 "🗺️ Tìm đường"]
@@ -3044,6 +3046,8 @@ def main():
         elif view=="📝 Đăng ký hộ đội trưởng":register(on_behalf=True)
         elif view=="🗺️ Tìm đường":directions()
         elif view=="📁 Dự án/Điểm/Nhập kho":projects_and_inventory()
+        elif view=="🧹 RESET / XÓA DỰ ÁN":project_cleanup_admin(
+            require_role, valid_login, client, read_sheet, audit)
         elif view=="📦 Phân bổ":allocate()
         elif view=="👥 Đăng ký & quản lý đội":teams_and_approval()
         elif view=="📦 Bàn giao tập kết":hub_admin()
