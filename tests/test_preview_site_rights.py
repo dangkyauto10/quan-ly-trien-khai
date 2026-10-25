@@ -3,7 +3,8 @@ import unittest
 
 from preview_site_rights import (
     site_ids, owner_index, allocation_owners, approval_task_plan,
-    right_updates_for_approval, right_cell_request
+    right_updates_for_approval, right_cell_request,
+    approved_team_site_overview
 )
 
 PROJECT="DA-TEST"
@@ -27,6 +28,33 @@ def task(point,team="",report="",row=2):
 
 
 class SiteRightsTests(unittest.TestCase):
+    def test_approved_sites_show_before_sku_allocation(self):
+        locations=[{**r,"Tên xã/phường/đơn vị": "Phường "+r["Mã điểm"]}
+                   for r in SITES]
+        rows=approved_team_site_overview(
+            VC,[REG_VC,REG_LD],locations,
+            {"VAN_CHUYEN":[],"LAP_DAT":[]})
+        self.assertEqual([r["site_id"] for r in rows],["A","B"])
+        self.assertEqual([r["sku_tasks"] for r in rows],[0,0])
+        self.assertTrue(all("Đã duyệt điểm" in r["status"] for r in rows))
+        self.assertTrue(all("Chưa phân bổ" in r["status"] for r in rows))
+
+    def test_sku_allocation_changes_task_status_not_site_rights(self):
+        rows=approved_team_site_overview(
+            VC,[REG_VC],SITES,
+            {"VAN_CHUYEN":[task("A",team="VC1")],"LAP_DAT":[]})
+        self.assertEqual({r["site_id"] for r in rows},{"A","B"})
+        self.assertEqual(rows[0]["sku_tasks"],1)
+        self.assertEqual(rows[0]["linked_tasks"],1)
+        self.assertIn("Đã có nhiệm vụ",rows[0]["status"])
+        self.assertIn("Chưa phân bổ",rows[1]["status"])
+
+    def test_unapproved_proposals_not_shown_as_assigned_sites(self):
+        pending={**REG_VC,"Trạng thái duyệt":"Chờ duyệt"}
+        with self.assertRaisesRegex(ValueError,"chưa có hồ sơ"):
+            approved_team_site_overview(
+                VC,[pending],SITES,{"VAN_CHUYEN":[]})
+
     def test_no_allocation_needed_before_approval(self):
         result=approval_task_plan(
             PROJECT,"VC","VC2",["C"],SITES,[REG_VC,REG_LD],
