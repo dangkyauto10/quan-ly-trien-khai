@@ -8,6 +8,7 @@ import uuid
 import hmac
 import hashlib
 import time
+import threading
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import quote, urlparse
@@ -55,6 +56,10 @@ from preview_team_detach import (
 )
 from preview_team_reassignment import (
     team_change_plan, change_signature, team_change_requests
+)
+from preview_site_rights import (
+    allocation_owners, active_registration, site_ids, RIGHT_FIELDS,
+    approved_team_site_overview
 )
 from preview_assignment import ROLE_TABS, TASK_SCHEMA
 from preview_remember import account_fingerprint
@@ -634,6 +639,12 @@ def menu():
         st.session_state["site_assign_project"]=project_to_assign
     return st.selectbox("CHỌN CHỨC NĂNG", opts, key="preview_menu")
 
+@st.cache_resource
+def registration_submit_lock():
+    """One lock per app process for signup checks and writes."""
+    return threading.Lock()
+
+
 def register(on_behalf=False):
     """Public registration and Admin-assisted registration use the same pending queue."""
     acting_admin = require_role("ADMIN") if on_behalf else None
@@ -688,8 +699,9 @@ def register(on_behalf=False):
                 "Mật khẩu tự chọn *",type="password",max_chars=128)
             confirm_password=st.text_input(
                 "Nhập lại mật khẩu *",type="password",max_chars=128)
-        st.caption("Khu vực tự khai chỉ để ADMIN tham khảo khi phân công. "
-                   "Chỉ điểm được giao chính thức mới có thể báo cáo.")
+        st.caption("Đội trưởng tự chọn địa điểm theo hợp đồng. "
+                   "ADMIN kiểm tra, thêm/bớt điểm rồi duyệt; duyệt là cấp điểm. "
+                   "Nhiệm vụ SKU chỉ xuất hiện sau khi ADMIN phân bổ hàng.")
         if st.form_submit_button("GỬI ĐĂNG KÝ" if not on_behalf else
                                  "GỬI HỒ SƠ ĐĂNG KÝ HỘ", use_container_width=True):
             normalized_phone = "".join(c for c in phone if c.isdigit())
@@ -707,53 +719,56 @@ def register(on_behalf=False):
             elif project not in [p["Mã dự án"] for p in read_sheet("DANH_SACH_DU_AN")]:
                 st.error("Dự án không còn tồn tại, vui lòng kiểm tra lại.")
             else:
-                existing = read_sheet("DANG_KY_THANH_VIEN")
-                same = [row for row in existing
-                    if row.get("Mã dự án đăng ký") == project
-                    and "".join(c for c in row.get("Số điện thoại","") if c.isdigit()) == normalized_phone
-                    and " ".join(row.get("Họ tên","").casefold().split()) ==
-                        " ".join(full_name.casefold().split())
-                    and row.get("Trạng thái duyệt") in ("Chờ duyệt", "Đã duyệt")]
-                if same:
-                    st.warning("Hồ sơ này đã đăng ký trước đó. "
-                               "Không được đăng ký lại để đổi mật khẩu. "
-                               "Nếu muốn đổi mật khẩu tự chọn hoặc hồ sơ cũ "
-                               "chưa có mật khẩu, hãy nhờ ADMIN vào mục "
-                               "CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG "
-                               "và nhập mật khẩu theo đề nghị.")
-                else:
-                    rid = "DK-" + uuid.uuid4().hex[:12].upper()
-                    submitter = ("ADMIN:" + acting_admin["username"]) if acting_admin else "Tự đăng ký"
-                    try:
-                        date_serial = sheet_datetime_serial()
-                        registration=[rid, date_serial, full_name.strip(),
-                                      normalized_phone,described_areas,
-                                      specialty,vehicle,"Chờ duyệt",
-                                      "","","",project,submitter]
-                        if on_behalf:
-                            sheet("DANG_KY_THANH_VIEN").append_row(
-                                registration,value_input_option="RAW")
-                            notice="ADMIN cần cấp mật khẩu riêng sau khi duyệt."
-                        else:
-                            pending=pending_row(rid,project,desired_password,now())
-                            # One atomic Sheets request: no registration without
-                            # its corresponding salted password hash.
-                            batch=registration_requests(
-                                sheet("DANG_KY_THANH_VIEN").id,
-                                sheet("MAT_KHAU_DANG_KY").id,
-                                registration,pending)
-                            client()[0].batch_update({"requests":batch})
-                            notice=("Mật khẩu đã được lưu an toàn dưới dạng mã "
-                                    "băm. Chỉ đăng nhập được sau khi ADMIN duyệt.")
-                        read_sheet.clear()
-                        st.session_state["registered_notice"] = (
-                            f"Đã nhận hồ sơ {rid} — đang chờ ADMIN duyệt. "+notice)
-                        st.session_state["registration_form_revision"] = revision + 1
-                        st.rerun()
-                    except Exception as e:
-                        st.error("Chưa xác nhận gửi hồ sơ thành công (" +
-                                 type(e).__name__ +
-                                 "). Hãy nhờ ADMIN kiểm tra danh sách trước khi gửi lại.")
+                with registration_submit_lock():
+                    # Prevent concurrent duplicate signups; bypass cached rows.
+                    read_sheet.clear()
+                    existing = read_sheet("DANG_KY_THANH_VIEN")
+                    same = [row for row in existing
+                        if row.get("Mã dự án đăng ký") == project
+                        and "".join(c for c in row.get("Số điện thoại","") if c.isdigit()) == normalized_phone
+                        and " ".join(row.get("Họ tên","").casefold().split()) ==
+                            " ".join(full_name.casefold().split())
+                        and row.get("Trạng thái duyệt") in ("Chờ duyệt", "Đã duyệt")]
+                    if same:
+                        st.warning("Hồ sơ này đã đăng ký trước đó. "
+                                   "Không được đăng ký lại để đổi mật khẩu. "
+                                   "Nếu muốn đổi mật khẩu tự chọn hoặc hồ sơ cũ "
+                                   "chưa có mật khẩu, hãy nhờ ADMIN vào mục "
+                                   "CẤP / ĐẶT LẠI MẬT KHẨU ĐỘI TRƯỞNG "
+                                   "và nhập mật khẩu theo đề nghị.")
+                    else:
+                        rid = "DK-" + uuid.uuid4().hex[:12].upper()
+                        submitter = ("ADMIN:" + acting_admin["username"]) if acting_admin else "Tự đăng ký"
+                        try:
+                            date_serial = sheet_datetime_serial()
+                            registration=[rid, date_serial, full_name.strip(),
+                                          normalized_phone,described_areas,
+                                          specialty,vehicle,"Chờ duyệt",
+                                          "","","",project,submitter]
+                            if on_behalf:
+                                sheet("DANG_KY_THANH_VIEN").append_row(
+                                    registration,value_input_option="RAW")
+                                notice="ADMIN cần cấp mật khẩu riêng sau khi duyệt."
+                            else:
+                                pending=pending_row(rid,project,desired_password,now())
+                                # One atomic Sheets request: no registration without
+                                # its corresponding salted password hash.
+                                batch=registration_requests(
+                                    sheet("DANG_KY_THANH_VIEN").id,
+                                    sheet("MAT_KHAU_DANG_KY").id,
+                                    registration,pending)
+                                client()[0].batch_update({"requests":batch})
+                                notice=("Mật khẩu đã được lưu an toàn dưới dạng mã "
+                                        "băm. Chỉ đăng nhập được sau khi ADMIN duyệt.")
+                            read_sheet.clear()
+                            st.session_state["registered_notice"] = (
+                                f"Đã nhận hồ sơ {rid} — đang chờ ADMIN duyệt. "+notice)
+                            st.session_state["registration_form_revision"] = revision + 1
+                            st.rerun()
+                        except Exception as e:
+                            st.error("Chưa xác nhận gửi hồ sơ thành công (" +
+                                     type(e).__name__ +
+                                     "). Hãy nhờ ADMIN kiểm tra danh sách trước khi gửi lại.")
 
 def directions():
     st.subheader("🗺️ Tìm địa điểm – Dẫn đường")
@@ -1326,13 +1341,17 @@ def allocate_bulk():
         progress=read_sheet_live("TIEN_DO")
         requests = atomic_requests(
             ids,live_candidates,batch_id,project,live_inventory,
-            names,auth()["username"],now(),existing_tasks,progress)
+            names,auth()["username"],now(),existing_tasks,progress,
+            approved_owners=allocation_owners(
+                read_sheet_live("DANG_KY_THANH_VIEN"),
+                read_sheet_live("QUAN_LY_DOI"),project))
         spreadsheet.batch_update({"requests":requests})
         read_sheet.clear()
         st.success(f"Đã phân bổ {len(live_candidates)} dòng tại "
                    f"{len({p for p,s,q in live_candidates})} điểm. "
                    f"Mã đợt: {batch_id}. "
-                   "Đã tạo đồng thời nhiệm vụ VC/KTV, chờ ADMIN gán đội.")
+                   "Đã tạo nhiệm vụ VC/KTV và tự liên kết đội đã được duyệt; "
+                    "điểm chưa có đội duyệt sẽ chờ đội đăng ký.")
     except Exception as exc:
         read_sheet.clear()
         st.error("CHƯA XÁC NHẬN ĐƯỢC KẾT QUẢ GHI ("+type(exc).__name__+
@@ -1443,13 +1462,16 @@ def allocate_single():
             ids,live_candidates,batch_id,project,live_inventory,
             {point["Mã điểm"]:point_live["Tên xã/phường/đơn vị"]},
             auth()["username"],now(),existing_tasks,
-            read_sheet_live("TIEN_DO"))
+            read_sheet_live("TIEN_DO"),
+            approved_owners=allocation_owners(
+                read_sheet_live("DANG_KY_THANH_VIEN"),
+                read_sheet_live("QUAN_LY_DOI"),project))
         # One all-or-nothing Sheets transaction: NO sequential appends.
         spreadsheet.batch_update({"requests":reqs})
         read_sheet.clear()
         st.success(f"Đã phân bổ đồng bộ {len(live_candidates)} SKU tại "
                    f"{point_live['Tên xã/phường/đơn vị']}. "
-                   "Nhiệm vụ VC/KTV đang chờ phân công đội.")
+                   "Nhiệm vụ VC/KTV đã tự liên kết đội có địa điểm được duyệt.")
     except ValueError as exc:
         read_sheet.clear()
         st.error("Chưa phân bổ: "+str(exc))
@@ -1656,6 +1678,13 @@ def team_reassignment_admin():
         tasks={"VAN_CHUYEN":read_sheet("VAN_CHUYEN"),
                "LAP_DAT":read_sheet("LAP_DAT")}
         hubs=read_sheet("BAN_GIAO_TAP_KET")
+        registrations=read_sheet("DANG_KY_THANH_VIEN")
+        try:
+            source_registration=active_registration(
+                registrations,project,source["Mã đội"])
+        except ValueError as exc:
+            st.warning("Đội chưa có quyền địa điểm đã duyệt: "+str(exc))
+            return
         chosen=[]
         target=None
         mode=""
@@ -1671,11 +1700,9 @@ def team_reassignment_admin():
                           format_func=lambda value:labels[value],
                           key=f"team_change_mode_{project}_{source['Mã đội']}")
             kinds=ROLE_TABS[mode]
-            sites=sorted({str(r.get("Mã điểm") or "") for tab in kinds
-                          for r in tasks[tab]
-                          if r.get("Mã dự án")==project
-                          and r.get(TASK_SCHEMA[tab][1])==source["Mã đội"]
-                          and r.get("Mã điểm")})
+            rights=[set(site_ids(source_registration.get(
+                RIGHT_FIELDS[tab][0]))) for tab in kinds]
+            sites=sorted(set.intersection(*rights) if rights else set())
             if not sites:
                 st.info("Đội không có nhiệm vụ thuộc loại đang chọn.")
                 return
@@ -1709,7 +1736,9 @@ def team_reassignment_admin():
         try:
             planned=team_change_plan(
                 source,chosen,mode,tasks,hubs,
-                target_team=target,suspend=suspend)
+                target_team=target,suspend=suspend,
+                registrations=registrations,
+                all_teams=read_sheet("QUAN_LY_DOI"))
         except ValueError as exc:
             st.warning(str(exc))
             return
@@ -1765,7 +1794,9 @@ def team_reassignment_admin():
                 live_plan=team_change_plan(
                     live_source,chosen,mode,fresh_tasks,
                     read_sheet_live("BAN_GIAO_TAP_KET"),
-                    target_team=live_target,suspend=suspend)
+                    target_team=live_target,suspend=suspend,
+                    registrations=read_sheet_live("DANG_KY_THANH_VIEN"),
+                    all_teams=live_teams)
                 if change_signature(live_plan)!=change_signature(planned):
                     fail("Nhiệm vụ hoặc bằng chứng đã thay đổi. Tải lại để đối soát.")
                 account_rows=[]
@@ -1785,7 +1816,8 @@ def team_reassignment_admin():
                     if len(links)>1:
                         fail("Đội có nhiều hồ sơ liên kết; cần đối soát.")
                     link_rows=[r.get("_row") for r in links]
-                sheetnames=["VAN_CHUYEN","LAP_DAT","NHAT_KY_HE_THONG"]
+                sheetnames=["VAN_CHUYEN","LAP_DAT","NHAT_KY_HE_THONG",
+                            "DANG_KY_THANH_VIEN"]
                 if suspend:
                     sheetnames+=["QUAN_LY_DOI","TAI_KHOAN_DOI",
                                  "LIEN_KET_DANG_KY_DOI"]
@@ -1903,6 +1935,10 @@ def teams_and_approval():
     provision_team_password()
     team_reassignment_admin()
     st.caption("Chỉ quản lý đội trưởng. Thành viên của đội do đội trưởng tự quản lý.")
+    st.info("Địa điểm được cấp ngay khi ADMIN duyệt đăng ký đội trưởng. "
+            "Muốn tăng tiến độ: thu hồi bớt các điểm chưa làm ở đội cũ, "
+            "sau đó duyệt các điểm đó cho đội mới. Không cần giao địa bàn lần hai.")
+    return
     with st.expander("➕ Thêm đội trưởng thủ công (không phải gán nhiệm vụ)", expanded=False):
         saved_team_message=st.session_state.pop("team_saved_message", None)
         if saved_team_message:
@@ -2286,16 +2322,13 @@ def hub_admin():
                      and not r.get("Mã đội KTV")}
             st.warning(
                 f"Đội KTV **{team.get('Tên đội/đội trưởng','')}** "
-                f"chưa được giao xã/đơn vị nào trong dự án **{project}**. "
-                f"Dự án hiện có {len(waiting)} địa điểm còn nhiệm vụ "
-                "LĐ chưa gán đội. Đây không phải lỗi phân bổ hàng.")
-            st.info("Thứ tự test: **Quản lý đội / Duyệt đăng ký → "
-                    "GIAO ĐỊA BÀN CHO ĐỘI TRƯỞNG → chọn dự án → "
-                    "chọn đội KTV → chọn Lắp đặt (LĐ) → "
-                    "chọn xã → xem bảng SKU → xác nhận giao nhiệm vụ.** "
-                    "Sau đó thực hiện tương tự với đội VC trên đúng các xã, "
-                    "rồi quay lại Bàn giao tập kết.")
-            if st.button("📍 ĐẾN MỤC GIAO ĐỊA BÀN",
+                f"chưa có nhiệm vụ SKU được liên kết trong **{project}**. "
+                f"Có {len(waiting)} địa điểm có nhiệm vụ LĐ đang chờ đội.")
+            st.info("Kiểm tra: Đội trưởng đăng ký địa điểm → ADMIN đối chiếu "
+                    "và duyệt (đã cấp điểm) → ADMIN phân bổ SKU. "
+                    "Nhiệm vụ tại điểm đã duyệt phải tự liên kết. "
+                    "Không có bước giao địa bàn lần hai.")
+            if st.button("📍 VỀ MỤC DUYỆT ĐỊA ĐIỂM",
                          use_container_width=True,
                          key="hub_go_assignments"):
                 st.session_state["_next_menu"]="👥 Đăng ký & quản lý đội"
@@ -2487,6 +2520,31 @@ def report():
     all_vc=read_sheet("VAN_CHUYEN")
     all_ld=read_sheet("LAP_DAT")
     hub_rows=read_sheet("BAN_GIAO_TAP_KET")
+    # Site-level rights are visible before any SKU allocation.
+    # This table is read-only; submitting a report still requires a task.
+    team=next((r for r in read_sheet("QUAN_LY_DOI")
+               if r.get("Mã đội")==tid),None)
+    if team is not None:
+        try:
+            approved_sites=approved_team_site_overview(
+                team,read_sheet("DANG_KY_THANH_VIEN"),
+                read_sheet("DANH_SACH_DIEM"),
+                {"VAN_CHUYEN":all_vc,"LAP_DAT":all_ld})
+        except ValueError as exc:
+            st.warning("Quyền địa điểm cần ADMIN đối soát: "+str(exc))
+            approved_sites=[]
+        if approved_sites:
+            with st.expander("📍 ĐỊA ĐIỂM ADMIN ĐÃ DUYỆT",expanded=True):
+                st.dataframe([{
+                    "Địa điểm":r["site_name"],
+                    "Công việc":r["role"],
+                    "Số nhiệm vụ SKU":r["sku_tasks"],
+                    "Đã liên kết":r["linked_tasks"],
+                    "Trạng thái":r["status"]
+                } for r in approved_sites],
+                hide_index=True,use_container_width=True)
+                st.caption("Được duyệt địa điểm chưa có nghĩa hàng đã phân bổ "
+                           "hoặc VC/LĐ đã hoàn thành.")
     accepted_hub={
         (r.get("Mã dự án"),r.get("Mã điểm"),r.get("SKU"),
          r.get("Mã đội VC giao"))
