@@ -58,8 +58,7 @@ from preview_team_reassignment import (
     team_change_plan, change_signature, team_change_requests
 )
 from preview_site_rights import (
-    allocation_owners, active_registration, site_ids, RIGHT_FIELDS,
-    approved_team_site_overview
+    allocation_owners, active_registration, site_ids, RIGHT_FIELDS
 )
 from preview_assignment import ROLE_TABS, TASK_SCHEMA
 from preview_remember import account_fingerprint
@@ -74,6 +73,58 @@ from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
     column_choice, is_header, normalize_name, blank_excel_template)
+
+_OVERVIEW_ROLE_MODES = {
+    "VC": ("VAN_CHUYEN",),
+    "KTV": ("LAP_DAT",),
+    "VC+KTV": ("VAN_CHUYEN", "LAP_DAT"),
+}
+
+def approved_team_site_overview(team, registrations, locations, tasksets):
+    """Display already-approved site rights even before SKU allocation.
+
+    This is read-only. Actual VC/KTV reports still require allocated tasks.
+    """
+    project = str(team.get("Mã dự án") or "").strip()
+    team_id = str(team.get("Mã đội") or "").strip()
+    role = team.get("Loại nhiệm vụ")
+    if (not project or not team_id or role not in _OVERVIEW_ROLE_MODES or
+            team.get("Trạng thái") != "Hoạt động"):
+        raise ValueError("Đội chưa hoạt động hoặc thiếu mã dự án/chuyên môn.")
+    registration = active_registration(registrations, project, team_id)
+    project_sites = {r.get("Mã điểm"): r for r in locations
+                     if r.get("Mã dự án") == project and r.get("Mã điểm")}
+    overview = []
+    for tab in _OVERVIEW_ROLE_MODES[role]:
+        field, _ = RIGHT_FIELDS[tab]
+        _, assigned_field, _ = TASK_SCHEMA[tab]
+        for site_id in site_ids(registration.get(field)):
+            site = project_sites.get(site_id)
+            if site is None:
+                raise ValueError("Địa điểm đã duyệt không còn thuộc dự án: " + site_id)
+            tasks = [r for r in tasksets.get(tab, [])
+                     if r.get("Mã dự án") == project and
+                     r.get("Mã điểm") == site_id]
+            linked = sum(r.get(assigned_field) == team_id for r in tasks)
+            if site.get("Trạng thái") != "Hoạt động":
+                status = "Địa điểm tạm dừng – cần Admin kiểm tra"
+            elif not tasks:
+                status = "Đã duyệt điểm – Chưa phân bổ SKU"
+            elif linked == len(tasks):
+                status = "Đã duyệt điểm – Đã có nhiệm vụ SKU"
+            else:
+                status = "Đã duyệt điểm – Cần đối soát nhiệm vụ SKU"
+            overview.append({
+                "site_id": site_id,
+                "site_name": site.get("Tên xã/phường/đơn vị") or site_id,
+                "role": "Vận chuyển" if tab == "VAN_CHUYEN" else "Lắp đặt",
+                "sku_tasks": len(tasks),
+                "linked_tasks": linked,
+                "status": status,
+            })
+    return overview
+
+
 
 APP_ICON = Path(__file__).resolve().parent / "assets" / "tdv_icon_144.png"
 # Use the approved TDV square logo for the tab favicon and app masthead.
