@@ -334,6 +334,39 @@ SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive.file"]
 READY = "Đã đồng bộ"
 
+class PreviewSheetReadError(RuntimeError):
+    """A read-only Google Sheets request failed; safe error for the UI."""
+
+
+def _google_api_status(error):
+    return getattr(getattr(error, "response", None), "status_code", None)
+
+
+def _google_read_retryable(error):
+    code = _google_api_status(error)
+    if code in (429, 500, 502, 503, 504):
+        return True
+    if code != 403:
+        return False
+    try:
+        payload = error.response.json().get("error", {})
+        return any(item.get("reason") in ("rateLimitExceeded", "userRateLimitExceeded")
+                   for item in payload.get("errors", []))
+    except (AttributeError, ValueError, TypeError):
+        return False
+
+
+def _retry_google_read(operation):
+    """Retry only transient READ failures; never replay a write/delete."""
+    for attempt in range(4):
+        try:
+            return operation()
+        except gspread.exceptions.APIError as error:
+            if attempt == 3 or not _google_read_retryable(error):
+                raise
+            time.sleep(2 ** attempt)
+
+
 def now():
     return datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).isoformat(timespec="seconds")
 
@@ -358,13 +391,19 @@ def client():
     else:
         raise RuntimeError("Thiếu gcp_service_account_json trong Streamlit Secrets.")
     cred = Credentials.from_service_account_info(info, scopes=SHEETS_SCOPE)
-    sh = gspread.authorize(cred).open_by_key(st.secrets["spreadsheet_id"])
+    gs = gspread.authorize(cred)
+    sh = _retry_google_read(lambda: gs.open_by_key(st.secrets["spreadsheet_id"]))
     return sh, cred
 
 @st.cache_data(ttl=15, show_spinner=False)
 def read_sheet(name):
     sh, _ = client()
-    values = sh.worksheet(name).get_all_values()
+    try:
+        values = _retry_google_read(lambda: sh.worksheet(name).get_all_values())
+    except gspread.exceptions.APIError as error:
+        raise PreviewSheetReadError(
+            f"Không đọc được bảng {name}: Google Sheets HTTP {_google_api_status(error) or 'không rõ'}."
+        ) from error
     if not values:
         return []
     headers = values[0]
@@ -3131,7 +3170,13 @@ def main():
         elif view=="📋 Báo cáo nhiệm vụ":report()
         elif view=="📊 Báo cáo tiến độ":dashboard()
     except Exception as e:
-        st.error("Không thể truy cập dữ liệu Preview: "+type(e).__name__)
-        st.caption("Kiểm tra Secrets, quyền Google Sheets và thư mục ảnh; không dùng khóa cũ đã lộ.")
+        if isinstance(e, PreviewSheetReadError):
+            st.error(str(e))
+        elif isinstance(e, gspread.exceptions.APIError):
+            st.error("Không thể kết nối Google Sheets PREVIEW: HTTP " +
+                     str(_google_api_status(e) or "không rõ"))
+        else:
+            st.error("Không thể truy cập dữ liệu Preview: " + type(e).__name__)
+        st.caption("Không ghi hoặc xóa dữ liệu khi bước đọc thất bại; kiểm tra mã HTTP nếu còn lỗi.")
 if __name__=="__main__":
     main()
