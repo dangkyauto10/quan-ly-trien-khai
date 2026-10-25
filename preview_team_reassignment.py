@@ -5,6 +5,10 @@ handover evidence.  Completed/partial tasks, proofs and KHO_PHAN_BO stay intact.
 """
 from preview_assignment import ROLE_TABS, TASK_SCHEMA, allowed_modes
 from preview_team_detach import DETACHED, NEEDS_REVIEW, ACTIVE, text_cell
+from preview_site_rights import (
+    RIGHT_FIELDS, active_registration, site_ids, site_text,
+    owner_index, right_cell_request
+)
 
 
 def _signed_handover_keys(hub_rows, team_id, project):
@@ -25,12 +29,20 @@ def _signed_handover_keys(hub_rows, team_id, project):
 
 
 def team_change_plan(source_team, selected_sites, mode, tasksets, hub_rows,
-                     target_team=None, suspend=False):
+                     target_team=None, suspend=False, registrations=None,
+                     all_teams=None):
     """Preview the exact task rows to release/transfer, leaving proof untouched."""
     team_id=str(source_team.get("Mã đội") or "").strip()
     project=str(source_team.get("Mã dự án") or "").strip()
     if not team_id or not project or source_team.get("Trạng thái")!="Hoạt động":
         raise ValueError("Đội nguồn không còn hoạt động hoặc thiếu thông tin.")
+    if registrations is None:
+        raise ValueError("Thiếu danh sách quyền địa điểm đã duyệt.")
+    if all_teams is not None:
+        owner_index(registrations,all_teams,project)
+    source_reg=active_registration(registrations,project,team_id)
+    rights={tab:set(site_ids(source_reg.get(field)))
+            for tab,(field,_) in RIGHT_FIELDS.items()}
     choices=allowed_modes(source_team)
     if not choices:
         raise ValueError("Đội nguồn không có chuyên môn VC/KTV hợp lệ.")
@@ -47,7 +59,11 @@ def team_change_plan(source_team, selected_sites, mode, tasksets, hub_rows,
         if not ids or len(ids)!=len(set(ids)):
             raise ValueError("Phải chọn ít nhất một điểm, không được trùng.")
         points=set(ids)
+        for tab in tabs:
+            if not points.issubset(rights[tab]):
+                raise ValueError("Điểm chưa thuộc quyền Admin duyệt của đội nguồn.")
     target_id=""
+    target_reg=None
     if target_team is not None:
         target_id=str(target_team.get("Mã đội") or "").strip()
         if (not target_id or target_id==team_id or
@@ -55,6 +71,7 @@ def team_change_plan(source_team, selected_sites, mode, tasksets, hub_rows,
                 target_team.get("Trạng thái")!="Hoạt động" or
                 mode not in allowed_modes(target_team)):
             raise ValueError("Đội nhận phải đang hoạt động, khác đội cũ, cùng dự án và đúng chuyên môn.")
+        target_reg=active_registration(registrations,project,target_id)
     ktv_custody,vc_handoff,unknown_vc=_signed_handover_keys(
         hub_rows,team_id,project)
     changes=[]
@@ -72,6 +89,9 @@ def team_change_plan(source_team, selected_sites, mode, tasksets, hub_rows,
                 continue
             if not point:
                 raise ValueError("Nhiệm vụ thiếu mã điểm.")
+            if point not in rights[tab]:
+                raise ValueError("Nhiệm vụ của đội nằm ngoài danh sách điểm "
+                                 "Admin đã duyệt; cần đối soát.")
             found_points.add(point)
             task_id=str(r.get(id_col) or "").strip()
             pos=r.get("_row")
@@ -101,16 +121,53 @@ def team_change_plan(source_team, selected_sites, mode, tasksets, hub_rows,
                         "Chứng từ tập kết cũ chưa rõ đội VC" if uncertain_hub else
                         "Nhiệm vụ đã bắt đầu/có báo cáo hoặc chứng từ")
                 protected.append({**detail,"reason":reason})
-    if not suspend and points!=found_points:
-        raise ValueError("Một số điểm được chọn không còn thuộc đội nguồn.")
-    if not suspend and not changes:
-        raise ValueError("Không có nhiệm vụ chưa làm đủ điều kiện thu hồi.")
+    # Rights are site-level: never release some SKUs while keeping evidence
+    # for another SKU of the same site and role.
+    blocked={(item["tab"],item["point"]) for item in protected}
+    for hub in hub_rows:
+        if (hub.get("Mã dự án")!=project or
+                hub.get("Trạng thái")!="KTV đã nhận tại tập kết"):
+            continue
+        pid=hub.get("Mã điểm")
+        if "VAN_CHUYEN" in tabs and hub.get("Mã đội VC giao") in (team_id,""):
+            blocked.add(("VAN_CHUYEN",pid))
+        if "LAP_DAT" in tabs and hub.get("Mã đội KTV nhận")==team_id:
+            blocked.add(("LAP_DAT",pid))
+    if not suspend and any(pid in (points or ()) for _,pid in blocked):
+        raise ValueError("Địa điểm đã bắt đầu hoặc có hàng/chứng từ; phải "
+                         "đối soát, bàn giao trước khi chuyển cả điểm.")
+    if suspend and blocked:
+        safe=[]
+        for item in changes:
+            if (item["tab"],item["point"]) in blocked:
+                protected.append({**item,"reason":"Còn nhiệm vụ/chứng từ tại điểm"})
+            else:
+                safe.append(item)
+        changes=safe
+    releases={}
+    for tab in tabs:
+        candidates=rights[tab] if suspend else points
+        releases[tab]={pid for pid in candidates if (tab,pid) not in blocked}
+    updates=[]
+    for tab,ids in releases.items():
+        if not ids:
+            continue
+        if not isinstance(source_reg.get("_row"),int):
+            raise ValueError("Không tìm thấy dòng quyền của đội nguồn.")
+        updates.append((source_reg["_row"],tab,site_text(rights[tab]-ids)))
+        if target_reg is not None:
+            field,_=RIGHT_FIELDS[tab]
+            target_set=set(site_ids(target_reg.get(field)))
+            if not isinstance(target_reg.get("_row"),int):
+                raise ValueError("Không tìm thấy dòng quyền của đội nhận.")
+            updates.append((target_reg["_row"],tab,site_text(target_set|ids)))
     return {
         "team_id":team_id,"project":project,"mode":mode,
         "suspend":suspend,"target_id":target_id,
         "team_row":source_team.get("_row"),
         "changes":changes,"protected":protected,
-        "released_sites":len({x["point"] for x in changes})
+        "released_sites":len({pid for ids in releases.values() for pid in ids}),
+        "site_updates":updates
     }
 
 
@@ -120,7 +177,8 @@ def change_signature(plan):
         plan["team_id"],plan["project"],plan["mode"],
         plan["suspend"],plan["target_id"],
         tuple(sorted((x["tab"],x["id"],x["row"],x["point"]) for x in plan["changes"])),
-        tuple(sorted((x["tab"],x["id"],x["row"],x["reason"]) for x in plan["protected"]))
+        tuple(sorted((x["tab"],x["id"],x["row"],x["reason"]) for x in plan["protected"])),
+        tuple(sorted(plan.get("site_updates",[])))
     )
 
 
@@ -130,6 +188,8 @@ def team_change_requests(plan, sheet_ids, stamp, admin,
     required={"VAN_CHUYEN","LAP_DAT","NHAT_KY_HE_THONG"}
     if plan["suspend"]:
         required|={"QUAN_LY_DOI","TAI_KHOAN_DOI","LIEN_KET_DANG_KY_DOI"}
+    if plan.get("site_updates"):
+        required.add("DANG_KY_THANH_VIEN")
     if not required.issubset(sheet_ids):
         raise ValueError("Thiếu sheet phục vụ thu hồi.")
     if not admin or not stamp:
@@ -166,9 +226,13 @@ def team_change_requests(plan, sheet_ids, stamp, admin,
                          "startColumnIndex":6,"endColumnIndex":7},
                 "cell":text_cell(plan["target_id"]),
                 "fields":"userEnteredValue"}})
+    for row, tab, value in plan.get("site_updates",[]):
+        requests.append(right_cell_request(
+            sheet_ids["DANG_KY_THANH_VIEN"],row,tab,value))
     if plan["suspend"]:
         status=NEEDS_REVIEW if plan["protected"] else DETACHED
-        requests.append(update("QUAN_LY_DOI",plan["team_row"],5,status))
+        # QUAN_LY_DOI uses a strict dropdown: Hoạt động / Tạm khóa.
+        requests.append(update("QUAN_LY_DOI",plan["team_row"],5,"Tạm khóa"))
         for row in account_rows:
             requests.append(update("TAI_KHOAN_DOI",row,6,DETACHED))
         for row in active_links:

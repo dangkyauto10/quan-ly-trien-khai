@@ -22,11 +22,14 @@ from preview_credential_accounts import (
 )
 from preview_team_access import normalized_name
 from preview_team_detach import approval_link_request
+from preview_site_rights import (
+    approval_task_plan, right_updates_for_approval, right_cell_request
+)
 
 
 def approval_requests(registration_sheet_id, team_sheet_id, row_number,
                       decision, team_row, team_id, approver, timestamp,
-                      credential_changes=None, link_request=None):
+                      credential_changes=None, link_request=None, approved_rights=None):
     """Build one atomic Sheets batch for review and optional new team."""
     if decision not in ("Đã duyệt", "Từ chối") or row_number < 2:
         raise ValueError("Trạng thái hoặc dòng đăng ký không hợp lệ.")
@@ -70,6 +73,12 @@ def approval_requests(registration_sheet_id, team_sheet_id, row_number,
         if decision!="Đã duyệt" or team_row is None:
             raise ValueError("Chỉ đội mới tạo được gắn liên kết đăng ký.")
         requests.append(link_request)
+    if approved_rights is not None:
+        if decision!="Đã duyệt":
+            raise ValueError("Chỉ lưu quyền địa điểm cho đội đã duyệt.")
+        for tab, value in approved_rights.items():
+            requests.append(right_cell_request(registration_sheet_id,
+                                               row_number,tab,value))
     return requests
 
 
@@ -113,33 +122,10 @@ def _amount(value):
 
 
 def reviewed_site_assignment(project, role, team_id, selected_ids,
-                             locations, allocations, tasksets):
-    """Require complete project+site+SKU quantities for every assigned role."""
-    mode = {"VC":"VC", "KTV":"LD", "VC+KTV":"VC+LD"}.get(role)
-    if not mode:
-        raise ValueError("Chuyên môn không được cấp nhiệm vụ VC/KTV.")
-    selected = list(selected_ids)
-    if not selected or len(selected) != len(set(selected)):
-        raise ValueError("ADMIN phải chọn danh sách địa điểm duy nhất.")
-    team = {"Mã đội":team_id, "Mã dự án":project,
-            "Loại nhiệm vụ":role, "Trạng thái":"Hoạt động"}
-    plan = site_assignment_plan(team, mode, selected, locations, tasksets)
-    expected = defaultdict(Decimal)
-    for item in allocations:
-        if (item.get("Mã dự án")==project and
-                item.get("Mã điểm") in selected and item.get("SKU")):
-            expected[(item["Mã điểm"],item["SKU"])] += _amount(item.get("SL phân bổ"))
-    if not expected or any(not any(k[0]==sid for k in expected) for sid in selected):
-        raise ValueError("Địa điểm chưa đủ phân bổ hàng; chưa duyệt giao nhiệm vụ.")
-    for tab in ROLE_TABS[mode]:
-        actual = defaultdict(Decimal)
-        key = "SL giao" if tab=="VAN_CHUYEN" else "SL lắp"
-        for task in plan.get(tab, []):
-            actual[(task.get("Mã điểm"),task.get("SKU"))] += _amount(task.get(key))
-        if dict(actual) != dict(expected):
-            raise ValueError(tab+": nhiệm vụ SKU/số lượng chưa khớp phân bổ. "
-                             "Chưa xác nhận; ADMIN cần đối soát.")
-    return plan
+                             locations, registrations, teams, tasksets, hubs):
+    """Approve sites independently of allocation; join existing SKU tasks."""
+    return approval_task_plan(project,role,team_id,selected_ids,
+        locations,registrations,teams,tasksets,hubs)
 
 
 def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
@@ -155,7 +141,7 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
     st.markdown("### 📥 Hồ sơ đội trưởng chờ duyệt")
     st.caption("ADMIN đối chiếu danh sách địa điểm đã đăng ký với hợp đồng; "
                "được thêm, bỏ hoặc thay địa điểm trước khi xác nhận. "
-               "Duyệt và giao đủ nhiệm vụ VC/KTV theo SKU phân bổ trong cùng một lần ghi.")
+               "Duyệt là cấp chính thức địa điểm; SKU phân bổ sau cũng tự cấp nhiệm vụ.")
     if not pending:
         st.info("Hiện không có hồ sơ chờ duyệt.")
         return
@@ -213,7 +199,7 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
                              and r.get("Mã điểm") in selected_ids]
                 if selected_ids:
                     st.caption(f"Đã chọn {len(selected_ids)} địa điểm. "
-                               "Đối chiếu SKU và số lượng phân bổ trước khi xác nhận.")
+                               "Hàng theo SKU đã phân bổ sẽ được liên kết khi duyệt; điểm chưa phân bổ vẫn được duyệt.")
                     st.dataframe([{
                         "Địa điểm":point_by_id[r["Mã điểm"]].get("Tên xã/phường/đơn vị",""),
                         "SKU":r.get("SKU",""),
@@ -221,8 +207,8 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
                         for r in allocations],hide_index=True,
                         use_container_width=True,height=180)
                 reviewed=st.checkbox(
-                    "Tôi đã đối chiếu hợp đồng, danh sách địa điểm và SKU "
-                    "được phân bổ; xác nhận giao nhiệm vụ đúng đội.",
+                    "Tôi đã đối chiếu hợp đồng, kiểm tra danh sách địa điểm "
+                    "và xác nhận cấp địa điểm cho đội.",
                     key="review_contract_"+rid)
                 submitted=st.form_submit_button(
                     "XÁC NHẬN DUYỆT / TỪ CHỐI",use_container_width=True)
@@ -376,14 +362,15 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
 
             site_plan=None
             if decision=="Đã duyệt":
-                # Re-read live allocations and unassigned task rows immediately
-                # before approving. No partial approval/assignment is permitted.
+                # Site rights are approved even when no SKU is allocated yet.
+                # Existing pending SKU tasks join those rights atomically.
                 actual_locations=fresh("DANH_SACH_DIEM")
                 actual_tasks={tab:fresh(tab) for tab in ("VAN_CHUYEN","LAP_DAT")}
                 try:
                     site_plan=reviewed_site_assignment(
                         project,kind,tid,selected_ids,actual_locations,
-                        fresh("KHO_PHAN_BO"),actual_tasks)
+                        fresh("DANG_KY_THANH_VIEN"),fresh("QUAN_LY_DOI"),
+                        actual_tasks,fresh("BAN_GIAO_TAP_KET"))
                 except ValueError as exc:
                     st.error("Chưa duyệt/giao địa điểm: "+str(exc))
                     continue
@@ -405,11 +392,16 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
                     live["_row"],decision,new_team,tid,
                     auth()["username"],sheet_datetime_serial(),
                     credential_changes=credential_changes,
-                    link_request=link_request)
+                    link_request=link_request,
+                    approved_rights=(right_updates_for_approval(
+                        live["_row"],kind,selected_ids)
+                        if decision=="Đã duyệt" else None))
                 if site_plan is not None:
-                    tables={tab:sheet(tab).id for tab in site_plan}
-                    request.extend(compact_site_assignment_requests(
-                        tables,site_plan,tid))
+                    allocated={tab:rows for tab,rows in site_plan.items() if rows}
+                    if allocated:
+                        tables={tab:sheet(tab).id for tab in allocated}
+                        request.extend(compact_site_assignment_requests(
+                            tables,allocated,tid))
                 client()[0].batch_update({"requests":request})
                 read_sheet.clear()
                 audit(auth()["username"],"XÉT DUYỆT ĐỘI TRƯỞNG",
@@ -427,9 +419,9 @@ def render_pending_approvals(*, read_sheet, sheet, client, auth, audit,
                           if reused_account else
                           "Đây là hồ sơ cũ/ADMIN đăng ký hộ, cần ADMIN cấp "
                           "mật khẩu riêng. ")
-                        +f"ĐÃ GIAO {len(selected_ids)} địa điểm và "
-                        f"{sum(len(rows) for rows in site_plan.values())} "
-                        "nhiệm vụ/SKU theo phân bổ.")
+                        +f"ĐÃ DUYỆT {len(selected_ids)} địa điểm. "
+                        +f"Đã liên kết {sum(len(rows) for rows in site_plan.values())} "
+                        "nhiệm vụ SKU hiện có; phân bổ sau sẽ tự liên kết.")
                 else:
                     st.session_state["approval_notice"]=(
                         f"Đã cập nhật hồ sơ {rid} thành TỪ CHỐI. Không tạo đội.")
