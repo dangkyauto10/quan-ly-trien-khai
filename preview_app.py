@@ -17,6 +17,8 @@ import gspread
 import streamlit as st
 from google.oauth2.service_account import Credentials
 from google.oauth2.credentials import Credentials as OAuthCredentials
+from google.auth.transport.requests import Request
+from preview_drive_picker import pick_folder
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from PIL import Image
@@ -336,7 +338,7 @@ st.markdown(f"""
 
 SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive.file"]
-DRIVE_UPLOAD_SCOPE = ["https://www.googleapis.com/auth/drive"]
+DRIVE_UPLOAD_SCOPE = ["https://www.googleapis.com/auth/drive.file"]
 READY = "Đã đồng bộ"
 
 class PreviewSheetReadError(RuntimeError):
@@ -401,17 +403,15 @@ def client():
     return sh, cred
 
 
-@st.cache_resource
-def drive_client():
-    """Upload PREVIEW evidence as the human owner of the destination Drive."""
+def drive_oauth_credentials():
+    """Build the narrowly scoped owner OAuth credentials."""
     oauth = st.secrets.get("google_drive_oauth", {})
     required = ("client_id", "client_secret", "refresh_token")
     missing = [key for key in required if not str(oauth.get(key, "")).strip()]
     if missing:
         raise RuntimeError(
-            "Chưa cấu hình OAuth Google Drive của chủ thư mục trong Streamlit "
-            "Secrets: [google_drive_oauth] cần client_id, client_secret và "
-            "refresh_token. Ảnh chưa được tải lên; không gửi báo cáo.")
+            "Thiếu [google_drive_oauth] client_id, client_secret hoặc "
+            "refresh_token trong Streamlit Secrets.")
     cred = OAuthCredentials(
         token=None,
         refresh_token=str(oauth["refresh_token"]).strip(),
@@ -420,7 +420,56 @@ def drive_client():
         client_secret=str(oauth["client_secret"]).strip(),
         scopes=DRIVE_UPLOAD_SCOPE,
     )
+    if not cred.valid:
+        cred.refresh(Request())
+    return cred
+
+
+@st.cache_resource
+def drive_client():
+    """Use only the owner's per-file Drive OAuth grant."""
+    cred = drive_oauth_credentials()
     return build("drive", "v3", credentials=cred, cache_discovery=False)
+
+
+def configure_photo_folder():
+    """ADMIN selects and verifies only the configured photo folder."""
+    folder = str(st.secrets.get("photos_folder_id", "")).strip()
+    oauth = st.secrets.get("google_drive_oauth", {})
+    api_key = str(oauth.get("picker_api_key", "")).strip()
+    if not folder:
+        st.error("Thiếu photos_folder_id trong Streamlit Secrets.")
+        return
+    if not api_key:
+        st.info("ADMIN cần thêm picker_api_key trong [google_drive_oauth] "
+                "sau khi bật Google Picker API trên project OAuth.")
+        return
+    try:
+        cred = drive_oauth_credentials()
+    except Exception as exc:
+        st.info("Chưa đủ OAuth Drive: " + str(exc))
+        return
+    st.caption("Google chỉ cấp quyền cho thư mục được chọn ở đây "
+               "(phạm vi drive.file).")
+    picked = pick_folder(api_key, cred.token, key="preview_photo_folder_picker")
+    if not picked:
+        return
+    if picked.get("folderId") != folder:
+        st.error("Đã chọn nhầm thư mục. Hãy chọn đúng thư mục ảnh PREVIEW "
+                 "đã cấu hình; chưa cấp quyền tải ảnh.")
+        return
+    try:
+        info = drive_client().files().get(
+            fileId=folder, fields="id,name,mimeType").execute()
+        if info.get("mimeType") != "application/vnd.google-apps.folder":
+            st.error("Mục đã chọn không phải thư mục Google Drive.")
+            return
+        st.session_state["_preview_drive_folder_ok"] = folder
+        st.success("Đã xác minh quyền OAuth trên đúng thư mục ảnh: " +
+                   str(info.get("name") or folder))
+    except Exception as exc:
+        st.error("Google Picker đã chọn thư mục nhưng Drive chưa xác nhận quyền: " +
+                 drive_error_summary(exc))
 
 
 def drive_error_summary(error):
@@ -2999,6 +3048,10 @@ def report():
         tid=st.selectbox("Kiểm thử theo mã đội (chỉ Admin)",allteams)
     if not tid:
         fail("Chưa liên kết mã đội cho tài khoản.")
+    if a["role"] == "ADMIN":
+        with st.expander("🔐 Kết nối thư mục ảnh PREVIEW (chỉ thư mục đã chọn)",
+                         expanded=False):
+            configure_photo_folder()
     if st.button("🔄 CẬP NHẬT HÀNG VC ĐÃ GIAO",use_container_width=True,
                  key="team_report_refresh"):
         st.session_state.pop("_report_attempt_pending",None)
@@ -3206,7 +3259,7 @@ def report():
                    for rows in targets.values() for r in rows):
                 st.caption("SL ở bảng là phần còn phải thực hiện; "
                            "đã trừ số lượng báo cáo trước đó.")
-        st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-OAUTH-20261026-C")
+        st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-FOLDER-20261026-D")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
         captured=st.camera_input(
             "📸 CHỤP ẢNH HIỆN TRƯỜNG",key=f"report_camera_{photo_key}")
@@ -3235,12 +3288,17 @@ def report():
             return
         drive_oauth=st.secrets.get("google_drive_oauth", {})
         oauth_ready=all(str(drive_oauth.get(k, "")).strip()
-                        for k in ("client_id", "client_secret", "refresh_token"))
+                        for k in ("client_id", "client_secret", "refresh_token",
+                                  "picker_api_key"))
         if not oauth_ready:
-            st.error("⛔ Bản PREVIEW này cần OAuth của chủ thư mục Google Drive. "
-                     "ADMIN cấu hình [google_drive_oauth] gồm client_id, "
-                     "client_secret, refresh_token trong Streamlit Secrets. "
-                     "Chưa bật gửi báo cáo để tránh tạo báo cáo lỗi.")
+            st.error("⛔ Chưa cấu hình OAuth giới hạn thư mục ảnh. "
+                     "ADMIN cần hoàn tất Kết nối thư mục ảnh PREVIEW trước; "
+                     "chưa bật gửi báo cáo để tránh tạo báo cáo lỗi.")
+            return
+        if st.session_state.get("_preview_drive_folder_ok") != str(
+                st.secrets.get("photos_folder_id", "")).strip():
+            st.error("⛔ ADMIN cần mở mục “Kết nối thư mục ảnh PREVIEW” "
+                     "và chọn/xác minh đúng thư mục trước khi đội gửi báo cáo.")
             return
         eligible=bool(photos) and len(photos)<=10 and (not require_gps or (lat is not None and lon is not None))
         if not eligible:
