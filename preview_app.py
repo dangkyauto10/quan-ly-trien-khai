@@ -2967,10 +2967,9 @@ def report():
                     st.error("Số lượng còn lại không hợp lệ. Cần ADMIN đối soát.")
                     return
                 with st.container(border=True):
-                    st.markdown(
-                        f"**{item['name']}** · **Cần xác nhận: "
-                        f"{remaining:g} {item['unit']}**")
+                    st.markdown(f"**{item['name']}**")
                     st.caption(
+                        f"Cần xác nhận: **{remaining:g} {item['unit']}** · "
                         f"Phân bổ: {item['allocated']:g} · "
                         f"Đã xác nhận: {item['already']:g}")
                 increments[r[id_key]]=remaining
