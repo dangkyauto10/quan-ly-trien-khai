@@ -16,6 +16,7 @@ from urllib.parse import quote, urlparse
 import gspread
 import streamlit as st
 from google.oauth2.service_account import Credentials
+from google.oauth2.credentials import Credentials as OAuthCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from PIL import Image
@@ -402,16 +403,24 @@ def client():
 
 @st.cache_resource
 def drive_client():
-    """Use a dedicated Drive scope for uploads into the Admin-shared folder."""
-    if "gcp_service_account_json" in st.secrets:
-        info = json.loads(st.secrets["gcp_service_account_json"])
-    elif "gcp_service_account" in st.secrets:
-        info = dict(st.secrets["gcp_service_account"])
-    else:
-        raise RuntimeError("Thiếu gcp_service_account_json trong Streamlit Secrets.")
-    drive_cred = Credentials.from_service_account_info(
-        info, scopes=DRIVE_UPLOAD_SCOPE)
-    return build("drive", "v3", credentials=drive_cred, cache_discovery=False)
+    """Upload PREVIEW evidence as the human owner of the destination Drive."""
+    oauth = st.secrets.get("google_drive_oauth", {})
+    required = ("client_id", "client_secret", "refresh_token")
+    missing = [key for key in required if not str(oauth.get(key, "")).strip()]
+    if missing:
+        raise RuntimeError(
+            "Chưa cấu hình OAuth Google Drive của chủ thư mục trong Streamlit "
+            "Secrets: [google_drive_oauth] cần client_id, client_secret và "
+            "refresh_token. Ảnh chưa được tải lên; không gửi báo cáo.")
+    cred = OAuthCredentials(
+        token=None,
+        refresh_token=str(oauth["refresh_token"]).strip(),
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=str(oauth["client_id"]).strip(),
+        client_secret=str(oauth["client_secret"]).strip(),
+        scopes=DRIVE_UPLOAD_SCOPE,
+    )
+    return build("drive", "v3", credentials=cred, cache_discovery=False)
 
 
 def drive_error_summary(error):
@@ -434,7 +443,8 @@ def drive_error_summary(error):
             reasons.append(reason)
     message = detail.get("message", "") if isinstance(detail, dict) else ""
     if status is None:
-        return type(error).__name__
+        message = " ".join(str(error).split())
+        return message[:240] if message else type(error).__name__
     label = "Google Drive HTTP " + str(status)
     if reasons:
         label += " (" + ", ".join(reasons[:3]) + ")"
@@ -3196,7 +3206,7 @@ def report():
                    for rows in targets.values() for r in rows):
                 st.caption("SL ở bảng là phần còn phải thực hiện; "
                            "đã trừ số lượng báo cáo trước đó.")
-        st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-FIX-20261026-B")
+        st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-OAUTH-20261026-C")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
         captured=st.camera_input(
             "📸 CHỤP ẢNH HIỆN TRƯỜNG",key=f"report_camera_{photo_key}")
@@ -3222,6 +3232,15 @@ def report():
                      "(photos_folder_id). Chưa thể gửi báo cáo. "
                      "ADMIN cần bổ sung cấu hình ảnh trên Streamlit Cloud; "
                      "không bấm gửi lại khi chưa hoàn tất.")
+            return
+        drive_oauth=st.secrets.get("google_drive_oauth", {})
+        oauth_ready=all(str(drive_oauth.get(k, "")).strip()
+                        for k in ("client_id", "client_secret", "refresh_token"))
+        if not oauth_ready:
+            st.error("⛔ Bản PREVIEW này cần OAuth của chủ thư mục Google Drive. "
+                     "ADMIN cấu hình [google_drive_oauth] gồm client_id, "
+                     "client_secret, refresh_token trong Streamlit Secrets. "
+                     "Chưa bật gửi báo cáo để tránh tạo báo cáo lỗi.")
             return
         eligible=bool(photos) and len(photos)<=10 and (not require_gps or (lat is not None and lon is not None))
         if not eligible:
