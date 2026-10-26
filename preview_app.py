@@ -44,7 +44,7 @@ from preview_allocation_groups import (
 )
 from preview_leadership import build_progress, display_amount
 from preview_leader_access import leadership_username
-from preview_team_access import resolve_login_username, friendly_account_name
+from preview_team_access import resolve_login_username, friendly_account_name, project_login_choices
 from preview_team_access import normalized_name
 from preview_credential_accounts import (
     team_accounts, visible_credential_state, next_account_id,
@@ -590,16 +590,39 @@ def login(team_only=False):
     login_projects=sorted({str(t.get("Mã dự án","")).strip()
                            for t in login_teams
                            if t.get("Trạng thái")=="Hoạt động" and t.get("Mã dự án")})
+    if team_only:
+        # The project selection happens outside the form so changing project
+        # immediately refreshes the name suggestions. Streamlit selectbox
+        # supports built-in search while the member list is open.
+        project_choice=st.selectbox(
+            "Dự án của đội trưởng *",
+            ["— Chọn dự án —"]+login_projects,
+            key="team_login_project_first",
+            help="Chọn dự án trước để chỉ tìm thành viên của dự án đó.")
+        chosen_project=(project_choice
+                        if project_choice!="— Chọn dự án —" else None)
+        available_names=project_login_choices(
+            login_teams,chosen_project,effective_accounts())
+        typed=st.selectbox(
+            "Họ và tên đội trưởng *",
+            available_names,
+            index=None,
+            placeholder="Chạm và gõ vài chữ đầu của họ tên để tìm",
+            disabled=not bool(chosen_project),
+            key=f"team_login_member_{chosen_project or 'none'}",
+            help="Chỉ hiện tên VC/KTV đang hoạt động và đã có tài khoản "
+                 "thuộc dự án đã chọn.")
+        if chosen_project and not available_names:
+            st.info("Dự án này chưa có tài khoản VC/KTV hợp lệ để đăng nhập.")
     with st.form("team_login_form" if team_only else "login_form_preview"):
-        typed=st.text_input(
-            "Họ và tên đội trưởng" if team_only else
-            "Họ tên đội trưởng hoặc mã tài khoản ADMIN",
-            placeholder="Ví dụ: Nguyễn Văn A" if team_only else "")
-        chosen_project=st.selectbox(
-            "Dự án (chỉ chọn khi có đội trưởng trùng họ tên)",
-            ["Tự xác định"]+login_projects,
-            help="Nếu nhiều đội trưởng cùng tên, chọn đúng mã dự án của mình. "
-                 "Không cần chọn khi tên là duy nhất.")
+        if not team_only:
+            # Keep the previous ADMIN/general login unchanged.
+            typed=st.text_input("Họ tên đội trưởng hoặc mã tài khoản ADMIN")
+            chosen_project=st.selectbox(
+                "Dự án (chỉ chọn khi có đội trưởng trùng họ tên)",
+                ["Tự xác định"]+login_projects,
+                help="Nếu nhiều đội trưởng cùng tên, chọn đúng mã dự án. "
+                     "Không cần chọn khi tên là duy nhất.")
         pin=st.text_input("Mật khẩu riêng",type="password")
         remember_key=remember_signing_key()
         remember=st.checkbox(
@@ -614,6 +637,9 @@ def login(team_only=False):
             "✅ VÀO BÁO CÁO" if team_only else "ĐĂNG NHẬP",
             use_container_width=True)
     if not submitted:
+        return
+    if team_only and (not chosen_project or not typed):
+        st.warning("Hãy chọn dự án và họ tên đội trưởng trước khi đăng nhập.")
         return
     accounts=effective_accounts()
     username,reason=resolve_login_username(
