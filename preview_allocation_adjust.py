@@ -10,6 +10,29 @@ from preview_bulk_allocation import inventory_by_sku, quantity
 REQUIRED = ("DM_CHUAN", "KHO_PHAN_BO", "VAN_CHUYEN", "LAP_DAT", "NHAT_KY_HE_THONG")
 
 
+def allocation_batch_code(row):
+    """Accept the real KHO_PHAN_BO header and the legacy alias, but never conflicts."""
+    values = {str(row.get(key) or "").strip()
+              for key in ("Mã đợt", "Mã đợt phân bổ") if str(row.get(key) or "").strip()}
+    if len(values) > 1:
+        raise ValueError("Mã đợt và mã đợt phân bổ không khớp; cần đối soát.")
+    return next(iter(values), "")
+
+
+def _column_index(row, field, label):
+    """Find an actual sheet column, tolerating line breaks in its header."""
+    matches = [i for i, key in enumerate(row)
+               if key != "_row" and " ".join(str(key).split()) == field]
+    if len(matches) != 1:
+        raise ValueError(f"{label}: cột {field} bị thiếu hoặc trùng; dừng ghi để bảo toàn dữ liệu.")
+    return matches[0]
+
+
+def _quantity_value(row, field, label):
+    column = _column_index(row, field, label)
+    return quantity(list(row.values())[column])
+
+
 def _unique(rows, predicate, label):
     matches = [r for r in rows if predicate(r)]
     if len(matches) != 1:
@@ -75,7 +98,7 @@ def prepare_quantity_corrections(project, changes, snapshots, sheet_ids, actor, 
         if allocation.get("Trạng thái") != "Đã phân bổ" or quantity(allocation.get("SL phân bổ")) != old:
             raise ValueError("Số lượng/trạng thái vừa thay đổi; hãy tải lại trước khi sửa: " + alloc_id)
         pid, sku, batch = (allocation.get("Mã điểm"), allocation.get("SKU"),
-                           allocation.get("Mã đợt phân bổ"))
+                           allocation_batch_code(allocation))
         if not pid or not sku or not batch or sku not in stock:
             raise ValueError("Thiếu thông tin điểm/SKU/đợt: " + alloc_id)
         dm = _unique(snapshots["DM_CHUAN"], lambda r:
@@ -91,7 +114,7 @@ def prepare_quantity_corrections(project, changes, snapshots, sheet_ids, actor, 
         for row, name, field in ((dm, "DM_CHUAN", "SL phân bổ"),
                                  (vc, "VAN_CHUYEN", "SL giao"),
                                  (ld, "LAP_DAT", "SL lắp")):
-            if quantity(row.get(field)) != old:
+            if _quantity_value(row, field, name) != old:
                 raise ValueError(name + ": số lượng lệch KHO_PHAN_BO, không được sửa tự động.")
         _unstarted(vc, "Chưa giao", "VC " + alloc_id)
         _unstarted(ld, "Chưa lắp", "LĐ " + alloc_id)
@@ -100,10 +123,11 @@ def prepare_quantity_corrections(project, changes, snapshots, sheet_ids, actor, 
                    for r in snapshots[name]):
                 raise ValueError("Điểm " + pid + " đã có báo cáo/bàn giao; cần đối soát riêng.")
         difference[sku] += new - old
-        for name, row, column in (("DM_CHUAN", dm, 5),
-                                  ("KHO_PHAN_BO", allocation, 7),
-                                  ("VAN_CHUYEN", vc, 5),
-                                  ("LAP_DAT", ld, 5)):
+        for name, row, field in (("DM_CHUAN", dm, "SL phân bổ"),
+                                 ("KHO_PHAN_BO", allocation, "SL phân bổ"),
+                                 ("VAN_CHUYEN", vc, "SL giao"),
+                                 ("LAP_DAT", ld, "SL lắp")):
+            column = _column_index(row, field, name)
             requests.append(_number_cell(sheet_ids[name], _position(row, name), column, new))
         audit_rows.append([stamp, actor, "ADMIN", "ĐIỀU CHỈNH PHÂN BỔ",
                            "KHO_PHAN_BO", alloc_id, "OK",
