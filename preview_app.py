@@ -432,6 +432,12 @@ def drive_client():
     return build("drive", "v3", credentials=cred, cache_discovery=False)
 
 
+@st.cache_resource
+def drive_folder_authorization_state():
+    # Process-wide so a one-time ADMIN Picker action unlocks team report sessions.
+    return {"folder_id": ""}
+
+
 def configure_photo_folder():
     """ADMIN selects and verifies only the configured photo folder."""
     folder = str(st.secrets.get("photos_folder_id", "")).strip()
@@ -464,7 +470,7 @@ def configure_photo_folder():
         if info.get("mimeType") != "application/vnd.google-apps.folder":
             st.error("Mục đã chọn không phải thư mục Google Drive.")
             return
-        st.session_state["_preview_drive_folder_ok"] = folder
+        drive_folder_authorization_state()["folder_id"] = folder
         st.success("Đã xác minh quyền OAuth trên đúng thư mục ảnh: " +
                    str(info.get("name") or folder))
     except Exception as exc:
@@ -3295,7 +3301,7 @@ def report():
                      "ADMIN cần hoàn tất Kết nối thư mục ảnh PREVIEW trước; "
                      "chưa bật gửi báo cáo để tránh tạo báo cáo lỗi.")
             return
-        if st.session_state.get("_preview_drive_folder_ok") != str(
+        if drive_folder_authorization_state().get("folder_id") != str(
                 st.secrets.get("photos_folder_id", "")).strip():
             st.error("⛔ ADMIN cần mở mục “Kết nối thư mục ảnh PREVIEW” "
                      "và chọn/xác minh đúng thư mục trước khi đội gửi báo cáo.")
