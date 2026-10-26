@@ -14,9 +14,13 @@ class PreviewMobileReportTests(unittest.TestCase):
         ast.parse(SOURCE)
 
     def test_sku_summary_is_compact_and_preserves_counts(self):
-        self.assertIn("**Cần xác nhận:", REPORT)
-        self.assertIn("Phân bổ: {item['allocated']:g}", REPORT)
-        self.assertIn("Đã xác nhận: {item['already']:g}", REPORT)
+        # All SKU rows now live under ONE site header/table on PC and phone.
+        self.assertIn('sku_display=[]', REPORT)
+        self.assertIn('sku_display.append({', REPORT)
+        self.assertIn('"Thiết bị":item["name"]', REPORT)
+        self.assertIn('st.dataframe(sku_display,hide_index=True,use_container_width=True)', REPORT)
+        self.assertIn('Mã điểm: {chosen[1]}', REPORT)
+        self.assertIn('Đã trừ', REPORT.replace('đã trừ', 'Đã trừ'))
         self.assertNotIn("st.write(f\"Đơn vị tính:", REPORT)
         self.assertEqual(REPORT.count("increments[r[id_key]]=remaining"), 1)
 

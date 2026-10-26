@@ -59,7 +59,9 @@ from preview_team_reassignment import (
     team_change_plan, change_signature, team_change_requests
 )
 from preview_site_rights import (
-    allocation_owners, active_registration, site_ids, RIGHT_FIELDS
+    allocation_owners, active_registration, site_ids, RIGHT_FIELDS,
+    owner_index, supplemental_site_plan, supplemental_site_signature,
+    supplemental_site_requests
 )
 from preview_assignment import ROLE_TABS, TASK_SCHEMA
 from preview_remember import account_fingerprint
@@ -1906,6 +1908,172 @@ def provision_team_password():
 
 
 
+def supplemental_site_assignment_admin():
+    """ADMIN adds previously unowned project sites to an approved VC/KTV team."""
+    require_role("ADMIN")
+    with st.expander("➕ GIAO BỔ SUNG ĐIỂM CHƯA CÓ ĐỘI (VC / LẮP ĐẶT)",
+                     expanded=False):
+        notice = st.session_state.pop("supplemental_site_notice", None)
+        if notice:
+            st.success(notice)
+        st.caption("Chọn đội đang hoạt động và điểm chưa cấp cho đội nào ở "
+                   "đúng công đoạn. Giữ nguyên các điểm đã giao, số lượng "
+                   "kho và mọi báo cáo/biên bản. Có thể làm trên PC hoặc điện thoại.")
+        all_teams = read_sheet("QUAN_LY_DOI")
+        teams = [r for r in all_teams
+                 if r.get("Mã đội") and r.get("Mã dự án")
+                 and r.get("Trạng thái") == "Hoạt động" and allowed_modes(r)]
+        if not teams:
+            st.info("Chưa có đội VC/LĐ đang hoạt động.")
+            return
+        project = st.selectbox("1. Dự án", sorted({r["Mã dự án"] for r in teams}),
+                               key="supplemental_project")
+        team = st.selectbox(
+            "2. Đội nhận thêm điểm",
+            [r for r in teams if r["Mã dự án"] == project],
+            format_func=lambda r: r.get("Tên đội/đội trưởng", r["Mã đội"])
+            + " • " + r.get("Loại nhiệm vụ", ""),
+            key=f"supplemental_team_{project}")
+        mode_labels = {"VC": "Vận chuyển", "LD": "Lắp đặt",
+                       "VC+LD": "Cả VC và lắp đặt"}
+        mode = st.radio("3. Công đoạn bổ sung", allowed_modes(team),
+                        format_func=lambda m: mode_labels[m],
+                        key=f"supplemental_mode_{team['Mã đội']}")
+        tabs = ROLE_TABS[mode]
+        locations = read_sheet("DANH_SACH_DIEM")
+        registrations = read_sheet("DANG_KY_THANH_VIEN")
+        tasksets = {tab: read_sheet(tab) for tab in tabs}
+        hubs = read_sheet("BAN_GIAO_TAP_KET")
+        try:
+            active_registration(registrations, project, team["Mã đội"])
+            owners = owner_index(registrations, all_teams, project)
+            catalog = project_site_catalog(team, mode, locations, tasksets)
+            # Check EVERY candidate with the same pure planner used at commit.
+            ready = {}
+            for pid, (loc, status, _) in catalog.items():
+                if any(
+                        (tab, pid) in owners for tab in tabs):
+                    continue
+                try:
+                    supplemental_site_plan(
+                        team, mode, (pid,), locations, registrations,
+                        all_teams, tasksets, hubs)
+                    ready[pid] = loc
+                except ValueError:
+                    continue
+        except ValueError as exc:
+            st.warning("Cần đối soát quyền đội trước khi bổ sung: " + str(exc))
+            return
+        st.caption(f"**{len(ready)} điểm** chưa cấp quyền cho đội nào "
+                   "ở công đoạn này. Gồm cả điểm chưa phân bổ SKU.")
+        if not ready:
+            st.info("Không có điểm trống hợp lệ để bổ sung. Điểm đã thuộc "
+                    "đội khác phải qua mục Thu hồi / Giao lại đội khác.")
+            return
+        chosen = st.multiselect(
+            "4. Tìm tên đơn vị / điểm cần bổ sung",
+            sorted(ready, key=lambda pid:
+                   ready[pid].get("Tên xã/phường/đơn vị", pid).casefold()),
+            format_func=lambda pid: (
+                ready[pid].get("Tên xã/phường/đơn vị") or pid) + " • " + pid,
+            placeholder="Gõ tên đơn vị hoặc mã điểm...",
+            key=f"supplemental_sites_{project}_{team['Mã đội']}_{mode}")
+        if not chosen:
+            st.info("Chọn một hoặc nhiều điểm để xem đủ SKU và SL trước khi giao.")
+            return
+        try:
+            plan = supplemental_site_plan(
+                team, mode, chosen, locations, registrations,
+                all_teams, tasksets, hubs)
+        except ValueError as exc:
+            st.warning(str(exc))
+            return
+        stock = [r for r in read_sheet("KHO_PHAN_BO")
+                 if r.get("Mã dự án") == project and r.get("Mã điểm") in chosen]
+        stock_by_key = {(r.get("Mã điểm"), r.get("SKU")): r for r in stock}
+        st.markdown("#### 5. Đối chiếu SKU và số lượng từng địa điểm")
+        for pid in chosen:
+            loc = ready[pid]
+            quantities = {}
+            for tab, rows in plan["tasks"].items():
+                for row in rows:
+                    if row.get("Mã điểm") != pid:
+                        continue
+                    sku = row.get("SKU")
+                    entry = quantities.setdefault(sku, {"SKU": sku})
+                    entry["SL VC" if tab == "VAN_CHUYEN" else "SL LĐ"] = (
+                        row.get("SL giao") if tab == "VAN_CHUYEN"
+                        else row.get("SL lắp"))
+            preview = []
+            for sku, values in sorted(quantities.items()):
+                source = stock_by_key.get((pid, sku), {})
+                display = {"SKU": sku,
+                           "Thiết bị": source.get("Tên hàng hóa", ""),
+                           "ĐVT": source.get("ĐVT", "")}
+                if "SL VC" in values:
+                    display["SL giao"] = values["SL VC"]
+                if "SL LĐ" in values:
+                    display["SL lắp"] = values["SL LĐ"]
+                preview.append(display)
+            with st.container(border=True):
+                st.markdown("**📍 " +
+                            (loc.get("Tên xã/phường/đơn vị") or pid) + "**")
+                st.caption(f"Mã điểm: {pid} • {len(preview)} SKU")
+                if preview:
+                    st.dataframe(preview, hide_index=True, use_container_width=True)
+                else:
+                    st.info("Điểm chưa phân bổ SKU. Sau khi ADMIN phân bổ "
+                            "hàng, nhiệm vụ sẽ liên kết theo quyền vừa cấp.")
+        count = sum(len(rows) for rows in plan["tasks"].values())
+        st.caption(f"Tổng cộng: {len(chosen)} điểm, {count} nhiệm vụ SKU. "
+                   "Bổ sung cả quyền địa điểm đã duyệt và nhiệm vụ trong cùng "
+                   "một lần ghi; không thay đổi phân bổ kho.")
+        signature = hashlib.sha256(
+            repr(supplemental_site_signature(plan)).encode("utf-8")
+        ).hexdigest()[:16]
+        checked = st.checkbox(
+            "ADMIN xác nhận các điểm trên chưa thuộc đội nào và đúng hợp đồng.",
+            key=f"supplemental_ack_{signature}")
+        if st.button("✅ XÁC NHẬN GIAO BỔ SUNG ĐIỂM",
+                     disabled=not checked, type="primary",
+                     use_container_width=True,
+                     key=f"supplemental_commit_{signature}"):
+            try:
+                read_sheet.clear()
+                fresh_teams = read_sheet_live("QUAN_LY_DOI")
+                matches = [r for r in fresh_teams if
+                           r.get("Mã đội") == team["Mã đội"]
+                           and r.get("Mã dự án") == project]
+                if len(matches) != 1:
+                    fail("Đội nhận điểm đã thay đổi; chưa ghi.")
+                fresh = supplemental_site_plan(
+                    matches[0], mode, chosen,
+                    read_sheet_live("DANH_SACH_DIEM"),
+                    read_sheet_live("DANG_KY_THANH_VIEN"), fresh_teams,
+                    {tab: read_sheet_live(tab) for tab in tabs},
+                    read_sheet_live("BAN_GIAO_TAP_KET"))
+                if (supplemental_site_signature(fresh) !=
+                        supplemental_site_signature(plan)):
+                    fail("Quyền hoặc nhiệm vụ đã đổi; chưa ghi. Hãy tải lại.")
+                ids = {tab: sheet(tab).id for tab in tabs}
+                ids["DANG_KY_THANH_VIEN"] = sheet("DANG_KY_THANH_VIEN").id
+                requests = supplemental_site_requests(fresh, ids)
+                client()[0].batch_update({"requests": requests})
+                read_sheet.clear()
+                st.session_state["supplemental_site_notice"] = (
+                    f"Đã bổ sung {len(chosen)} điểm và {count} nhiệm vụ "
+                    f"cho đội {team.get('Tên đội/đội trưởng', team['Mã đội'])}. "
+                    "Quyền địa điểm và nhiệm vụ đã ghi cùng giao dịch; "
+                    "KHO_PHAN_BO giữ nguyên.")
+                st.rerun()
+            except Exception as exc:
+                read_sheet.clear()
+                st.error("CHƯA XÁC NHẬN ĐƯỢC LẦN GIAO BỔ SUNG (" +
+                         type(exc).__name__ + "). KHÔNG bấm lại ngay. "
+                         "ADMIN đối chiếu DANG_KY_THANH_VIEN, "
+                         "VAN_CHUYEN và LAP_DAT trước khi thử lại.")
+
+
 def team_reassignment_admin():
     """Explicit ADMIN operation; never alter KHO_PHAN_BO or completed evidence."""
     require_role("ADMIN")
@@ -2194,6 +2362,7 @@ def teams_and_approval():
             except ValueError as exc:
                 st.error("Liên kết hoặc đội chưa hợp lệ: "+str(exc))
     provision_team_password()
+    supplemental_site_assignment_admin()
     team_reassignment_admin()
     st.caption("Chỉ quản lý đội trưởng. Thành viên của đội do đội trưởng tự quản lý.")
     st.info("Địa điểm được cấp ngay khi ADMIN duyệt đăng ký đội trưởng. "
@@ -2953,8 +3122,8 @@ def report():
                           if row.get("Mã dự án")==chosen[0]
                           and row.get("Mã điểm")==chosen[1]]
         increments={}
+        sku_display=[]
         for tab,rows in targets.items():
-            st.caption("VẬN CHUYỂN" if tab=="VAN_CHUYEN" else "LẮP ĐẶT")
             id_key="Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
             for r in rows:
                 try:
@@ -2966,13 +3135,24 @@ def report():
                 if remaining<=0:
                     st.error("Số lượng còn lại không hợp lệ. Cần ADMIN đối soát.")
                     return
-                with st.container(border=True):
-                    st.markdown(f"**{item['name']}**")
-                    st.caption(
-                        f"**Cần xác nhận: {remaining:g} {item['unit']}** · "
-                        f"Phân bổ: {item['allocated']:g} · "
-                        f"Đã xác nhận: {item['already']:g}")
+                sku_display.append({
+                    "SKU":r.get("SKU",""),
+                    "Thiết bị":item["name"],
+                    "SL cần " + ("giao" if tab=="VAN_CHUYEN" else "lắp"):
+                        f"{remaining:g}",
+                    "ĐVT":item["unit"]})
                 increments[r[id_key]]=remaining
+        with st.container(border=True):
+            st.markdown("**📍 " + (locs.get(chosen[1]) or chosen[1]) + "**")
+            st.caption(f"Dự án: {chosen[0]} • Mã điểm: {chosen[1]} • "
+                       f"{len(sku_display)} SKU • "
+                       ("Báo giao hàng" if mode=="Đã giao hàng" else
+                        "Báo lắp đặt"))
+            st.dataframe(sku_display,hide_index=True,use_container_width=True)
+            if any(numeric(r.get("SL thực tế"))>0
+                   for rows in targets.values() for r in rows):
+                st.caption("SL ở bảng là phần còn phải thực hiện; "
+                           "đã trừ số lượng báo cáo trước đó.")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
         captured=st.camera_input(
             "📸 CHỤP ẢNH HIỆN TRƯỜNG",key=f"report_camera_{photo_key}")

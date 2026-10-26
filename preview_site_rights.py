@@ -4,7 +4,7 @@ Site rights are independent of SKU allocation. The two CSV ID fields on each
 approved registration are the source of truth; task G columns mirror them only
 for allocated, unstarted work. Never infer rights from a signup proposal.
 """
-from preview_assignment import ROLE_TABS, TASK_SCHEMA
+from preview_assignment import ROLE_TABS, TASK_SCHEMA, allowed_modes
 
 RIGHT_FIELDS = {
     "VAN_CHUYEN": ("Điểm VC Admin duyệt", 13),
@@ -215,3 +215,96 @@ def right_cell_request(sheet_id, row, tab, value):
         "rows": [{"values": [{"userEnteredValue": {"stringValue": value}}]}],
         "fields": "userEnteredValue"
     }}
+
+
+def supplemental_site_plan(team, mode, selected_ids, locations, registrations,
+                           teams, tasksets, hub_rows):
+    """Add *unowned* sites to an approved team and link all waiting SKU tasks.
+
+    Registration rights and task assignments must be committed in ONE Sheets
+    batch. Existing rights, already assigned work and proof remain unchanged.
+    """
+    selected = tuple(selected_ids)
+    if (mode not in allowed_modes(team) or not selected or
+            len(selected) != len(set(selected))):
+        raise ValueError("Chọn chuyên môn hợp lệ và điểm bổ sung không trùng.")
+    project, team_id = team.get("Mã dự án"), team.get("Mã đội")
+    if not project or not team_id or team.get("Trạng thái") != "Hoạt động":
+        raise ValueError("Đội nhận điểm không còn hoạt động.")
+    registration = active_registration(registrations, project, team_id)
+    owners = owner_index(registrations, teams, project)
+    for tab in ROLE_TABS[mode]:
+        for pid in selected:
+            if (tab, pid) in owners:
+                raise ValueError("Điểm " + pid +
+                                 " đã có đội được duyệt; không phải điểm bổ sung trống.")
+    valid_sites = {r.get("Mã điểm") for r in locations if
+                   r.get("Mã dự án") == project and
+                   r.get("Trạng thái") == "Hoạt động"}
+    if not set(selected).issubset(valid_sites):
+        raise ValueError("Điểm bổ sung không thuộc dự án đang hoạt động.")
+    # Rights may be approved BEFORE any SKU allocation. Subsequent allocation
+    # automatically binds new tasks from these approved rights.
+    tasks = {}
+    for tab in ROLE_TABS[mode]:
+        id_key, owner_key, waiting = TASK_SCHEMA[tab]
+        pending = []
+        for pid in selected:
+            associated = [r for r in tasksets.get(tab, []) if
+                          r.get("Mã dự án") == project and r.get("Mã điểm") == pid]
+            if any(
+                    r.get(owner_key) or r.get("Trạng thái") != waiting or
+                    task_proven(r, tab, hub_rows, project)
+                    for r in associated):
+                raise ValueError("Điểm " + pid +
+                                 " đã có việc/bằng chứng hoặc không còn nguyên trạng chờ giao.")
+            for row in associated:
+                if (not row.get(id_key) or
+                        not isinstance(row.get("_row"), int) or row["_row"] < 2):
+                    raise ValueError("Nhiệm vụ chờ giao thiếu mã hoặc số dòng.")
+                pending.append(row)
+        ids = [r[id_key] for r in pending]
+        if len(ids) != len(set(ids)) or len({r["_row"] for r in pending}) != len(pending):
+            raise ValueError("Trùng nhiệm vụ hoặc số dòng tại điểm bổ sung.")
+        tasks[tab] = pending
+    new_rights = {}
+    for tab in ROLE_TABS[mode]:
+        field, _ = RIGHT_FIELDS[tab]
+        new_rights[tab] = site_text(
+            (*site_ids(registration.get(field)), *selected))
+    return {
+        "project": project, "team_id": team_id, "mode": mode,
+        "sites": selected, "registration_row": registration.get("_row"),
+        "registration_id": registration.get("Mã đăng ký"),
+        "tasks": tasks, "new_rights": new_rights,
+        "old_rights": {tab: site_text(site_ids(registration.get(RIGHT_FIELDS[tab][0])))
+                       for tab in ROLE_TABS[mode]},
+    }
+
+
+def supplemental_site_signature(plan):
+    """All critical inputs must match a fresh read before committing."""
+    return (
+        plan["project"], plan["team_id"], plan["mode"],
+        tuple(sorted(plan["sites"])), plan["registration_id"],
+        plan["registration_row"],
+        tuple(sorted(plan["old_rights"].items())),
+        tuple(sorted(plan["new_rights"].items())),
+        tuple(sorted((tab, r.get(TASK_SCHEMA[tab][0]), r.get("_row"))
+                     for tab, rows in plan["tasks"].items() for r in rows)),
+    )
+
+
+def supplemental_site_requests(plan, sheet_ids):
+    """Atomic registration rights + task G-column updates; never touch stock."""
+    from preview_assignment import compact_site_assignment_requests
+    requests = (compact_site_assignment_requests(
+        sheet_ids, plan["tasks"], plan["team_id"])
+        if any(plan["tasks"].values()) else [])
+    if "DANG_KY_THANH_VIEN" not in sheet_ids:
+        raise ValueError("Thiếu bảng quyền địa điểm đã duyệt.")
+    for tab, value in plan["new_rights"].items():
+        requests.append(right_cell_request(
+            sheet_ids["DANG_KY_THANH_VIEN"],
+            plan["registration_row"], tab, value))
+    return requests
