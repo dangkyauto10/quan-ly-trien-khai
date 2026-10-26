@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://apis.google.com/js/api.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    button { border: 0; border-radius: 8px; padding: 10px 14px; background: #155eef; color: #fff; font-weight: 700; cursor: pointer; }
+    button:disabled { background: #8aa9e8; }
+    #status { margin: 8px 0; color: #334155; }
+  </style>
+</head>
+<body>
+  <button id="pick" disabled>Đang tải Google Picker…</button>
+  <div id="status">Chọn đúng thư mục ảnh PREVIEW để giới hạn quyền ứng dụng.</div>
+  <script>
+    let args = null;
+    let pickerReady = false;
+    const button = document.getElementById("pick");
+    const status = document.getElementById("status");
+    function send(type, value) {
+      window.parent.postMessage({isStreamlitMessage: true, type, value}, "*");
+    }
+    function height() {
+      send("streamlit:setFrameHeight", document.documentElement.scrollHeight);
+    }
+    function maybeReady() {
+      if (args && pickerReady) {
+        button.disabled = false;
+        button.textContent = "Chọn thư mục ảnh trong Google Drive";
+        height();
+      }
+    }
+    window.addEventListener("message", event => {
+      const data = event.data || {};
+      if (data.type === "streamlit:render") {
+        args = data.args || {};
+        maybeReady();
+      }
+    });
+    window.addEventListener("load", () => {
+      send("streamlit:componentReady", {apiVersion: 1});
+      height();
+      if (!window.gapi) {
+        status.textContent = "Không tải được Google Picker. Kiểm tra API Picker/API key.";
+        return;
+      }
+      gapi.load("picker", {
+        callback: () => { pickerReady = true; maybeReady(); },
+        onerror: () => { status.textContent = "Google Picker chưa tải được."; }
+      });
+    });
+    button.addEventListener("click", () => {
+      if (!args || !args.apiKey || !args.accessToken || !window.google?.picker) {
+        status.textContent = "Thiếu API key hoặc quyền OAuth Drive.";
+        return;
+      }
+      const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(true)
+        .setMimeTypes("application/vnd.google-apps.folder");
+      const picker = new google.picker.PickerBuilder()
+        .addView(view)
+        .setOAuthToken(args.accessToken)
+        .setDeveloperKey(args.apiKey)
+        .setTitle("Chọn thư mục ảnh PREVIEW")
+        .setCallback(data => {
+          if (data.action === google.picker.Action.PICKED && data.docs?.length) {
+            const folder = data.docs[0];
+            status.textContent = "Đã chọn: " + (folder.name || folder.id);
+            send("streamlit:setComponentValue", {
+              folderId: folder.id,
+              name: folder.name || "",
+              mimeType: folder.mimeType || ""
+            });
+          }
+        })
+        .build();
+      picker.setVisible(true);
+    });
+  </script>
+</body>
+</html>
