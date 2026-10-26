@@ -73,7 +73,8 @@ class ReportAtomicTests(unittest.TestCase):
         snippet=ast.get_source_segment(source,report)
         self.assertIn('site_allocations=[row for row in read_sheet("KHO_PHAN_BO")',snippet)
         self.assertIn('item=allocated_report_item(r,site_allocations,mode)',snippet)
-        self.assertIn("st.markdown(f\"**{item['name']}**\")",snippet)
+        self.assertIn('"Thiết bị":item["name"]',snippet)
+        self.assertIn('st.dataframe(sku_display,hide_index=True,use_container_width=True)',snippet)
         self.assertNotIn("st.write(f\"**{r['SKU']}**",snippet)
 
     def test_report_ui_shows_allocated_quantities_without_manual_inputs(self):
