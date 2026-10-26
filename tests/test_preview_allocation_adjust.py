@@ -184,5 +184,26 @@ class QuantityCorrectionTests(unittest.TestCase):
             self.plan(sheets, changes + changes)
 
 
+    def test_admin_input_starts_empty_and_site_names_visible(self):
+        from pathlib import Path
+        import ast
+        app = Path(__file__).resolve().parents[1].joinpath("preview_app.py")
+        tree = ast.parse(app.read_text(encoding="utf-8"))
+        fn = next(n for n in tree.body
+                  if isinstance(n, ast.FunctionDef)
+                  and n.name == "adjust_allocated_quantities")
+        widgets = [n for n in ast.walk(fn)
+                   if isinstance(n, ast.Call)
+                   and isinstance(n.func, ast.Attribute)
+                   and n.func.attr == "number_input"]
+        self.assertEqual(len(widgets), 1)
+        arguments = {kw.arg: kw.value for kw in widgets[0].keywords}
+        self.assertIsNone(ast.literal_eval(arguments["value"]))
+        self.assertIsNotNone(arguments.get("placeholder"))
+        source = ast.get_source_segment(app.read_text(encoding="utf-8"), fn)
+        self.assertIn('if new_qty is None:', source)
+        self.assertIn('"Tên đơn vị": point_names.get(', source)
+        self.assertIn('"SL đang phân bổ": r.get(', source)
+
 if __name__ == "__main__":
     unittest.main()
