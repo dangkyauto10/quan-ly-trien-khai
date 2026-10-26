@@ -67,6 +67,39 @@ def resolve_login_username(typed, accounts, teams, project_id=None):
     return next(iter(candidates)),"ok"
 
 
+
+def project_login_choices(teams, project_id, accounts):
+    """Active, credentialed VC/KTV captains in one selected project.
+
+    Public suggestions reveal only names, never team IDs, phone numbers,
+    usernames or passwords. Authentication still uses the live account check.
+    """
+    project = str(project_id or "").strip()
+    if not project or not isinstance(accounts, Mapping):
+        return []
+    authorized_ids = {
+        str(info.get("team_id", "")).strip()
+        for info in accounts.values()
+        if isinstance(info, Mapping)
+        and str(info.get("role", "")).upper() == "DOI_TRUONG"
+        and str(info.get("team_id", "")).strip()
+    }
+    names = {}
+    for row in teams or ():
+        if not isinstance(row, Mapping):
+            continue
+        if (str(row.get("Mã dự án", "")).strip() != project
+                or row.get("Trạng thái") != "Hoạt động"
+                or str(row.get("Loại nhiệm vụ", "")).strip()
+                not in ("VC", "KTV", "VC+KTV")
+                or str(row.get("Mã đội", "")).strip() not in authorized_ids):
+            continue
+        display = " ".join(str(row.get("Tên đội/đội trưởng", "")).split())
+        if display:
+            names.setdefault(normalized_name(display), display)
+    return sorted(names.values(), key=normalized_name)
+
+
 def friendly_account_name(account, teams):
     """Only returns a leader name from an active linked team, else username."""
     username=str((account or {}).get("username",""))
