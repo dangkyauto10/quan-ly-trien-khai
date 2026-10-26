@@ -335,6 +335,7 @@ st.markdown(f"""
 
 SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive.file"]
+DRIVE_UPLOAD_SCOPE = ["https://www.googleapis.com/auth/drive"]
 READY = "Đã đồng bộ"
 
 class PreviewSheetReadError(RuntimeError):
@@ -397,6 +398,50 @@ def client():
     gs = gspread.authorize(cred)
     sh = _retry_google_read(lambda: gs.open_by_key(st.secrets["spreadsheet_id"]))
     return sh, cred
+
+
+@st.cache_resource
+def drive_client():
+    """Use a dedicated Drive scope for uploads into the Admin-shared folder."""
+    if "gcp_service_account_json" in st.secrets:
+        info = json.loads(st.secrets["gcp_service_account_json"])
+    elif "gcp_service_account" in st.secrets:
+        info = dict(st.secrets["gcp_service_account"])
+    else:
+        raise RuntimeError("Thiếu gcp_service_account_json trong Streamlit Secrets.")
+    drive_cred = Credentials.from_service_account_info(
+        info, scopes=DRIVE_UPLOAD_SCOPE)
+    return build("drive", "v3", credentials=drive_cred, cache_discovery=False)
+
+
+def drive_error_summary(error):
+    """Return safe Google API diagnostics without exposing credentials."""
+    response = getattr(error, "resp", None)
+    status = getattr(response, "status", None)
+    payload = {}
+    try:
+        raw = getattr(error, "content", b"")
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        payload = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        payload = {}
+    detail = payload.get("error", {}) if isinstance(payload, dict) else {}
+    reasons = []
+    for item in detail.get("errors", []) if isinstance(detail, dict) else []:
+        reason = item.get("reason")
+        if reason and reason not in reasons:
+            reasons.append(reason)
+    message = detail.get("message", "") if isinstance(detail, dict) else ""
+    if status is None:
+        return type(error).__name__
+    label = "Google Drive HTTP " + str(status)
+    if reasons:
+        label += " (" + ", ".join(reasons[:3]) + ")"
+    if message:
+        label += ": " + " ".join(str(message).split())[:240]
+    return label
+
 
 @st.cache_data(ttl=45, show_spinner=False)
 def read_sheet(name):
@@ -2659,11 +2704,10 @@ def sync_progress(project_id, point_id):
 
 
 def images_to_drive(files, report_id, project_id="", point_id="", point_name="", recorded_at=""):
-    sh, cred=client()
     folder=st.secrets.get("photos_folder_id", "")
     if not folder:
         raise RuntimeError("Thiếu photos_folder_id.")
-    drive=build("drive","v3",credentials=cred,cache_discovery=False)
+    drive=drive_client()
     # Searchable Drive filename/description; the report Sheet stores the URL.
     if project_id and point_id and recorded_at:
         safe=lambda x: "".join(c for c in str(x) if c.isalnum() or c in "-_")[:48]
@@ -3287,6 +3331,8 @@ def report():
                 read_sheet.clear()
                 # Google Sheets batch_update may commit despite a lost response.
                 # Keep the duplicate-submit guard until ADMIN reconciles.
+                error_label=(drive_error_summary(exc)
+                             if phase=="lưu ảnh Drive" else type(exc).__name__)
                 if phase=="ghi đồng bộ Google Sheets":
                     st.error("CHƯA XÁC NHẬN ĐƯỢC GIAO DỊCH Google Sheets ("+
                              type(exc).__name__+"). KHÔNG bấm lại. "
