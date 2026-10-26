@@ -22,7 +22,11 @@
       window.parent.postMessage({isStreamlitMessage: true, type, value}, "*");
     }
     function height() {
-      send("streamlit:setFrameHeight", document.documentElement.scrollHeight);
+      window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: "streamlit:setFrameHeight",
+        height: document.documentElement.scrollHeight
+      }, "*");
     }
     function maybeReady() {
       if (args && pickerReady) {
