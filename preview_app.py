@@ -3146,8 +3146,7 @@ def report():
             st.markdown("**📍 " + (locs.get(chosen[1]) or chosen[1]) + "**")
             st.caption(f"Dự án: {chosen[0]} • Mã điểm: {chosen[1]} • "
                        f"{len(sku_display)} SKU • "
-                       ("Báo giao hàng" if mode=="Đã giao hàng" else
-                        "Báo lắp đặt"))
+                       f"{'Báo giao hàng' if mode == 'Đã giao hàng' else 'Báo lắp đặt'}")
             st.dataframe(sku_display,hide_index=True,use_container_width=True)
             if any(numeric(r.get("SL thực tế"))>0
                    for rows in targets.values() for r in rows):
