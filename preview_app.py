@@ -2968,10 +2968,10 @@ def report():
                     return
                 with st.container(border=True):
                     st.markdown(f"**{item['name']}**")
-                    st.write(f"Đơn vị tính: {item['unit']}")
-                    st.write(f"**Số lượng phân bổ tại điểm: {item['allocated']:g} {item['unit']}**")
-                    st.write(f"Đã xác nhận: {item['already']:g} {item['unit']}")
-                    st.write(f"**Số lượng cần xác nhận hoàn thành: {remaining:g} {item['unit']}**")
+                    st.caption(
+                        f"**Cần xác nhận: {remaining:g} {item['unit']}** · "
+                        f"Phân bổ: {item['allocated']:g} · "
+                        f"Đã xác nhận: {item['already']:g}")
                 increments[r[id_key]]=remaining
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
         captured=st.camera_input(
@@ -2991,6 +2991,14 @@ def report():
             st.caption("Vận chuyển không bắt buộc GPS check-in.")
         lat=gps.get("latitude") if isinstance(gps,dict) else None
         lon=gps.get("longitude") if isinstance(gps,dict) else None
+        # Never offer an actionable submit if the PREVIEW photo destination
+        # is missing; this used to surface only after clicking GỬI BÁO CÁO.
+        if not str(st.secrets.get("photos_folder_id", "")).strip():
+            st.error("⛔ Chưa cấu hình thư mục lưu ảnh PREVIEW "
+                     "(photos_folder_id). Chưa thể gửi báo cáo. "
+                     "ADMIN cần bổ sung cấu hình ảnh trên Streamlit Cloud; "
+                     "không bấm gửi lại khi chưa hoàn tất.")
+            return
         eligible=bool(photos) and len(photos)<=10 and (not require_gps or (lat is not None and lon is not None))
         if not eligible:
             st.info("Cần ảnh và" + (" GPS check-in." if require_gps else " đúng số ảnh quy định."))
@@ -3052,12 +3060,14 @@ def report():
             dest=p.get("Link Google Maps") or ("https://www.google.com/maps/search/?api=1&query="+quote(p.get("Tên xã/phường/đơn vị",chosen[1])))
             maps=(f"https://www.google.com/maps?q={lat},{lon}" if require_gps else dest)
             st.session_state["_report_attempt_pending"]=rid
+            phase="lưu ảnh Drive"
             try:
                 urls=images_to_drive(
                     photos,rid,chosen[0],chosen[1],
                     p.get("Tên xã/phường/đơn vị",chosen[1]),submitted_at)
                 # All source rows are refreshed after photo upload. Business
                 # updates are issued together; no half-synced status/report.
+                phase="đối soát dữ liệu sau tải ảnh"
                 read_sheet.clear()
                 vc_latest=read_sheet_live("VAN_CHUYEN")
                 ld_latest=read_sheet_live("LAP_DAT")
@@ -3084,6 +3094,7 @@ def report():
                     urls,maps,lat,lon,vc_latest,ld_latest,
                     read_sheet_live("TIEN_DO"),
                     p.get("Tên xã/phường/đơn vị",chosen[1]),prior_ids)
+                phase="ghi đồng bộ Google Sheets"
                 client()[0].batch_update({"requests":requests})
                 read_sheet.clear()
                 st.session_state.pop("_report_attempt_pending",None)
@@ -3095,9 +3106,18 @@ def report():
                          ". Cần đối soát trước khi gửi lại.")
             except Exception as exc:
                 read_sheet.clear()
-                st.error("CHƯA XÁC NHẬN ĐƯỢC GIAO DỊCH ("+type(exc).__name__+
-                         "). KHÔNG bấm lại. ADMIN kiểm tra mã "+rid+
-                         " trong BAO_CAO_TRIEN_KHAI rồi mới thử tiếp.")
+                # Google Sheets batch_update may commit despite a lost response.
+                # Keep the duplicate-submit guard until ADMIN reconciles.
+                if phase=="ghi đồng bộ Google Sheets":
+                    st.error("CHƯA XÁC NHẬN ĐƯỢC GIAO DỊCH Google Sheets ("+
+                             type(exc).__name__+"). KHÔNG bấm lại. "
+                             "ADMIN kiểm tra mã "+rid+
+                             " trong BAO_CAO_TRIEN_KHAI rồi mới thử tiếp.")
+                else:
+                    st.error("CHƯA LƯU ĐƯỢC BÁO CÁO tại bước "+phase+
+                             " ("+type(exc).__name__+"). KHÔNG bấm lại. "
+                             "ADMIN kiểm tra ảnh Drive và mã "+rid+
+                             " trong BAO_CAO_TRIEN_KHAI trước khi thử tiếp.")
 
 def dashboard():
     """Read-only progress dashboard: strictly ADMIN / LANH_DAO."""
