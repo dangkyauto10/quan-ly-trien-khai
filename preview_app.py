@@ -3340,7 +3340,7 @@ def report():
                              " trong BAO_CAO_TRIEN_KHAI rồi mới thử tiếp.")
                 else:
                     st.error("CHƯA LƯU ĐƯỢC BÁO CÁO tại bước "+phase+
-                             " ("+type(exc).__name__+"). KHÔNG bấm lại. "
+                             " ("+error_label+"). KHÔNG bấm lại. "
                              "ADMIN kiểm tra ảnh Drive và mã "+rid+
                              " trong BAO_CAO_TRIEN_KHAI trước khi thử tiếp.")
 
