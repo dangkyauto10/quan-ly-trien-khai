@@ -3196,6 +3196,7 @@ def report():
                    for rows in targets.values() for r in rows):
                 st.caption("SL ở bảng là phần còn phải thực hiện; "
                            "đã trừ số lượng báo cáo trước đó.")
+        st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-FIX-20261026-B")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
         captured=st.camera_input(
             "📸 CHỤP ẢNH HIỆN TRƯỜNG",key=f"report_camera_{photo_key}")
