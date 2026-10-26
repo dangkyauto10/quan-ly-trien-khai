@@ -395,11 +395,11 @@ def client():
     sh = _retry_google_read(lambda: gs.open_by_key(st.secrets["spreadsheet_id"]))
     return sh, cred
 
-@st.cache_data(ttl=15, show_spinner=False)
+@st.cache_data(ttl=45, show_spinner=False)
 def read_sheet(name):
     sh, _ = client()
     try:
-        values = _retry_google_read(lambda: sh.worksheet(name).get_all_values())
+        values = _retry_google_read(lambda: sh.values_get("'" + name.replace("'", "''") + "'").get("values", []))
     except gspread.exceptions.APIError as error:
         raise PreviewSheetReadError(
             f"Không đọc được bảng {name}: Google Sheets HTTP {_google_api_status(error) or 'không rõ'}."
@@ -1082,7 +1082,7 @@ def projects_and_inventory():
 
 def read_sheet_live(name):
     """Bypass Streamlit's short cache for the final stock/duplicate check."""
-    values = sheet(name).get_all_values()
+    values = _retry_google_read(lambda: client()[0].values_get("'" + name.replace("'", "''") + "'").get("values", []))
     if not values:
         return []
     headers = values[0]
