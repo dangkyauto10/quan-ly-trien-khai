@@ -38,7 +38,7 @@ from preview_bulk_allocation import (
     build_plan, verify_plan, atomic_requests
 )
 from preview_bulk_excel import parse_exception_excel
-from preview_allocation_adjust import prepare_quantity_corrections
+from preview_allocation_adjust import prepare_quantity_corrections, allocation_batch_code
 from preview_allocation_groups import (
     match_contract_locations, read_contract_locations_excel, preview_basket
 )
@@ -1496,13 +1496,13 @@ def adjust_allocated_quantities():
     if not allocations:
         st.info("Dự án này chưa có hàng đã phân bổ.")
         return
-    batches = sorted({r.get("Mã đợt phân bổ") for r in allocations
-                      if r.get("Mã đợt phân bổ")}, reverse=True)
+    batches = sorted({allocation_batch_code(r) for r in allocations
+                      if allocation_batch_code(r)}, reverse=True)
     if not batches:
         st.error("Thiếu mã đợt phân bổ; ADMIN cần đối soát dữ liệu.")
         return
     batch = st.selectbox("2. Đợt phân bổ", batches, key=f"adjust_batch_{project}")
-    batch_rows = [r for r in allocations if r.get("Mã đợt phân bổ") == batch]
+    batch_rows = [r for r in allocations if allocation_batch_code(r) == batch]
     skus = sorted({r.get("SKU") for r in batch_rows if r.get("SKU")})
     if not skus:
         st.error("Đợt này thiếu SKU; chưa được điều chỉnh.")

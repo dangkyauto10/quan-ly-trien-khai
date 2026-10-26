@@ -1,7 +1,7 @@
 name: Preview syntax checks
 on:
   push:
-    branches: [preview-20261022, fix-preview-20261026-approved-sites, fix-preview-20261026-streamlit-import, fix-preview-20261026-apierror-read, fix-preview-20261026-dieu-chinh-phan-bo]
+    branches: [preview-20261022, fix-preview-20261026-approved-sites, fix-preview-20261026-streamlit-import, fix-preview-20261026-apierror-read, fix-preview-20261026-dieu-chinh-phan-bo, fix-preview-20261026-schema-phan-bo]
   workflow_dispatch:
 jobs:
   compile:

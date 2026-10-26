@@ -5,12 +5,43 @@ No Google Sheets client or production data is used by these tests.
 import copy
 import unittest
 from decimal import Decimal
-from preview_allocation_adjust import prepare_quantity_corrections
+from preview_allocation_adjust import prepare_quantity_corrections, allocation_batch_code
 
 
 PROJECT = "DA880"
 IDS = {name: 100 + i for i, name in enumerate(
     ("DM_CHUAN", "KHO_PHAN_BO", "VAN_CHUYEN", "LAP_DAT", "NHAT_KY_HE_THONG"))}
+
+
+# Exact header order from the PREVIEW Sheets, including the line break in DM_CHUAN.
+LIVE_HEADERS = {
+    "DM_CHUAN": ["Mã đợt phân bổ", "Mã dự án", "SKU", "Tên hàng hóa", "ĐVT",
+                 "SL \nphân bổ", "Mã điểm", "Tên địa điểm", "Trạng thái",
+                 "Người lập", "Thời gian", "Ghi chú"],
+    "KHO_PHAN_BO": ["Mã phân bổ", "Mã đợt", "Mã dự án", "Mã điểm", "SKU",
+                     "Tên hàng hóa", "ĐVT", "SL phân bổ", "Thời gian phân bổ",
+                     "Trạng thái", "Ghi chú"],
+    "VAN_CHUYEN": ["Mã nhiệm vụ VC", "Mã phân bổ", "Mã dự án", "Mã điểm", "SKU",
+                   "SL giao", "Mã đội VC", "Trạng thái", "Thời gian báo cáo",
+                   "Link ảnh", "Link Maps", "Mã báo cáo", "SL thực tế", "Ghi chú"],
+    "LAP_DAT": ["Mã nhiệm vụ LD", "Mã phân bổ", "Mã dự án", "Mã điểm", "SKU",
+                "SL lắp", "Mã đội KTV", "Trạng thái", "Thời gian báo cáo",
+                "Link ảnh", "Link Maps", "Mã báo cáo", "SL thực tế", "Ghi chú"],
+}
+
+
+def as_live_sheet_headers(sheets):
+    for name, headers in LIVE_HEADERS.items():
+        rebuilt = []
+        for item in sheets[name]:
+            source = dict(item)
+            if name == "DM_CHUAN":
+                source["SL \nphân bổ"] = source.pop("SL phân bổ")
+            if name == "KHO_PHAN_BO":
+                source["Mã đợt"] = source.pop("Mã đợt phân bổ")
+            rebuilt.append({**{header: source.get(header, "") for header in headers},
+                            "_row": source["_row"]})
+        sheets[name] = rebuilt
 
 
 def example(n=5, amount="13", imported="100"):
@@ -47,6 +78,7 @@ def example(n=5, amount="13", imported="100"):
             "Mã đội KTV": "DOI-02", "Trạng thái": "Chưa lắp",
             "SL thực tế": "", "Thời gian": "", "_row": row})
         changes.append((aid, amount, "1"))
+    as_live_sheet_headers(sheets)
     return sheets, changes
 
 
@@ -74,6 +106,33 @@ class QuantityCorrectionTests(unittest.TestCase):
         self.assertEqual(len(requests[-1]["appendCells"]["rows"]), 5)
         self.assertEqual(requests[-1]["appendCells"]["sheetId"],
                          IDS["NHAT_KY_HE_THONG"])
+
+    def test_real_and_legacy_batch_headers(self):
+        sheets, _ = example(n=1)
+        row = sheets["KHO_PHAN_BO"][0]
+        self.assertEqual(allocation_batch_code(row), "PB-TEST-001")
+        self.assertEqual(allocation_batch_code({"Mã đợt phân bổ": "PB-OLD"}), "PB-OLD")
+        with self.assertRaises(ValueError):
+            allocation_batch_code({"Mã đợt": "PB-1", "Mã đợt phân bổ": "PB-2"})
+
+    def test_missing_or_ambiguous_quantity_header_rejected(self):
+        sheets, changes = example(n=1)
+        del sheets["DM_CHUAN"][0]["SL \nphân bổ"]
+        with self.assertRaises(ValueError):
+            self.plan(sheets, changes)
+        sheets, changes = example(n=1)
+        sheets["DM_CHUAN"][0]["SL phân bổ"] = "13"
+        with self.assertRaises(ValueError):
+            self.plan(sheets, changes)
+
+    def test_changed_sheet_column_order_maps_correctly(self):
+        sheets, changes = example(n=1)
+        row = sheets["DM_CHUAN"][0]
+        sheets["DM_CHUAN"][0] = {"SL \nphân bổ": row["SL \nphân bổ"],
+                                **{key: value for key, value in row.items()
+                                   if key != "SL \nphân bổ"}}
+        requests, _ = self.plan(sheets, changes)
+        self.assertEqual(requests[0]["updateCells"]["start"]["columnIndex"], 0)
 
     def test_started_transport_blocks_everything(self):
         sheets, changes = example(n=1)
@@ -110,7 +169,7 @@ class QuantityCorrectionTests(unittest.TestCase):
 
     def test_inconsistent_linked_quantity_rejected(self):
         sheets, changes = example(n=1)
-        sheets["DM_CHUAN"][0]["SL phân bổ"] = "99"
+        sheets["DM_CHUAN"][0]["SL \nphân bổ"] = "99"
         with self.assertRaises(ValueError):
             self.plan(sheets, changes)
 
