@@ -38,6 +38,7 @@ from preview_bulk_allocation import (
     build_plan, verify_plan, atomic_requests
 )
 from preview_bulk_excel import parse_exception_excel
+from preview_allocation_adjust import prepare_quantity_corrections
 from preview_allocation_groups import (
     match_contract_locations, read_contract_locations_excel, preview_basket
 )
@@ -1464,12 +1465,125 @@ def allocate():
     require_role("ADMIN")
     mode=st.radio("Cách phân bổ",[
         "Hàng loạt – định mức chung + ngoại lệ",
-        "Theo từng địa điểm (cách cũ)"
+        "Theo từng địa điểm (cách cũ)",
+        "Điều chỉnh phân bổ đã ghi (ADMIN)"
     ],key="allocation_mode")
     if mode.startswith("Hàng loạt"):
         allocate_bulk()
+    elif mode.startswith("Điều chỉnh"):
+        adjust_allocated_quantities()
     else:
         allocate_single()
+
+
+def adjust_allocated_quantities():
+    """ADMIN adjusts untouched project allocations, on phone or desktop."""
+    require_role("ADMIN")
+    st.subheader("✏️ ĐIỀU CHỈNH PHÂN BỔ ĐÃ GHI")
+    st.caption("Sửa số lượng từng SKU ở các địa điểm đã phân bổ nhầm. "
+               "Chỉ thực hiện trước khi có báo cáo VC/LĐ hoặc biên bản bàn giao. "
+               "Số lượng mới được đồng bộ cùng lúc ở Định mức, Phân bổ kho, VC và LĐ.")
+    projects = [r["Mã dự án"] for r in read_sheet("DANH_SACH_DU_AN")
+                if r.get("Mã dự án")]
+    if not projects:
+        st.info("Chưa có dự án.")
+        return
+    project = st.selectbox("1. Dự án", projects,
+                           index=projects.index("DA880") if "DA880" in projects else 0,
+                           key="adjust_allocation_project")
+    allocations = [r for r in read_sheet("KHO_PHAN_BO")
+                   if r.get("Mã dự án") == project and r.get("Mã phân bổ")]
+    if not allocations:
+        st.info("Dự án này chưa có hàng đã phân bổ.")
+        return
+    batches = sorted({r.get("Mã đợt phân bổ") for r in allocations
+                      if r.get("Mã đợt phân bổ")}, reverse=True)
+    if not batches:
+        st.error("Thiếu mã đợt phân bổ; ADMIN cần đối soát dữ liệu.")
+        return
+    batch = st.selectbox("2. Đợt phân bổ", batches, key=f"adjust_batch_{project}")
+    batch_rows = [r for r in allocations if r.get("Mã đợt phân bổ") == batch]
+    skus = sorted({r.get("SKU") for r in batch_rows if r.get("SKU")})
+    if not skus:
+        st.error("Đợt này thiếu SKU; chưa được điều chỉnh.")
+        return
+    sku = st.selectbox("3. Mã hàng (SKU)", skus,
+                       key=f"adjust_sku_{project}_{batch}")
+    matches = [r for r in batch_rows if r.get("SKU") == sku]
+    by_alloc = {r["Mã phân bổ"]: r for r in matches}
+    if len(by_alloc) != len(matches):
+        st.error("Có mã phân bổ trùng; cần đối soát trước khi sửa.")
+        return
+    point_names = {r.get("Mã điểm"): r.get("Tên xã/phường/đơn vị")
+                   for r in read_sheet("DANH_SACH_DIEM")
+                   if r.get("Mã dự án") == project}
+    chosen = st.multiselect(
+        "4. Địa điểm cần sửa (chọn nhiều điểm nếu cùng số lượng mới)",
+        list(by_alloc),
+        format_func=lambda aid: (
+            f"{point_names.get(by_alloc[aid].get('Mã điểm'), by_alloc[aid].get('Mã điểm'))}"
+            f" • {by_alloc[aid].get('Mã điểm')}"
+            f" • {by_alloc[aid].get('SL phân bổ')} {by_alloc[aid].get('ĐVT', '')}"),
+        key=f"adjust_ids_{project}_{batch}_{sku}")
+    if not chosen:
+        st.info("Chọn địa điểm để xem số cũ và sửa số đúng.")
+        return
+    new_qty = st.number_input(
+        "5. SỐ LƯỢNG ĐÚNG CHO MỖI ĐỊA ĐIỂM ĐÃ CHỌN",
+        min_value=0.001, value=1.0, step=1.0, format="%.3f",
+        key=f"adjust_qty_{project}_{batch}_{sku}")
+    changes = [(aid, by_alloc[aid].get("SL phân bổ"), new_qty) for aid in chosen]
+    preview = []
+    for aid, old, updated in changes:
+        try:
+            previous = float(old)
+            amount = previous - updated
+        except (ValueError, TypeError):
+            st.error("Dữ liệu số lượng cũ không hợp lệ: " + str(aid))
+            return
+        preview.append({"Địa điểm": point_names.get(by_alloc[aid].get("Mã điểm"),
+                                                    by_alloc[aid].get("Mã điểm")),
+                        "SKU": sku, "SL cũ": previous,
+                        "SL mới": updated, "Trả lại kho phân bổ": amount})
+    st.dataframe(preview, hide_index=True, use_container_width=True)
+    if all(row["SL cũ"] == row["SL mới"] for row in preview):
+        st.warning("Số mới chưa khác số cũ.")
+        return
+    st.warning("Chỉ sửa phân bổ CHƯA PHÁT SINH thực hiện. Nếu đã giao/lắp hoặc "
+               "đã có biên bản, hệ thống từ chối để tránh lệch tồn kho.")
+    signature = hashlib.sha256(repr((project, batch, sku, changes)).encode()).hexdigest()[:12]
+    accepted = st.checkbox("Tôi đã đối chiếu số lượng thực tế cần phân bổ cho "
+                           "đúng dự án, SKU và từng địa điểm.",
+                           key=f"adjust_confirm_{signature}")
+    if not st.button("✅ XÁC NHẬN ĐIỀU CHỈNH PHÂN BỔ",
+                     type="primary", use_container_width=True,
+                     key=f"adjust_commit_{signature}", disabled=not accepted):
+        return
+    try:
+        required = ("NHAP_KHO", "KHO_PHAN_BO", "DM_CHUAN", "VAN_CHUYEN",
+                    "LAP_DAT", "BAO_CAO_TRIEN_KHAI", "BAN_GIAO_TAP_KET")
+        snapshots = {name: read_sheet_live(name) for name in required}
+        spreadsheet = client()[0]
+        wanted = {"DM_CHUAN", "KHO_PHAN_BO", "VAN_CHUYEN",
+                  "LAP_DAT", "NHAT_KY_HE_THONG"}
+        sheet_ids = {ws.title: ws.id for ws in spreadsheet.worksheets()
+                     if ws.title in wanted}
+        requests, delta = prepare_quantity_corrections(
+            project, changes, snapshots, sheet_ids, auth()["username"], now())
+        spreadsheet.batch_update({"requests": requests})
+        read_sheet.clear()
+        returned = sum(float(-qty) for qty in delta.values() if qty < 0)
+        st.success(f"Đã điều chỉnh {len(changes)} địa điểm/SKU trong một lần ghi. "
+                   f"Số lượng trả lại để phân bổ: {returned:g}. "
+                   "Các bảng Định mức, Kho, VC, LĐ và Nhật ký đã đồng bộ.")
+    except ValueError as exc:
+        read_sheet.clear()
+        st.error("CHƯA GHI ĐIỀU CHỈNH: " + str(exc))
+    except Exception as exc:
+        read_sheet.clear()
+        st.error("CHƯA XÁC MINH ĐƯỢC KẾT QUẢ GHI (" + type(exc).__name__ +
+                 "). KHÔNG BẤM LẠI ngay; ADMIN cần đối chiếu "
+                 "DM_CHUAN, KHO_PHAN_BO, VAN_CHUYEN, LAP_DAT và Nhật ký.")
 
 
 def allocate_single():
