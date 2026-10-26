@@ -1517,6 +1517,18 @@ def adjust_allocated_quantities():
     point_names = {r.get("Mã điểm"): r.get("Tên xã/phường/đơn vị")
                    for r in read_sheet("DANH_SACH_DIEM")
                    if r.get("Mã dự án") == project}
+    st.caption("Đối chiếu toàn bộ địa điểm trong đợt/SKU này; số lượng bên dưới là số đang lưu, chưa phải định mức đúng.")
+    st.dataframe([
+        {"Tên đơn vị": point_names.get(r.get("Mã điểm")) or "(Chưa có trong danh sách địa điểm)",
+         "Mã điểm": r.get("Mã điểm", ""),
+         "SKU": sku,
+         "SL đang phân bổ": r.get("SL phân bổ", ""),
+         "ĐVT": r.get("ĐVT", ""),
+         "Mã phân bổ": r.get("Mã phân bổ", "")}
+        for r in sorted(matches, key=lambda r:
+            (str(point_names.get(r.get("Mã điểm")) or ""), str(r.get("Mã điểm") or "")))
+    ], hide_index=True, use_container_width=True)
+
     chosen = st.multiselect(
         "4. Địa điểm cần sửa (chọn nhiều điểm nếu cùng số lượng mới)",
         list(by_alloc),
@@ -1528,10 +1540,18 @@ def adjust_allocated_quantities():
     if not chosen:
         st.info("Chọn địa điểm để xem số cũ và sửa số đúng.")
         return
+    selection_fingerprint = hashlib.sha256(
+        repr((project, batch, sku, sorted(
+            (aid, by_alloc[aid].get("SL phân bổ")) for aid in chosen))).encode()
+    ).hexdigest()[:12]
     new_qty = st.number_input(
-        "5. SỐ LƯỢNG ĐÚNG CHO MỖI ĐỊA ĐIỂM ĐÃ CHỌN",
-        min_value=0.001, value=1.0, step=1.0, format="%.3f",
-        key=f"adjust_qty_{project}_{batch}_{sku}")
+        "5. ADMIN NHẬP SỐ LƯỢNG ĐÚNG CHO MỖI ĐỊA ĐIỂM ĐÃ CHỌN",
+        min_value=0.001, value=None, step=1.0, format="%.3f",
+        placeholder="ADMIN nhập số lượng đúng",
+        key=f"adjust_qty_{selection_fingerprint}")
+    if new_qty is None:
+        st.info("ADMIN nhập số lượng đúng để lập bảng đối chiếu trước khi xác nhận.")
+        return
     changes = [(aid, by_alloc[aid].get("SL phân bổ"), new_qty) for aid in chosen]
     preview = []
     for aid, old, updated in changes:
