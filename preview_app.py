@@ -3447,15 +3447,13 @@ def report():
                            "đã trừ số lượng báo cáo trước đó.")
         st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-PICKER-APPID-20261027-B")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
-        captured=None
-        open_camera=st.checkbox(
-            "📸 Mở camera để chụp trực tiếp",
-            key=f"report_open_camera_{photo_key}")
-        if open_camera:
-            captured=st.camera_input(
-                "📸 CHỤP ẢNH HIỆN TRƯỜNG",key=f"report_camera_{photo_key}")
+        # Keep the camera control visible so VC/KTV can capture required
+        # field evidence directly without first enabling a checkbox.
+        captured=st.camera_input(
+            "📸 CHỤP ẢNH HIỆN TRƯỜNG (bắt buộc)",
+            key=f"report_camera_{photo_key}")
         uploaded=st.file_uploader(
-            "🖼️ HOẶC CHỤP / CHỌN ẢNH HIỆN TRƯỜNG (tối đa 10)",
+            "🖼️ Hoặc chọn ảnh hiện trường (tối đa 10)",
             type=["jpg","jpeg","png"],accept_multiple_files=True,
             key=f"report_files_{photo_key}")
         photos=([captured] if captured is not None else [])+list(uploaded or [])
