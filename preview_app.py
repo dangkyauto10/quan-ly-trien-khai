@@ -402,6 +402,25 @@ input {border-radius: 10px !important;}
 .stApp div.stButton > button {
   min-height: 48px !important;
 }
+/* Compact iPhone typography after the app-wide accessibility defaults above. */
+@media (max-width: 600px) {
+  .tdv-preview-tag {font-size: 0.66rem !important;}
+  .stApp [data-testid="stWidgetLabel"] p,
+  .stApp [data-testid="stMarkdownContainer"] p,
+  .stApp [data-testid="stMarkdownContainer"] li,
+  .stApp label {
+    font-size: 0.98rem !important;
+    line-height: 1.45 !important;
+  }
+  .stApp [data-testid="stCaptionContainer"] p {font-size: 0.88rem !important;}
+  .stApp input,
+  .stApp textarea,
+  .stApp div[data-baseweb="select"] > div,
+  .stApp div.stButton > button {
+    font-size: 0.98rem !important;
+  }
+  .stApp div.stButton > button {min-height: 44px !important;}
+}
 </style>
 """, unsafe_allow_html=True)
 
