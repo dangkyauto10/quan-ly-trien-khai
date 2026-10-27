@@ -431,10 +431,24 @@ def drive_client():
     return build("drive", "v3", credentials=cred, cache_discovery=False)
 
 
-@st.cache_resource
-def drive_folder_authorization_state():
-    # Process-wide so a one-time ADMIN Picker action unlocks team report sessions.
-    return {"folder_id": ""}
+def verify_configured_photo_folder(credentials=None):
+    """Verify the configured folder with the app's shared Drive OAuth identity."""
+    folder = str(st.secrets.get("photos_folder_id", "")).strip()
+    if not folder:
+        raise RuntimeError("Thiếu photos_folder_id trong Streamlit Secrets.")
+    if credentials is None and st.session_state.get(
+            "_tdv_verified_photo_folder_id") == folder:
+        return {"id": folder, "name": folder,
+                "mimeType": "application/vnd.google-apps.folder"}
+    cred = credentials or drive_oauth_credentials()
+    drive = build("drive", "v3", credentials=cred, cache_discovery=False)
+    info = drive.files().get(
+        fileId=folder, supportsAllDrives=True,
+        fields="id,name,mimeType").execute()
+    if info.get("mimeType") != "application/vnd.google-apps.folder":
+        raise RuntimeError("Mục đã cấu hình không phải thư mục Google Drive.")
+    st.session_state["_tdv_verified_photo_folder_id"] = folder
+    return info
 
 
 def configure_photo_folder():
@@ -474,14 +488,7 @@ def configure_photo_folder():
         return
     try:
         # Verify with the exact OAuth credential/token Picker used.
-        drive = build("drive", "v3", credentials=cred, cache_discovery=False)
-        info = drive.files().get(
-            fileId=folder, supportsAllDrives=True,
-            fields="id,name,mimeType").execute()
-        if info.get("mimeType") != "application/vnd.google-apps.folder":
-            st.error("Mục đã chọn không phải thư mục Google Drive.")
-            return
-        drive_folder_authorization_state()["folder_id"] = folder
+        info = verify_configured_photo_folder(cred)
         st.success("Đã xác minh quyền OAuth trên đúng thư mục ảnh: " +
                    str(info.get("name") or folder))
     except Exception as exc:
@@ -3313,10 +3320,13 @@ def report():
                      "ADMIN cần hoàn tất Kết nối thư mục ảnh PREVIEW trước; "
                      "chưa bật gửi báo cáo để tránh tạo báo cáo lỗi.")
             return
-        if drive_folder_authorization_state().get("folder_id") != str(
-                st.secrets.get("photos_folder_id", "")).strip():
-            st.error("⛔ ADMIN cần mở mục “Kết nối thư mục ảnh PREVIEW” "
-                     "và chọn/xác minh đúng thư mục trước khi đội gửi báo cáo.")
+        try:
+            verify_configured_photo_folder()
+        except Exception as exc:
+            st.error("⛔ Chưa xác minh được quyền thư mục ảnh: " +
+                     drive_error_summary(exc) +
+                     ". ADMIN cần chọn/xác minh thư mục trong mục "
+                     "“Kết nối thư mục ảnh PREVIEW” trước khi gửi.")
             return
         eligible=bool(photos) and len(photos)<=10 and (not require_gps or (lat is not None and lon is not None))
         if not eligible:
