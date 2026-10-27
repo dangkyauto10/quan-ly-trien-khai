@@ -484,13 +484,18 @@ def configure_photo_folder():
         return
     st.caption("Google chỉ cấp quyền cho thư mục được chọn ở đây "
                "(phạm vi drive.file).")
+    client_id = str(oauth.get("client_id", "")).strip()
+    app_id = client_id.split("-", 1)[0] if "-" in client_id else ""
+    if not app_id.isdigit():
+        st.error("Client ID OAuth không chứa mã project hợp lệ để mở Picker.")
+        return
     open_picker = st.button(
         "📂 MỞ CHỌN THƯ MỤC ẢNH",
         key="preview_open_photo_folder_picker",
         help="Mở cửa sổ Google Drive để chọn đúng thư mục ảnh PREVIEW."
     )
     picked = pick_folder(
-        api_key, cred.token,
+        api_key, cred.token, app_id=app_id,
         key="preview_photo_folder_picker",
         open_picker=open_picker
     )
