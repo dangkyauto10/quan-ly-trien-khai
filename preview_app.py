@@ -140,21 +140,8 @@ st.set_page_config(
     layout="wide"
 )
 APP_ICON_DATA = base64.b64encode(APP_ICON.read_bytes()).decode("ascii")
-# Home screen logo; page_icon is only the browser tab icon.
-import streamlit.components.v1 as components
-components.html("""
-<script>
-(() => {
- const doc = window.parent.document;
- const iconUrl = "/app/static/tdv_icon_144.png?v=20261027a";
- for (const rel of ["apple-touch-icon", "icon"]) {
-  let link = doc.head.querySelector('link[rel="' + rel + '"]');
-  if (!link) { link = doc.createElement("link"); link.rel = rel; doc.head.appendChild(link); }
-  link.href = iconUrl; link.type = "image/png"; link.sizes = "144x144";
- }
-})();
-</script>
-""", width=0, height=0)
+# Mobile home-screen icon is served from static/index.html, which declares
+# apple-touch-icon and a web manifest in the document head.
 
 
 cookie_controller = CookieController(key="tdv_cookie_controller_v1")
@@ -730,37 +717,35 @@ def leadership_login():
 PREVIEW_HOME_URL = (
     "https://quan-ly-trien-khai-qfzumkrq7escxbxpv9v9tr.streamlit.app"
 )
+PREVIEW_ICON_SETUP_URL = PREVIEW_HOME_URL + "/app/static/index.html?v=20261027b"
 
 
 def home_screen_guide(expanded=False):
     """One-time device-owner shortcut setup; no silent install is possible."""
     with st.expander("📲 ĐƯA APP RA MÀN HÌNH ĐIỆN THOẠI",expanded=expanded):
-        st.write("**Lưu biểu tượng QUẢN LÝ DỰ ÁN để mở app chỉ bằng một lần chạm.** "
-                 "Không cần quay lại Zalo tìm link. Việc tạo biểu tượng do "
-                 "chính chủ điện thoại xác nhận một lần.")
-        st.caption("Nếu đang xem link trong Zalo hoặc Facebook, hãy chọn "
-                   "Mở bằng trình duyệt / Mở trong Safari hoặc Chrome trước.")
+        st.write("**Ghim logo TDV của QUẢN LÝ DỰ ÁN để mở app bằng một lần chạm.** "
+                 "Nếu đã ghim icon Streamlit cũ, hãy xóa icon cũ trước rồi cài lại.")
+        st.caption("Mở trang cài biểu tượng trong Safari/Chrome. Nếu đang xem app "
+                   "trong Zalo hoặc Facebook, hãy chọn Mở bằng trình duyệt trước.")
+        st.link_button("🟡 MỞ TRANG CÀI BIỂU TƯỢNG TDV", PREVIEW_ICON_SETUP_URL,
+                       use_container_width=True)
         ios,android=st.tabs(["🍎 iPhone","🤖 Android"])
         with ios:
             st.markdown(
-                "**①** Nếu mở trong Zalo, chọn **Mở bằng trình duyệt → Safari**.\n\n"
+                "**①** Bấm nút **MỞ TRANG CÀI BIỂU TƯỢNG TDV** phía trên.\n\n"
                 "**②** Trong Safari: **Chia sẻ ⬆️ → Thêm vào Màn hình chính "
                 "→ Thêm**. Bật *Mở dưới dạng ứng dụng web* nếu có."
             )
         with android:
             st.markdown(
-                "**①** Nếu mở trong Zalo, chọn **Mở bằng trình duyệt → Chrome**.\n\n"
+                "**①** Bấm nút **MỞ TRANG CÀI BIỂU TƯỢNG TDV** phía trên.\n\n"
                 "**②** Trong Chrome: **⋮ → Cài đặt và tạo lối tắt** "
                 "(hoặc **Thêm vào màn hình chính**) **→ Thêm**."
             )
-        st.info("Biểu tượng giúp mở app ngay từ màn hình điện thoại. "
+        st.info("Sau khi ghim, biểu tượng mới dùng logo TDV màu vàng cam. "
                 "Mật khẩu tự đặt khi đăng ký chỉ dùng được **sau khi "
                 "ADMIN duyệt**; có thể chọn ghi nhớ đăng nhập 30 ngày "
                 "trên thiết bị cá nhân.")
-        st.caption("B đã cập nhật logo TV vàng cam làm favicon của PREVIEW. "
-                   "Biểu tượng khi ghim lên iPhone/Android vẫn phụ thuộc "
-                   "trình duyệt và Streamlit Cloud; nếu đã ghim icon cũ, "
-                   "cần xóa lối tắt cũ và tạo lại để kiểm tra.")
 
 
 def login(team_only=False):
