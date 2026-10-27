@@ -85,19 +85,35 @@ from preview_import_locations import (read_location_file, candidate_names,
     column_choice, is_header, normalize_name, blank_excel_template)
 
 
-_streamlit_dataframe = st.dataframe
-
 def display_centered_table(data, *args, **kwargs):
-    """Render app tables with centered, bold headers and cell text."""
+    """Display read-only tables with centered bold column headers only."""
     frame = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
-    styled = frame.style.set_properties(
-        **{"text-align": "center", "font-weight": "bold"}
-    ).set_table_styles([
-        {"selector": "th", "props": [
-            ("text-align", "center"), ("font-weight", "bold")
-        ]}
-    ], overwrite=False)
-    return _streamlit_dataframe(styled, *args, **kwargs)
+    # st.dataframe draws headers on a canvas and ignores Pandas header CSS.
+    # These read-only summaries use escaped HTML so header styling is reliable.
+    if args or any(key not in {"hide_index", "use_container_width", "height", "width"}
+                   for key in kwargs):
+        return st.dataframe(frame, *args, **kwargs)
+    table_id = "tdv-table-" + uuid.uuid4().hex
+    height = kwargs.get("height")
+    scrolling = ("max-height:" + str(max(80, int(height))) + "px;"
+                 if isinstance(height, (int, float)) else "")
+    markup = frame.to_html(index=not kwargs.get("hide_index", False),
+                           escape=True, border=0, na_rep="")
+    return st.markdown(
+        "<style>"
+        "#" + table_id + "{overflow:auto;" + scrolling + "}"
+        "#" + table_id + " table{width:100%;border-collapse:collapse;font-size:0.9rem;}"
+        "#" + table_id + " th,#" + table_id + " td{"
+        "padding:0.45rem 0.6rem;border-bottom:1px solid #dfe3e8;}"
+        "#" + table_id + " thead th{"
+        "text-align:center!important;font-weight:700!important;"
+        "background:var(--secondary-background-color,#f0f2f6);"
+        "position:sticky;top:0;z-index:1;}"
+        "#" + table_id + " tbody td,#" + table_id + " tbody th{"
+        "text-align:left;font-weight:400!important;}"
+        "</style><div id=\"" + table_id + "\">" + markup + "</div>",
+        unsafe_allow_html=True,
+    )
 
 _OVERVIEW_ROLE_MODES = {
     "VC": ("VAN_CHUYEN",),
