@@ -2,52 +2,65 @@ import ast
 from pathlib import Path
 import unittest
 
-from preview_leader_access import leadership_username
-
+from preview_leader_access import (
+    LEADER_SESSION_USERNAME, check_leader_password,
+    make_leader_session, verify_leader_session,
+)
 
 ROOT=Path(__file__).resolve().parents[1]
 
-class LeadershipAccessTests(unittest.TestCase):
-    def test_one_leader_password_only_resolution(self):
-        accounts={"admin":{"role":"ADMIN"},
-                  "captain":{"role":"DOI_TRUONG"},
-                  "leader_preview":{"role":"LANH_DAO"}}
-        self.assertEqual(leadership_username(accounts),"leader_preview")
 
-    def test_missing_leader_never_falls_back_to_admin(self):
-        self.assertIsNone(leadership_username({"admin":{"role":"ADMIN"}}))
+class LeadershipPasswordTests(unittest.TestCase):
+    def test_configured_password_is_checked_exactly(self):
+        self.assertTrue(check_leader_password("Leader-903", "Leader-903"))
+        self.assertFalse(check_leader_password("leader-903", "Leader-903"))
+        self.assertFalse(check_leader_password("wrong", "Leader-903"))
 
-    def test_multiple_leaders_requires_explicit_allowlist(self):
-        accounts={"a":{"role":"LANH_DAO"},"b":{"role":"LANH_DAO"}}
-        self.assertIsNone(leadership_username(accounts))
-        self.assertEqual(leadership_username(accounts,"b"),"b")
-        self.assertIsNone(leadership_username(accounts,"admin"))
-        self.assertIsNone(leadership_username({"admin":{"role":"ADMIN"}},"admin"))
+    def test_missing_password_never_authenticates(self):
+        self.assertFalse(check_leader_password("", ""))
+        self.assertFalse(check_leader_password("anything", ""))
+        self.assertIsNone(make_leader_session(""))
 
-    def test_invalid_account_does_not_count_as_leadership(self):
-        self.assertIsNone(leadership_username({"bad":None}))
-        self.assertIsNone(leadership_username(None))
+    def test_session_is_read_only_leader_and_does_not_store_password(self):
+        account=make_leader_session("Leader-903")
+        self.assertEqual(account["username"],LEADER_SESSION_USERNAME)
+        self.assertEqual(account["role"],"LANH_DAO")
+        self.assertEqual(account["team_id"],"")
+        self.assertNotIn("password",account)
+        self.assertTrue(verify_leader_session(account,"Leader-903"))
 
-    def test_leader_password_only_login_reuses_secured_pbkdf_login(self):
-        tree=ast.parse((ROOT/"preview_app.py").read_text(encoding="utf-8"))
-        login=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and
-                   n.name=="leadership_login")
+    def test_password_rotation_invalidates_existing_session(self):
+        account=make_leader_session("Leader-903")
+        self.assertFalse(verify_leader_session(account,"New-Leader-904"))
+
+    def test_wrong_role_or_session_name_is_rejected(self):
+        account=make_leader_session("Leader-903")
+        self.assertFalse(verify_leader_session({**account,"role":"ADMIN"},"Leader-903"))
+        self.assertFalse(verify_leader_session({**account,"username":"admin"},"Leader-903"))
+
+    def test_login_uses_single_secret_without_account_hash_setup(self):
+        source=(ROOT/"preview_app.py").read_text(encoding="utf-8")
+        tree=ast.parse(source)
+        login=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
+                   and n.name=="leadership_login")
         calls=[n.func.id for n in ast.walk(login)
                if isinstance(n,ast.Call) and isinstance(n.func,ast.Name)]
-        self.assertIn("valid_login",calls)
-        self.assertIn("remember_signing_key",calls)
-        self.assertIn("issue_remember_token",calls)
-        self.assertIn("leadership_username",calls)
-        self.assertNotIn("pbkdf",calls)  # Only use common locked-down authentication.
+        self.assertIn("check_leader_password",calls)
+        self.assertIn("make_leader_session",calls)
+        self.assertNotIn("valid_login",calls)
+        self.assertNotIn("remember_signing_key",calls)
+        self.assertIn('st.secrets.get("leader_view_password", "")',
+                      ast.get_source_segment(source,login))
 
-    def test_leader_menu_goes_directly_to_report(self):
+    def test_dashboard_keeps_admin_and_leadership_only_access(self):
         source=(ROOT/"preview_app.py").read_text(encoding="utf-8")
-        self.assertIn('return "📊 Báo cáo tiến độ"',source)
-        self.assertIn('return "__LEADERSHIP_LOGIN__"',source)
-        self.assertIn('if view=="__LEADERSHIP_LOGIN__":leadership_login()',source)
-        self.assertIn('"Ghi nhớ đăng nhập trên thiết bị này (30 ngày)"',source)
-        self.assertIn('st.session_state["_remember_action"]="set"',source)
-        self.assertIn('st.session_state["_remember_action"]="remove"',source)
+        tree=ast.parse(source)
+        dashboard=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
+                       and n.name=="dashboard")
+        checks=[n for n in ast.walk(dashboard) if isinstance(n,ast.Call)
+                and isinstance(n.func,ast.Name) and n.func.id=="require_role"]
+        self.assertEqual(len(checks),1)
+        self.assertEqual([x.value for x in checks[0].args],["ADMIN","LANH_DAO"])
 
 
 if __name__=="__main__":
