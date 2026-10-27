@@ -46,7 +46,10 @@ from preview_allocation_groups import (
     match_contract_locations, read_contract_locations_excel, preview_basket
 )
 from preview_leadership import build_progress, display_amount
-from preview_leader_access import leadership_username
+from preview_leader_access import (
+    LEADER_SESSION_USERNAME, check_leader_password,
+    make_leader_session, verify_leader_session
+)
 from preview_team_access import resolve_login_username, friendly_account_name, project_login_choices
 from preview_team_access import normalized_name
 from preview_credential_accounts import (
@@ -739,53 +742,35 @@ def valid_login(username, pin):
     return None
 
 def leadership_login():
-    """One-button entry for a dedicated read-only leadership identity."""
+    """Simple password-only entry for the read-only leadership dashboard."""
     st.subheader("📊 LÃNH ĐẠO – XEM BÁO CÁO")
-    st.caption("Chỉ cần nhập mật khẩu để xem tiến độ. "
-               "Không cần mã tài khoản hoặc chọn chức năng.")
+    st.caption("ADMIN đặt một mật khẩu riêng trong Secrets. "
+               "Nhập mật khẩu đó để xem số liệu và biểu đồ.")
     if st.button("← Trở về trang chính",key="leader_login_back"):
         st.session_state["leader_login_open"] = False
         st.rerun()
-    username = leadership_username(
-        st.secrets.get("accounts", {}),
-        st.secrets.get("leader_login_username", "")
-    )
-    if not username:
-        st.warning("Chưa cấu hình tài khoản riêng cho LÃNH ĐẠO. "
-                   "ADMIN cần tạo tài khoản vai trò LANH_DAO trong Secrets. "
-                   "Không dùng chung tài khoản ADMIN.")
+
+    configured_password = st.secrets.get("leader_view_password", "")
+    if not isinstance(configured_password, str) or not configured_password:
+        st.info('ADMIN thêm một dòng trong Secrets: '
+                'leader_view_password = "mật khẩu tự đặt". '
+                'Không dùng mật khẩu ADMIN.')
         return
-    key = remember_signing_key()
+
     with st.form("leader_password_only",clear_on_submit=True):
-        password = st.text_input("Mật khẩu Lãnh đạo",
-                                  type="password")
-        remember = st.checkbox(
-            "Ghi nhớ đăng nhập trên thiết bị này (30 ngày)",
-            value=False,disabled=not bool(key),
-            help="Chỉ tích trên điện thoại hoặc máy tính cá nhân, không "
-                 "sử dụng ở thiết bị công cộng hoặc dùng chung."
-        )
-        if not key:
-            st.caption("Cần ADMIN cấu hình remember_login_secret "
-                       "để sử dụng ghi nhớ đăng nhập.")
-        submitted=st.form_submit_button("🔓 XEM BÁO CÁO",
-                                        use_container_width=True)
+        password = st.text_input("Mật khẩu Lãnh đạo",type="password")
+        submitted = st.form_submit_button(
+            "🔓 XEM BÁO CÁO",use_container_width=True)
     if not submitted:
         return
-    account=valid_login(username,password)
-    if not account or account.get("role")!="LANH_DAO":
-        st.error("Mật khẩu không đúng hoặc tài khoản đang tạm khóa.")
+    if not check_leader_password(password, configured_password):
+        st.error("Mật khẩu Lãnh đạo không đúng.")
         return
-    # No password or PIN is written into browser cookies or session state.
-    st.session_state["auth"]=account
-    st.session_state["leader_login_open"]=False
-    if remember and key:
-        info=st.secrets["accounts"][username]
-        st.session_state["_remember_token"]=issue_remember_token(
-            username,info,key)
-        st.session_state["_remember_action"]="set"
-    else:
-        st.session_state["_remember_action"]="remove"
+
+    # Keep only a password fingerprint in the session, never the password.
+    st.session_state["auth"] = make_leader_session(configured_password)
+    st.session_state["leader_login_open"] = False
+    st.session_state["_remember_action"] = "remove"
     st.rerun()
 
 
@@ -918,6 +903,12 @@ def login(team_only=False):
 def auth():
     a = st.session_state.get("auth")
     if not a:
+        return None
+    if a.get("username") == LEADER_SESSION_USERNAME:
+        if verify_leader_session(
+                a,st.secrets.get("leader_view_password","")):
+            return a
+        st.session_state.pop("auth",None)
         return None
     cur = effective_accounts().get(a.get("username"))
     if (not cur or str(cur.get("role","")).upper() != a.get("role")
