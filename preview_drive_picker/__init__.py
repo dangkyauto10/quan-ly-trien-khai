@@ -2,7 +2,7 @@ from pathlib import Path
 import streamlit.components.v1 as components
 
 _component = components.declare_component(
-    "preview_drive_folder_picker_v2",
+    "preview_drive_folder_picker_v3",
     path=str(Path(__file__).parent / "frontend"),
 )
 
