@@ -27,11 +27,11 @@
       }
       window.parent.postMessage(message, "*");
     }
-    function height() {
+    function height(requestedHeight) {
       window.parent.postMessage({
         isStreamlitMessage: true,
         type: "streamlit:setFrameHeight",
-        height: document.documentElement.scrollHeight
+        height: requestedHeight || document.documentElement.scrollHeight
       }, "*");
     }
     function maybeReady() {
@@ -65,6 +65,9 @@
         status.textContent = "Thiếu API key hoặc quyền OAuth Drive.";
         return;
       }
+      // Google Picker renders inside this iframe. Expand it before showing the
+      // dialog so its folder list and selection controls are not clipped.
+      height(720);
       const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
         .setIncludeFolders(true)
         .setSelectFolderEnabled(true)
@@ -83,10 +86,13 @@
               name: folder.name || "",
               mimeType: folder.mimeType || ""
             });
+            window.setTimeout(() => height(), 100);
+          } else if (data.action === google.picker.Action.CANCEL) {
+            height();
           }
         })
         .build();
-      picker.setVisible(true);
+      window.setTimeout(() => picker.setVisible(true), 150);
     });
   </script>
 </body>
