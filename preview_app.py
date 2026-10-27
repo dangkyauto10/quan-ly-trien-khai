@@ -15,6 +15,7 @@ from urllib.parse import quote, urlparse
 
 import gspread
 import streamlit as st
+import pandas as pd
 from google.oauth2.service_account import Credentials
 from google.oauth2.credentials import Credentials as OAuthCredentials
 from google.auth.transport.requests import Request
@@ -82,6 +83,21 @@ from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
     column_choice, is_header, normalize_name, blank_excel_template)
+
+
+_streamlit_dataframe = st.dataframe
+
+def display_centered_table(data, *args, **kwargs):
+    """Render app tables with centered, bold headers and cell text."""
+    frame = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
+    styled = frame.style.set_properties(
+        **{"text-align": "center", "font-weight": "bold"}
+    ).set_table_styles([
+        {"selector": "th", "props": [
+            ("text-align", "center"), ("font-weight", "bold")
+        ]}
+    ], overwrite=False)
+    return _streamlit_dataframe(styled, *args, **kwargs)
 
 _OVERVIEW_ROLE_MODES = {
     "VC": ("VAN_CHUYEN",),
@@ -1217,7 +1233,7 @@ def bulk_import_locations():
              f"  •  **Đã có trong dự án:** {len(unique)-len(to_add)}"
              f"  •  **Dự kiến thêm:** {len(to_add)}")
     if to_add:
-        st.dataframe([{"STT":i, "Tên xã/phường/đơn vị":name}
+        display_centered_table([{"STT":i, "Tên xã/phường/đơn vị":name}
                       for i,name in enumerate(to_add[:100],1)],
                      hide_index=True, use_container_width=True)
         if len(to_add)>100:
@@ -1332,7 +1348,7 @@ def projects_and_inventory():
                 st.error(problem)
             st.warning("Dữ liệu kho có lỗi; cần đối soát trước khi phân bổ.")
         elif records:
-            st.dataframe(records,hide_index=True,use_container_width=True)
+            display_centered_table(records,hide_index=True,use_container_width=True)
             if all(row["Hàng còn chờ phân bổ"] == 0 for row in records):
                 st.success("Toàn bộ hàng đã nhập của dự án đã được phân bổ hết "
                            "(còn chờ phân bổ = 0 cho mọi SKU).")
@@ -1541,7 +1557,7 @@ def allocate_bulk():
              f"trong tổng số {len(point_ids)} điểm của dự án.")
     if chosen_ids:
         with st.expander("Xem tên và mã điểm đã chọn"):
-            st.dataframe([{"Mã điểm":pid,"Xã/phường/đơn vị":names[pid]}
+            display_centered_table([{"Mã điểm":pid,"Xã/phường/đơn vị":names[pid]}
                           for pid in chosen_ids],
                          hide_index=True,use_container_width=True)
     if issues:
@@ -1553,7 +1569,7 @@ def allocate_bulk():
     # Basket totals here are a preview, not a record of a warehouse issue.
     basket_totals=preview_basket(skus,defaults,len(chosen_ids))
     st.markdown("#### Đối chiếu nhanh bộ định mức × số điểm")
-    st.dataframe([{
+    display_centered_table([{
         "SKU":sku,"Hàng hóa":inventory[sku]["name"],
         "ĐVT":inventory[sku]["unit"],
         "SL/điểm":float(defaults[sku]),
@@ -1627,12 +1643,12 @@ def allocate_bulk():
             "Dự kiến phân bổ":float(totals.get(sku, 0)),
             "Còn sau phân bổ":float(itm["remaining"]-totals.get(sku,0))
         })
-    st.dataframe(preview_summary, hide_index=True, use_container_width=True)
+    display_centered_table(preview_summary, hide_index=True, use_container_width=True)
     st.caption(f"Dự kiến ghi {len(candidates)} dòng vào KHO_PHAN_BO; "
                f"phát sinh tương ứng nhiệm vụ VC và KTV. "
                f"Địa điểm được chọn: {len(chosen_ids)}; ngoại lệ: {len(exceptions)}.")
     with st.expander("Xem toàn bộ ma trận địa điểm × SKU",expanded=False):
-        st.dataframe([{"Mã điểm":r["Mã điểm"],"Địa điểm":r["Tên địa điểm"],
+        display_centered_table([{"Mã điểm":r["Mã điểm"],"Địa điểm":r["Tên địa điểm"],
                        **{sku:float(r["quantities"][sku]) for sku in skus}}
                       for r in plan],hide_index=True,use_container_width=True)
     st.download_button("⬇️ Tải ma trận xem trước (.xlsx)",
@@ -1780,7 +1796,7 @@ def adjust_allocated_quantities():
                    for r in read_sheet("DANH_SACH_DIEM")
                    if r.get("Mã dự án") == project}
     st.caption("Đối chiếu toàn bộ địa điểm trong đợt/SKU này; số lượng bên dưới là số đang lưu, chưa phải định mức đúng.")
-    st.dataframe([
+    display_centered_table([
         {"Tên đơn vị": point_names.get(r.get("Mã điểm")) or "(Chưa có trong danh sách địa điểm)",
          "Mã điểm": r.get("Mã điểm", ""),
          "Tên hàng hóa": sku_names.get(sku,""),
@@ -1828,7 +1844,7 @@ def adjust_allocated_quantities():
                                                     by_alloc[aid].get("Mã điểm")),
                         "SKU": sku, "SL cũ": previous,
                         "SL mới": updated, "Trả lại kho phân bổ": amount})
-    st.dataframe(preview, hide_index=True, use_container_width=True)
+    display_centered_table(preview, hide_index=True, use_container_width=True)
     if all(row["SL cũ"] == row["SL mới"] for row in preview):
         st.warning("Số mới chưa khác số cũ.")
         return
@@ -2255,7 +2271,7 @@ def supplemental_site_assignment_admin():
                             (loc.get("Tên xã/phường/đơn vị") or pid) + "**")
                 st.caption(f"Mã điểm: {pid} • {len(preview)} SKU")
                 if preview:
-                    st.dataframe(preview, hide_index=True, use_container_width=True)
+                    display_centered_table(preview, hide_index=True, use_container_width=True)
                 else:
                     st.info("Điểm chưa phân bổ SKU. Sau khi ADMIN phân bổ "
                             "hàng, nhiệm vụ sẽ liên kết theo quyền vừa cấp.")
@@ -2413,7 +2429,7 @@ def team_reassignment_admin():
                    "Không đổi SL phân bổ cho điểm; không xóa báo cáo hay ảnh.")
         if planned["changes"]:
             with st.expander("Xem các nhiệm vụ sẽ thay đổi"):
-                st.dataframe([{"Công đoạn":r["tab"],"Mã điểm":r["point"],
+                display_centered_table([{"Công đoạn":r["tab"],"Mã điểm":r["point"],
                               "SKU":r["sku"],"Xử lý":
                               ("Giao cho "+planned["target_id"]
                                if planned["target_id"] else "Chờ phân công lại")}
@@ -2422,7 +2438,7 @@ def team_reassignment_admin():
         if planned["protected"]:
             st.warning("Các dòng đã làm/có chứng từ không bị chuyển tự động.")
             with st.expander("Xem nhiệm vụ phải bàn giao / đối soát"):
-                st.dataframe([{"Công đoạn":r["tab"],"Mã điểm":r["point"],
+                display_centered_table([{"Công đoạn":r["tab"],"Mã điểm":r["point"],
                               "SKU":r["sku"],"Lý do":r["reason"]}
                              for r in planned["protected"]],
                              hide_index=True,use_container_width=True)
@@ -2582,7 +2598,7 @@ def teams_and_approval():
                                "trách nhiệm KTV đang giữ hàng.")
                 display=impact["pending_details"]+impact["protected_details"]
                 if display:
-                    st.dataframe([{
+                    display_centered_table([{
                         "Công đoạn":r["table"],"Mã điểm":r["point_id"],
                         "SKU":r["sku"],"SL nhiệm vụ":r["quantity"],
                         "Xử lý":r["state"],
@@ -2743,11 +2759,11 @@ def teams_and_approval():
                 "Nhiệm vụ VC":by_role.get("VAN_CHUYEN",0),
                 "Nhiệm vụ LĐ":by_role.get("LAP_DAT",0)
             })
-        st.dataframe(summary,hide_index=True,use_container_width=True)
+        display_centered_table(summary,hide_index=True,use_container_width=True)
         with st.expander("Xem SKU và số lượng tại các địa điểm đã chọn"):
             for tab,rows in planned.items():
                 st.write("**"+("Vận chuyển" if tab=="VAN_CHUYEN" else "Lắp đặt")+"**")
-                st.dataframe([{
+                display_centered_table([{
                     "Điểm":r.get("Mã điểm"),"SKU":r.get("SKU"),
                     "Số lượng":r.get("SL giao" if tab=="VAN_CHUYEN" else "SL lắp")
                 } for r in rows],hide_index=True,use_container_width=True)
@@ -3073,7 +3089,7 @@ def hub_admin():
                        "toàn bộ điểm; hãy kiểm tra biên bản/chọn lại các xã.")
         st.caption("Danh sách chi tiết nằm trong bảng cuộn; không cần mở "
                    "thêm nhiều lớp biểu mẫu trên điện thoại.")
-        st.dataframe([{"Xã/đơn vị":r["name"],"SKU":r["sku"],
+        display_centered_table([{"Xã/đơn vị":r["name"],"SKU":r["sku"],
                        "Số lượng":qty_label(r["quantity"]),"ĐVT":r["unit"]}
                       for r in lines],hide_index=True,use_container_width=True,
                      height=180)
@@ -3229,7 +3245,7 @@ def report():
             approved_sites=[]
         if approved_sites:
             with st.expander("📍 ĐỊA ĐIỂM ADMIN ĐÃ DUYỆT",expanded=True):
-                st.dataframe([{
+                display_centered_table([{
                     "Địa điểm":r["site_name"],
                     "Công việc":r["role"],
                     "Số nhiệm vụ SKU":r["sku_tasks"],
@@ -3280,7 +3296,7 @@ def report():
                               key="team_handover_filter")
             shown=[r for r in handover if kind=="Tất cả" or r["status"]==kind]
             if shown:
-                st.dataframe([{
+                display_centered_table([{
                     "Địa điểm":r["name"],"Dự án":r["project"],
                     "Tình trạng hàng":r["status"],
                     "SKU phải lắp":r["sku_count"]
@@ -3329,7 +3345,7 @@ def report():
                 st.link_button("🧭 Xem địa điểm trên Google Maps",
                     "https://www.google.com/maps/search/?api=1&query="+quote(query),
                     use_container_width=True)
-                st.dataframe([{
+                display_centered_table([{
                     "SKU":v["sku"],"Cần lắp":v["need"],
                     "VC giao xã":v["delivered"],
                     "KTV nhận tập kết":v["hub_received"],
@@ -3408,7 +3424,7 @@ def report():
             st.caption(f"Dự án: {chosen[0]} • Mã điểm: {chosen[1]} • "
                        f"{len(sku_display)} SKU • "
                        f"{'Báo giao hàng' if mode == 'Đã giao hàng' else 'Báo lắp đặt'}")
-            st.dataframe(sku_display,hide_index=True,use_container_width=True)
+            display_centered_table(sku_display,hide_index=True,use_container_width=True)
             if any(numeric(r.get("SL thực tế"))>0
                    for rows in targets.values() for r in rows):
                 st.caption("SL ở bảng là phần còn phải thực hiện; "
