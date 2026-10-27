@@ -425,7 +425,6 @@ def drive_oauth_credentials():
     return cred
 
 
-@st.cache_resource
 def drive_client():
     """Use only the owner's per-file Drive OAuth grant."""
     cred = drive_oauth_credentials()
@@ -474,7 +473,9 @@ def configure_photo_folder():
                  "đã cấu hình; chưa cấp quyền tải ảnh.")
         return
     try:
-        info = drive_client().files().get(
+        # Verify with the exact OAuth credential/token Picker used.
+        drive = build("drive", "v3", credentials=cred, cache_discovery=False)
+        info = drive.files().get(
             fileId=folder, supportsAllDrives=True,
             fields="id,name,mimeType").execute()
         if info.get("mimeType") != "application/vnd.google-apps.folder":
