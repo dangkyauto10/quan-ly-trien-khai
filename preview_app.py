@@ -475,7 +475,8 @@ def configure_photo_folder():
         return
     try:
         info = drive_client().files().get(
-            fileId=folder, fields="id,name,mimeType").execute()
+            fileId=folder, supportsAllDrives=True,
+            fields="id,name,mimeType").execute()
         if info.get("mimeType") != "application/vnd.google-apps.folder":
             st.error("Mục đã chọn không phải thư mục Google Drive.")
             return
@@ -2805,6 +2806,7 @@ def images_to_drive(files, report_id, project_id="", point_id="", point_name="",
             body={"name":f"{photo_prefix}_{i+1}.jpg",
                   "parents":[folder],"description":description},
             media_body=MediaIoBaseUpload(buf,mimetype="image/jpeg",resumable=False),
+            supportsAllDrives=True,
             fields="id,webViewLink").execute()
         urls.append(uploaded.get("webViewLink") or
                     f"https://drive.google.com/file/d/{uploaded['id']}/view")
