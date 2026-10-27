@@ -155,16 +155,28 @@ components.html("""
     let link = doc.head.querySelector('link[rel="' + rel + '"]');
     if (!link) { link = doc.createElement("link"); link.rel = rel; doc.head.appendChild(link); }
     link.href = href;
-    link.type = "image/png";
-    link.sizes = "144x144";
+    if (rel === "manifest") {
+      link.type = "application/manifest+json";
+      link.crossOrigin = "anonymous";
+    } else {
+      link.type = "image/png";
+      link.sizes = "144x144";
+    }
   };
   if (iconUrl) {
     setLink("apple-touch-icon", iconUrl);
     setLink("icon", iconUrl);
   }
-  let appTitle = doc.head.querySelector('meta[name="apple-mobile-web-app-title"]');
-  if (!appTitle) { appTitle = doc.createElement("meta"); appTitle.name = "apple-mobile-web-app-title"; doc.head.appendChild(appTitle); }
-  appTitle.content = "DỰ ÁN";
+  // Override Streamlit Cloud's default manifest name, which is "Streamlit".
+  setLink("manifest", "/~/+/app/static/manifest.json?v=20261027h");
+  const setMeta = (selector, attribute, value) => {
+    let meta = doc.head.querySelector(selector);
+    if (!meta) { meta = doc.createElement("meta"); meta.setAttribute(attribute, selector.includes("property=") ? selector.match(/property="([^"]+)"/)[1] : selector.match(/name="([^"]+)"/)[1]); doc.head.appendChild(meta); }
+    meta.content = value;
+  };
+  setMeta('meta[name="apple-mobile-web-app-title"]', "name", "DỰ ÁN");
+  setMeta('meta[name="application-name"]', "name", "DỰ ÁN");
+  setMeta('meta[property="og:title"]', "property", "DỰ ÁN");
   doc.title = "DỰ ÁN";
 })();
 </script>
@@ -286,37 +298,43 @@ st.markdown("""
   letter-spacing: 0.02em;
 }
 @media (max-width: 600px) {
-  /* Keep the brand line visible during mobile page scrolling and Safari rebound. */
+  /* Reserve space for Streamlit Cloud's fixed top bar; keep the brand below it. */
   .block-container {
-    padding: 0.45rem 0.65rem 1.25rem !important;
+    padding: 4.5rem 0.65rem 1.25rem !important;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  }
+  .stApp button, .stApp input, .stApp textarea, .stApp label,
+  .stApp select, .stApp [data-testid="stMarkdownContainer"] {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
   }
   .tdv-hero {
     position: sticky;
-    top: 0;
-    z-index: 30;
+    top: 4rem;
+    z-index: 100;
     background: rgba(255, 255, 255, 0.98);
-    padding: 0.38rem 0.25rem 0.42rem;
+    padding: 0.22rem 0.25rem 0.28rem;
     margin-bottom: 0.25rem;
     min-height: 0;
     border-bottom: 1px solid #edf2f7;
   }
   .tdv-hero-title {
-    font-size: clamp(1.08rem, 5.2vw, 1.42rem);
+    font-size: clamp(1.08rem, 4.8vw, 1.32rem);
+    font-weight: 700;
     gap: 0.28rem;
-    line-height: 1.65 !important;
+    line-height: 1.45 !important;
     min-height: 0;
-    padding: 0.12rem 0;
+    padding: 0.08rem 0;
   }
   .tdv-hero-name {
-    line-height: 1.65 !important;
-    padding: 0.06rem 0;
+    line-height: 1.45 !important;
+    padding: 0.04rem 0;
   }
-  .tdv-hero-icon {width: 2rem; height: 2rem;}
-  .tdv-hero-subtitle {margin-top: 0.05rem; font-size: 0.76rem;}
+  .tdv-hero-icon {width: 1.8rem; height: 1.8rem;}
+  .tdv-hero-subtitle {display: none;}
   .tdv-preview-tag {
-    margin-top: 0.12rem;
-    padding: 0.1rem 0.42rem;
-    font-size: 0.7rem !important;
+    margin-top: 0.08rem;
+    padding: 0.06rem 0.36rem;
+    font-size: 0.66rem !important;
   }
   .stApp [data-testid="stVerticalBlock"] {gap: 0.65rem;}
   .stApp [data-testid="stHorizontalBlock"] {gap: 0.5rem;}
