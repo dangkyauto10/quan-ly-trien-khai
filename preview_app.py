@@ -148,7 +148,7 @@ components.html("""
 (() => {
   let doc;
   try { doc = window.top.document; } catch (_) { return; }
-  const iconUrl = "/app/static/tdv_icon_144.png?v=20261027e";
+  const iconUrl = "/app/static/tdv_icon_144.png?v=20261027f";
   const setLink = (rel, href) => {
     let link = doc.head.querySelector('link[rel="' + rel + '"]');
     if (!link) { link = doc.createElement("link"); link.rel = rel; doc.head.appendChild(link); }
@@ -158,7 +158,7 @@ components.html("""
   setLink("apple-touch-icon", iconUrl);
   setLink("icon", iconUrl);
   
-  setLink("manifest", "/app/static/manifest.json?v=20261027e");
+  setLink("manifest", "/app/static/manifest.json?v=20261027f");
   let appTitle = doc.head.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (!appTitle) { appTitle = doc.createElement("meta"); appTitle.name = "apple-mobile-web-app-title"; doc.head.appendChild(appTitle); }
   appTitle.content = "DỰ ÁN";
@@ -232,6 +232,7 @@ st.markdown("""
   overflow: visible !important;
 }
 .tdv-hero-title {
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -248,8 +249,10 @@ st.markdown("""
   overflow: visible !important;
 }
 .tdv-hero-name {
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif !important;
   display: inline-block;
-  line-height: 1.5 !important;
+  line-height: 1.7 !important;
+  letter-spacing: 0;
   padding: 0.12rem 0;
   overflow: visible !important;
 }
@@ -296,7 +299,7 @@ st.markdown("""
     min-height: 2.8rem;
     padding: 0.1rem 0;
   }
-  .tdv-hero-name {line-height: 1.4 !important;}
+  .tdv-hero-name {line-height: 1.7 !important;}
   .tdv-hero-icon {width: 2.25rem; height: 2.25rem;}
   .tdv-preview-tag {
     margin-top: 0.2rem;
@@ -376,7 +379,7 @@ st.markdown(f"""
 <div class="tdv-hero">
   <div class="tdv-hero-title">
     <img class="tdv-hero-icon" src="data:image/png;base64,{APP_ICON_DATA}" alt="TDV" />
-    <span class="tdv-hero-name">QUẢN LÝ DỰ ÁN</span>
+    <span class="tdv-hero-name" lang="vi">QU&#7842;N L&#221; D&#7920; &#193;N</span>
   </div>
   <div class="tdv-hero-subtitle">Hệ thống điều hành hiện trường</div>
   <div class="tdv-preview-tag">BẢN THỬ NGHIỆM · CHƯA VẬN HÀNH</div>
