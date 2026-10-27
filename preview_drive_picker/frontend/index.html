@@ -19,7 +19,13 @@
     const button = document.getElementById("pick");
     const status = document.getElementById("status");
     function send(type, value) {
-      window.parent.postMessage({isStreamlitMessage: true, type, value}, "*");
+      const message = {isStreamlitMessage: true, type};
+      if (type === "streamlit:componentReady") {
+        message.apiVersion = value?.apiVersion;
+      } else {
+        message.value = value;
+      }
+      window.parent.postMessage(message, "*");
     }
     function height() {
       window.parent.postMessage({
