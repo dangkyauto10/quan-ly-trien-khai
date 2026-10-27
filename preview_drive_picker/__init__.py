@@ -6,10 +6,11 @@ _component = components.declare_component(
     path=str(Path(__file__).parent / "frontend"),
 )
 
-def pick_folder(api_key, access_token, key=None, open_picker=False):
+def pick_folder(api_key, access_token, app_id, key=None, open_picker=False):
     """Let an ADMIN explicitly authorize one Drive folder with Google Picker."""
     return _component(
         apiKey=api_key,
+        appId=str(app_id),
         accessToken=access_token,
         openPicker=bool(open_picker),
         default=None,
