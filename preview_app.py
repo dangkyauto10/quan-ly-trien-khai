@@ -135,7 +135,7 @@ def approved_team_site_overview(team, registrations, locations, tasksets):
 APP_ICON = Path(__file__).resolve().parent / "assets" / "tdv_icon_144.png"
 # Use the approved TDV square logo for the tab favicon and app masthead.
 st.set_page_config(
-    page_title="DỰ ÁN TDV",
+    page_title="DỰ ÁN",
     page_icon=str(APP_ICON),
     layout="wide"
 )
@@ -148,7 +148,7 @@ components.html("""
 (() => {
   let doc;
   try { doc = window.top.document; } catch (_) { return; }
-  const iconUrl = "/app/static/tdv_icon_144.png?v=20261027d";
+  const iconUrl = "/app/static/tdv_icon_144.png?v=20261027e";
   const setLink = (rel, href) => {
     let link = doc.head.querySelector('link[rel="' + rel + '"]');
     if (!link) { link = doc.createElement("link"); link.rel = rel; doc.head.appendChild(link); }
@@ -157,7 +157,12 @@ components.html("""
   };
   setLink("apple-touch-icon", iconUrl);
   setLink("icon", iconUrl);
-  setLink("manifest", "/app/static/manifest.json?v=20261027b");
+  
+  setLink("manifest", "/app/static/manifest.json?v=20261027e");
+  let appTitle = doc.head.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (!appTitle) { appTitle = doc.createElement("meta"); appTitle.name = "apple-mobile-web-app-title"; doc.head.appendChild(appTitle); }
+  appTitle.content = "DỰ ÁN";
+
 })();
 </script>
 """, width=0, height=0)
