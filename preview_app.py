@@ -86,7 +86,9 @@ from preview_import_locations import (read_location_file, candidate_names,
 
 
 def display_centered_table(data, *args, **kwargs):
-    """Display read-only tables with centered bold column headers only."""
+    """Display read-only tables with centered bold headers and optional compact columns."""
+    center_columns = tuple(kwargs.pop("center_columns", ()))
+    compact = bool(kwargs.pop("compact", False))
     frame = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
     # st.dataframe draws headers on a canvas and ignores Pandas header CSS.
     # These read-only summaries use escaped HTML so header styling is reliable.
@@ -95,14 +97,30 @@ def display_centered_table(data, *args, **kwargs):
         return st.dataframe(frame, *args, **kwargs)
     table_id = "tdv-table-" + uuid.uuid4().hex
     height = kwargs.get("height")
+    hide_index = kwargs.get("hide_index", False)
     scrolling = ("max-height:" + str(max(80, int(height))) + "px;"
                  if isinstance(height, (int, float)) else "")
-    markup = frame.to_html(index=not kwargs.get("hide_index", False),
-                           escape=True, border=0, na_rep="")
+    markup = frame.to_html(index=not hide_index, escape=True, border=0, na_rep="")
+    table_width = ("width:fit-content;max-width:100%;table-layout:auto;"
+                   if compact else "width:100%;")
+    body_center_rules = "".join(
+        "#" + table_id + " tbody td:nth-child(" +
+        str(index + 1 + (0 if hide_index else 1)) +
+        "){text-align:center!important;}"
+        for index, column in enumerate(frame.columns)
+        if column in center_columns
+    )
+    compact_column_rules = (
+        "#" + table_id + " tbody td:nth-child(2),#" + table_id +
+        " thead th:nth-child(2){max-width:min(58vw,620px);"
+        "white-space:normal;overflow-wrap:anywhere;}"
+        if compact else ""
+    )
     return st.markdown(
         "<style>"
         "#" + table_id + "{overflow:auto;" + scrolling + "}"
-        "#" + table_id + " table{width:100%;border-collapse:collapse;font-size:0.9rem;}"
+        "#" + table_id + " table{" + table_width +
+        "border-collapse:collapse;font-size:0.9rem;}"
         "#" + table_id + " th,#" + table_id + " td{"
         "padding:0.45rem 0.6rem;border-bottom:1px solid #dfe3e8;}"
         "#" + table_id + " thead th{"
@@ -111,6 +129,7 @@ def display_centered_table(data, *args, **kwargs):
         "position:sticky;top:0;z-index:1;}"
         "#" + table_id + " tbody td,#" + table_id + " tbody th{"
         "text-align:left;font-weight:500!important;}"
+        + body_center_rules + compact_column_rules +
         "</style><div id=\"" + table_id + "\">" + markup + "</div>",
         unsafe_allow_html=True,
     )
@@ -3440,7 +3459,10 @@ def report():
             st.caption(f"Dự án: {chosen[0]} • Mã điểm: {chosen[1]} • "
                        f"{len(sku_display)} SKU • "
                        f"{'Báo giao hàng' if mode == 'Đã giao hàng' else 'Báo lắp đặt'}")
-            display_centered_table(sku_display,hide_index=True,use_container_width=True)
+            display_centered_table(
+                sku_display, hide_index=True, use_container_width=True,
+                center_columns=("SKU", "SL cần giao", "SL cần lắp", "ĐVT"),
+                compact=True)
             if any(numeric(r.get("SL thực tế"))>0
                    for rows in targets.values() for r in rows):
                 st.caption("SL ở bảng là phần còn phải thực hiện; "
