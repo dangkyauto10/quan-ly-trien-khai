@@ -148,17 +148,20 @@ components.html("""
 (() => {
   let doc;
   try { doc = window.top.document; } catch (_) { return; }
-  const iconUrl = "/app/static/tdv_icon_144.png?v=20261027g";
+  const iconSource = doc.head.querySelector('link[rel="alternate icon"]')
+    || doc.head.querySelector('link[rel~="icon"]');
+  const iconUrl = iconSource ? iconSource.href : "";
   const setLink = (rel, href) => {
     let link = doc.head.querySelector('link[rel="' + rel + '"]');
     if (!link) { link = doc.createElement("link"); link.rel = rel; doc.head.appendChild(link); }
     link.href = href;
-    if (rel !== "manifest") { link.type = "image/png"; link.sizes = "144x144"; }
+    link.type = "image/png";
+    link.sizes = "144x144";
   };
-  setLink("apple-touch-icon", iconUrl);
-  setLink("icon", iconUrl);
-  
-  setLink("manifest", "/app/static/manifest.json?v=20261027g");
+  if (iconUrl) {
+    setLink("apple-touch-icon", iconUrl);
+    setLink("icon", iconUrl);
+  }
   let appTitle = doc.head.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (!appTitle) { appTitle = doc.createElement("meta"); appTitle.name = "apple-mobile-web-app-title"; doc.head.appendChild(appTitle); }
   appTitle.content = "DỰ ÁN";
@@ -283,28 +286,37 @@ st.markdown("""
   letter-spacing: 0.02em;
 }
 @media (max-width: 600px) {
-  /* Keep the approved content and type sizes; reduce only wasted mobile space. */
+  /* Keep the brand line visible during mobile page scrolling and Safari rebound. */
   .block-container {
-    padding: 1.1rem 0.65rem 1.25rem !important;
+    padding: 0.45rem 0.65rem 1.25rem !important;
   }
   .tdv-hero {
-    padding: 1.15rem 0.25rem 0.75rem;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: rgba(255, 255, 255, 0.98);
+    padding: 0.38rem 0.25rem 0.42rem;
     margin-bottom: 0.25rem;
-    min-height: 8rem;
+    min-height: 0;
+    border-bottom: 1px solid #edf2f7;
   }
   .tdv-hero-title {
-    font-size: clamp(1.24rem, 5.4vw, 1.48rem);
-    gap: 0.3rem;
-    line-height: 1.75 !important;
-    min-height: 3.6rem;
-    padding: 0.1rem 0;
+    font-size: clamp(1.08rem, 5.2vw, 1.42rem);
+    gap: 0.28rem;
+    line-height: 1.65 !important;
+    min-height: 0;
+    padding: 0.12rem 0;
   }
-  .tdv-hero-name {line-height: 1.8 !important;}
-  .tdv-hero-icon {width: 2.25rem; height: 2.25rem;}
+  .tdv-hero-name {
+    line-height: 1.65 !important;
+    padding: 0.06rem 0;
+  }
+  .tdv-hero-icon {width: 2rem; height: 2rem;}
+  .tdv-hero-subtitle {margin-top: 0.05rem; font-size: 0.76rem;}
   .tdv-preview-tag {
-    margin-top: 0.2rem;
-    padding: 0.14rem 0.48rem;
-    font-size: 0.82rem !important;
+    margin-top: 0.12rem;
+    padding: 0.1rem 0.42rem;
+    font-size: 0.7rem !important;
   }
   .stApp [data-testid="stVerticalBlock"] {gap: 0.65rem;}
   .stApp [data-testid="stHorizontalBlock"] {gap: 0.5rem;}
