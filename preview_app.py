@@ -140,6 +140,22 @@ st.set_page_config(
     layout="wide"
 )
 APP_ICON_DATA = base64.b64encode(APP_ICON.read_bytes()).decode("ascii")
+# Home screen logo; page_icon is only the browser tab icon.
+import streamlit.components.v1 as components
+components.html("""
+<script>
+(() => {
+ const doc = window.parent.document;
+ const iconUrl = "/app/static/tdv_icon_144.png?v=20261027a";
+ for (const rel of ["apple-touch-icon", "icon"]) {
+  let link = doc.head.querySelector('link[rel="' + rel + '"]');
+  if (!link) { link = doc.createElement("link"); link.rel = rel; doc.head.appendChild(link); }
+  link.href = iconUrl; link.type = "image/png"; link.sizes = "144x144";
+ }
+})();
+</script>
+""", width=0, height=0)
+
 
 cookie_controller = CookieController(key="tdv_cookie_controller_v1")
 
@@ -3305,13 +3321,13 @@ def report():
                            "đã trừ số lượng báo cáo trước đó.")
         st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-PICKER-APPID-20261027-B")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
-        captured=st.camera_input(
-            "📸 CHỤP ẢNH HIỆN TRƯỜNG",key=f"report_camera_{photo_key}")
+        # Use the phone's native image picker to avoid opening the browser
+        # camera permission prompt when the report form is first displayed.
         uploaded=st.file_uploader(
-            "🖼️ HOẶC CHỌN ẢNH CÓ SẴN (tối đa 10)",
+            "📷 CHỤP ẢNH HOẶC CHỌN ẢNH HIỆN TRƯỜNG (tối đa 10)",
             type=["jpg","jpeg","png"],accept_multiple_files=True,
             key=f"report_files_{photo_key}")
-        photos=([captured] if captured is not None else [])+list(uploaded or [])
+        photos=list(uploaded or [])
         st.caption(f"Ảnh minh chứng đã chọn: {len(photos)}/10")
         require_gps = mode!="Đã giao hàng"
         gps=None
