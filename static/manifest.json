@@ -1,6 +1,6 @@
 {
-  "name": "QUẢN LÝ DỰ ÁN TDV",
-  "short_name": "TDV",
+  "name": "DỰ ÁN",
+  "short_name": "DỰ ÁN",
   "description": "Hệ thống điều hành hiện trường",
   "start_url": "/",
   "scope": "/",
@@ -9,7 +9,7 @@
   "theme_color": "#10131a",
   "icons": [
     {
-      "src": "/app/static/tdv_icon_144.png?v=20261027b",
+      "src": "/app/static/tdv_icon_144.png?v=20261027e",
       "sizes": "144x144",
       "type": "image/png",
       "purpose": "any"
