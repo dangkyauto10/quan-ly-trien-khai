@@ -432,7 +432,7 @@ def drive_client():
 
 
 def verify_configured_photo_folder(credentials=None):
-    """Verify the configured folder with the app's shared Drive OAuth identity."""
+    """Verify the configured folder and report the OAuth identity on failure."""
     folder = str(st.secrets.get("photos_folder_id", "")).strip()
     if not folder:
         raise RuntimeError("Thiếu photos_folder_id trong Streamlit Secrets.")
@@ -442,11 +442,25 @@ def verify_configured_photo_folder(credentials=None):
                 "mimeType": "application/vnd.google-apps.folder"}
     cred = credentials or drive_oauth_credentials()
     drive = build("drive", "v3", credentials=cred, cache_discovery=False)
-    info = drive.files().get(
-        fileId=folder, supportsAllDrives=True,
-        fields="id,name,mimeType").execute()
+    oauth_email = ""
+    try:
+        about = drive.about().get(fields="user(emailAddress)").execute()
+        oauth_email = str((about.get("user") or {}).get("emailAddress") or "").strip()
+    except Exception:
+        # Folder access check remains authoritative if profile metadata is unavailable.
+        pass
+    try:
+        info = drive.files().get(
+            fileId=folder, supportsAllDrives=True,
+            fields="id,name,mimeType").execute()
+    except Exception as exc:
+        detail = drive_error_summary(exc)
+        if oauth_email:
+            detail += "; tài khoản OAuth đang dùng: " + oauth_email
+        raise RuntimeError(detail) from exc
     if info.get("mimeType") != "application/vnd.google-apps.folder":
         raise RuntimeError("Mục đã cấu hình không phải thư mục Google Drive.")
+    info["_oauthEmail"] = oauth_email
     st.session_state["_tdv_verified_photo_folder_id"] = folder
     return info
 
