@@ -85,6 +85,7 @@
         .addView(view)
         .setOAuthToken(args.accessToken)
         .setDeveloperKey(args.apiKey)
+        .setAppId(String(args.appId || ""))
         .setTitle("Chọn thư mục ảnh PREVIEW")
         .setCallback(data => {
           if (data.action === google.picker.Action.PICKED && data.docs?.length) {
