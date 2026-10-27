@@ -269,23 +269,44 @@ st.markdown("""
   letter-spacing: 0.02em;
 }
 @media (max-width: 600px) {
+  /* Keep the approved content and type sizes; reduce only wasted mobile space. */
   .block-container {
-    padding-top: 1.8rem !important;
-    padding-left: 0.8rem !important;
-    padding-right: 0.8rem !important;
+    padding: 1.1rem 0.65rem 1.25rem !important;
   }
   .tdv-hero {
-    padding-top: 1rem;
-    min-height: 8.3rem;
+    padding: 0.45rem 0.2rem 0.35rem;
+    margin-bottom: 0.25rem;
+    min-height: 6.6rem;
   }
   .tdv-hero-title {
-    font-size: clamp(1.28rem, 5.8vw, 1.55rem);
-    gap: 0.35rem;
-    line-height: 1.55 !important;
-    min-height: 3.35rem;
+    font-size: clamp(1.24rem, 5.4vw, 1.48rem);
+    gap: 0.3rem;
+    line-height: 1.4 !important;
+    min-height: 2.8rem;
+    padding: 0.1rem 0;
   }
-  .tdv-hero-name {line-height: 1.55 !important;}
-  .tdv-hero-icon {width: 2.65rem; height: 2.65rem;}
+  .tdv-hero-name {line-height: 1.4 !important;}
+  .tdv-hero-icon {width: 2.25rem; height: 2.25rem;}
+  .tdv-preview-tag {
+    margin-top: 0.2rem;
+    padding: 0.14rem 0.48rem;
+    font-size: 0.82rem !important;
+  }
+  .stApp [data-testid="stVerticalBlock"] {gap: 0.65rem;}
+  .stApp [data-testid="stHorizontalBlock"] {gap: 0.5rem;}
+  div[data-testid="stMetric"] {
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+  div[data-testid="stForm"] {
+    padding: 10px;
+    border-radius: 12px;
+  }
+  .stApp div.stButton > button,
+  .stApp div.stLinkButton > a {
+    min-height: 44px !important;
+    font-size: 1rem !important;
+  }
 }
 h2, h3 {color: #173A73;}
 div[data-testid="stMetric"] {
