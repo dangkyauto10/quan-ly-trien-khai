@@ -3587,6 +3587,33 @@ def report():
 def dashboard():
     """Compact, read-only leadership dashboard: ADMIN / LANH_DAO."""
     require_role("ADMIN","LANH_DAO")
+    st.markdown(
+        """
+        <style>
+        [data-testid="stMainBlockContainer"] h3 {
+            font-size:1.25rem !important;
+            margin-top:.2rem !important;
+            margin-bottom:.35rem !important;
+        }
+        [data-testid="stMainBlockContainer"] [data-testid="stSelectbox"] label,
+        [data-testid="stMainBlockContainer"] [data-testid="stCaptionContainer"] p {
+            font-size:.74rem !important;
+            line-height:1.25 !important;
+        }
+        [data-testid="stMainBlockContainer"] [data-testid="stSelectbox"] div[data-baseweb="select"] * {
+            font-size:.84rem !important;
+        }
+        [data-testid="stMainBlockContainer"] [data-testid="stButton"] button {
+            min-height:2.15rem !important;
+            padding:.3rem .55rem !important;
+        }
+        [data-testid="stMainBlockContainer"] [data-testid="stButton"] button p {
+            font-size:.78rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     st.subheader("📊 Báo cáo tiến độ")
     projects=read_sheet("DANH_SACH_DU_AN")
     ids=[p["Mã dự án"] for p in projects if p.get("Mã dự án")]
@@ -3616,8 +3643,8 @@ def dashboard():
     )
     m=progress["metrics"]
     total=max(0,int(m.get("sites",0) or 0))
-    st.caption("Số liệu đọc lúc "+now().replace("T"," ")[:19]+
-               " (giờ Việt Nam). Nhấn CẬP NHẬT để đọc dữ liệu mới nhất.")
+    st.caption("Số liệu lúc "+now().replace("T"," ")[:19]+
+               " (giờ Việt Nam) • Nhấn CẬP NHẬT để làm mới.")
     cards=[
         ("Điểm dự án","sites"),
         ("Đã phân bổ hàng","sites_allocated"),
@@ -3661,19 +3688,20 @@ def dashboard():
         'gap:8px}.kpi,.chart{border:1px solid #dbe4ee;border-radius:12px;'
         'background:#f3f7fb}.kpi{min-height:70px;padding:9px 10px;'
         'display:flex;flex-direction:column;justify-content:space-between}'
-        '.label{font-size:12px;line-height:1.25;color:#475569;min-height:28px}'
-        '.value{font-size:22px;line-height:1;font-weight:700;color:#111827}'
-        '.chart{padding:12px}.chart-title{font-size:14px;font-weight:700;'
+        '.label{font-size:10px;line-height:1.2;color:#475569;min-height:24px}'
+        '.value{font-size:32px;line-height:1;font-weight:800;color:#111827;letter-spacing:-.02em}'
+        '.chart{padding:10px}.chart-title{font-size:12px;font-weight:700;'
         'margin:0 0 7px}.row{display:grid;grid-template-columns:108px minmax(35px,1fr) 43px;'
-        'gap:6px;align-items:center;margin:10px 0}.row-label{font-size:11px;'
+        'gap:6px;align-items:center;margin:10px 0}.row-label{font-size:10px;'
         'line-height:1.15;color:#475569}.track{height:9px;border-radius:99px;'
         'background:#dbe5ef;overflow:hidden}.fill{height:100%;border-radius:99px;'
-        'background:#2878c8}.row-value{font-size:11px;text-align:right;'
-        'font-variant-numeric:tabular-nums;color:#334155}.note{font-size:10px;'
+        'background:#2878c8}.row-value{font-size:12px;text-align:right;'
+        'font-variant-numeric:tabular-nums;color:#334155}.note{font-size:9px;'
         'line-height:1.25;color:#64748b;margin-top:8px}'
         '@media(max-width:620px){.layout{grid-template-columns:1fr;gap:8px}'
         '.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}'
-        '.kpi{min-height:62px;padding:8px 9px}.chart{padding:9px 10px}'
+        '.kpi{min-height:64px;padding:7px 8px}.label{font-size:9px;min-height:22px}'
+        '.value{font-size:30px}.chart{padding:8px 9px}'
         '.row{grid-template-columns:102px minmax(35px,1fr) 42px;margin:7px 0}'
         '.chart-title{margin-bottom:4px}}'
         '</style></head><body><div class="layout"><div class="kpis">'+card_html+
