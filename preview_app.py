@@ -1698,7 +1698,10 @@ def adjust_allocated_quantities():
     if not skus:
         st.error("Đợt này thiếu SKU; chưa được điều chỉnh.")
         return
-    sku = st.selectbox("3. Mã hàng (SKU)", skus,
+    sku_names={r.get("SKU"):r.get("Tên hàng hóa","") for r in batch_rows}
+    sku = st.selectbox("3. Hàng hóa cần điều chỉnh", skus,
+                       format_func=lambda code:
+                           f"{sku_names.get(code) or code} • SKU {code}",
                        key=f"adjust_sku_{project}_{batch}")
     matches = [r for r in batch_rows if r.get("SKU") == sku]
     by_alloc = {r["Mã phân bổ"]: r for r in matches}
@@ -1712,6 +1715,7 @@ def adjust_allocated_quantities():
     st.dataframe([
         {"Tên đơn vị": point_names.get(r.get("Mã điểm")) or "(Chưa có trong danh sách địa điểm)",
          "Mã điểm": r.get("Mã điểm", ""),
+         "Tên hàng hóa": sku_names.get(sku,""),
          "SKU": sku,
          "SL đang phân bổ": r.get("SL phân bổ", ""),
          "ĐVT": r.get("ĐVT", ""),
@@ -2739,8 +2743,19 @@ def teams_and_approval():
     if not tasks:
         st.info("Chưa có nhiệm vụ đang chờ phân công.")
         return
+    allocation_names={r.get("Mã phân bổ"):r.get("Tên hàng hóa","")
+                      for r in read_sheet("KHO_PHAN_BO")
+                      if r.get("Mã phân bổ")}
+    place_names={r.get("Mã điểm"):r.get("Tên xã/phường/đơn vị","")
+                 for r in read_sheet("DANH_SACH_DIEM")
+                 if r.get("Mã dự án")==tasks[0].get("Mã dự án")}
     selected_task=st.selectbox("Công việc chưa gán",tasks,
-        format_func=lambda x:f"{x['Mã dự án']} • {x['Mã điểm']} • {x['SKU']} • {x.get(task_key,'')}")
+        format_func=lambda x:(
+            f"{x['Mã dự án']} • "
+            f"{place_names.get(x.get('Mã điểm')) or x.get('Mã điểm')} "
+            f"({x.get('Mã điểm')}) • "
+            f"{allocation_names.get(x.get('Mã phân bổ')) or x.get('SKU')} "
+            f"(SKU {x.get('SKU')}) • {x.get(task_key,'')}"))
     teams=[x for x in read_sheet("QUAN_LY_DOI") if
            x.get("Trạng thái")=="Hoạt động"
            and x.get("Mã dự án")==selected_task.get("Mã dự án")
@@ -2749,7 +2764,8 @@ def teams_and_approval():
         st.warning("Chưa có đội hoạt động đúng chuyên môn TRONG CÙNG DỰ ÁN.")
         return
     selected_team=st.selectbox("Đội trưởng nhận nhiệm vụ",teams,
-        format_func=lambda x:x['Tên đội/đội trưởng'])
+        format_func=lambda x:
+            f"{x.get('Tên đội/đội trưởng') or 'Chưa có tên'} • {x.get('Mã đội')}")
     group_site=st.checkbox("Gán tất cả SKU chưa gán tại điểm này cho cùng đội",
                            value=True, key=f"assign_entire_point_{tab}")
     try:
@@ -2764,7 +2780,8 @@ def teams_and_approval():
              f"{selected_task['Mã điểm']}.")
     with st.expander("Xem các SKU và số lượng sẽ giao"):
         for task in preview:
-            st.write(f"{task['SKU']}: "
+            item_name=allocation_names.get(task.get("Mã phân bổ")) or task.get("SKU")
+            st.write(f"{item_name} • SKU {task['SKU']}: "
                      f"{task.get('SL giao' if tab=='VAN_CHUYEN' else 'SL lắp','')} "
                      f"({task[task_key]})")
     if st.button("✅ XÁC NHẬN GÁN ĐỘI", use_container_width=True):
@@ -3101,13 +3118,22 @@ def report():
     st.subheader("📋 Báo cáo nhiệm vụ")
     tid=a["team_id"]
     if a["role"]=="ADMIN":
-        allteams=[x["Mã đội"] for x in read_sheet("QUAN_LY_DOI") if x.get("Mã đội")]
+        allteams=[x for x in read_sheet("QUAN_LY_DOI") if x.get("Mã đội")]
         if not allteams:
             st.info("Chưa có đội.")
             return
-        tid=st.selectbox("Kiểm thử theo mã đội (chỉ Admin)",allteams)
+        selected_report_team=st.selectbox(
+            "Kiểm thử theo đội (chỉ Admin)",allteams,
+            format_func=lambda x:
+                f"{x.get('Tên đội/đội trưởng') or 'Chưa có tên'} • {x.get('Mã đội')}")
+        tid=selected_report_team["Mã đội"]
     if not tid:
         fail("Chưa liên kết mã đội cho tài khoản.")
+    report_team=lookup(read_sheet("QUAN_LY_DOI"),"Mã đội",tid) or {}
+    if report_team:
+        st.caption("Đội đang báo cáo: "
+                   f"{report_team.get('Tên đội/đội trưởng') or 'Chưa có tên'}"
+                   f" • Mã đội: {tid}")
     if a["role"] == "ADMIN":
         with st.expander("🔐 Kết nối thư mục ảnh PREVIEW (chỉ thư mục đã chọn)",
                          expanded=False):
@@ -3521,6 +3547,10 @@ def dashboard():
         read_sheet("QUAN_LY_DOI"),
         read_sheet("BAN_GIAO_TAP_KET")
     )
+    team_rows=read_sheet("QUAN_LY_DOI")
+    team_by_id={r.get("Mã đội"):r for r in team_rows if r.get("Mã đội")}
+    product_by_key={(r.get("Dự án"),r.get("SKU")):r.get("Hàng hóa","")
+                    for r in progress["skus"]}
     m=progress["metrics"]
     total=m["sites"]
     st.caption("Số liệu đọc lúc "+now().replace("T"," ")[:19]+
@@ -3602,6 +3632,7 @@ def dashboard():
         st.write(f"**LĐ:** {', '.join(site['ld_teams']) or 'Chưa gán đội'}")
         if site["skus"]:
             st.dataframe([{
+                "Tên hàng":product_by_key.get((site["project"],item["sku"])) or "Chưa có tên trong kho",
                 "SKU":item["sku"],"SL phân bổ":display_amount(item["planned"]),
                 "VC giao tận xã":display_amount(item["delivered"]),
                 "KTV nhận tập kết":display_amount(item["hub"]),
@@ -3626,13 +3657,28 @@ def dashboard():
 
     st.markdown("#### 4. Báo cáo hiện trường gần đây")
     activity=progress["activity"]
+    def readable_report_items(row):
+        raw=str(row.get("Danh sách SKU:SL thực tế") or "").strip()
+        if not raw:
+            return "Chưa ghi"
+        readable=[]
+        for part in raw.split(","):
+            sku,sep,amount=part.strip().partition(":")
+            if not sep:
+                readable.append(part.strip())
+                continue
+            name=product_by_key.get((row.get("Mã dự án"),sku)) or ""
+            readable.append(f"{name or sku} (SKU {sku}): {amount.strip()}")
+        return ", ".join(readable)
     if activity:
         st.dataframe([{
             "Thời gian":str(r.get("Thời gian máy chủ","")).replace("T"," ")[:19],
             "Dự án":r.get("Mã dự án",""),
             "Mã điểm":r.get("Mã điểm",""),
-            "Đội":r.get("Mã đội",""),
+            "Tên đội":team_by_id.get(r.get("Mã đội"),{}).get("Tên đội/đội trưởng","") or "Chưa có tên đội",
+            "Mã đội":r.get("Mã đội",""),
             "Nội dung":r.get("Loại báo cáo",""),
+            "Mặt hàng và SL":readable_report_items(r),
             "Đồng bộ":r.get("Trạng thái đồng bộ","")
         } for r in activity],hide_index=True,use_container_width=True)
         st.caption("Bảng tóm tắt 40 báo cáo mới nhất. Bấm chọn "
@@ -3649,12 +3695,14 @@ def dashboard():
         record=activity[index]
         with st.container(border=True):
             st.write("**Báo cáo:** "+str(record.get("Mã báo cáo","")))
-            st.write("**Đội:** "+str(record.get("Mã đội","")))
+            report_team_detail=team_by_id.get(record.get("Mã đội"),{})
+            st.write("**Đội:** "+
+                     str(report_team_detail.get("Tên đội/đội trưởng") or "Chưa có tên đội")+
+                     " • Mã đội: "+str(record.get("Mã đội","")))
             st.write("**Dự án/điểm:** "+str(record.get("Mã dự án",""))+
                      " / "+str(record.get("Mã điểm","")))
             st.write("**Nội dung:** "+str(record.get("Loại báo cáo","")))
-            st.write("**SKU và SL thực tế:** "+
-                     str(record.get("Danh sách SKU:SL thực tế") or "Chưa ghi"))
+            st.write("**Hàng hóa và SL thực tế:** "+readable_report_items(record))
             st.write("**Kết quả đối soát:** "+
                      str(record.get("Kết quả đối soát") or "Chưa ghi"))
             st.write("**Trạng thái đồng bộ:** "+
