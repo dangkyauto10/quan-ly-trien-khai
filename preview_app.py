@@ -148,7 +148,7 @@ components.html("""
 (() => {
   let doc;
   try { doc = window.top.document; } catch (_) { return; }
-  const iconUrl = "/app/static/tdv_icon_144.png?v=20261027f";
+  const iconUrl = "/app/static/tdv_icon_144.png?v=20261027g";
   const setLink = (rel, href) => {
     let link = doc.head.querySelector('link[rel="' + rel + '"]');
     if (!link) { link = doc.createElement("link"); link.rel = rel; doc.head.appendChild(link); }
@@ -158,11 +158,11 @@ components.html("""
   setLink("apple-touch-icon", iconUrl);
   setLink("icon", iconUrl);
   
-  setLink("manifest", "/app/static/manifest.json?v=20261027f");
+  setLink("manifest", "/app/static/manifest.json?v=20261027g");
   let appTitle = doc.head.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (!appTitle) { appTitle = doc.createElement("meta"); appTitle.name = "apple-mobile-web-app-title"; doc.head.appendChild(appTitle); }
   appTitle.content = "DỰ ÁN";
-
+  doc.title = "DỰ ÁN";
 })();
 </script>
 """, width=0, height=0)
@@ -225,10 +225,10 @@ st.markdown("""
   text-align: center;
   /* Reserve vertical room for Vietnamese accents on all devices.
      Streamlit may otherwise clip the top of a short HTML line. */
-  padding: 1.05rem 0.25rem 1rem;
+  padding: 1.4rem 0.3rem 1rem;
   margin: 0 auto 0.55rem;
   height: auto !important;
-  min-height: 8.3rem;
+  min-height: 9rem;
   overflow: visible !important;
 }
 .tdv-hero-title {
@@ -240,18 +240,18 @@ st.markdown("""
   color: #173A73;
   font-weight: 800;
   font-size: clamp(1.55rem, 4.5vw, 2rem);
-  line-height: 1.5 !important;
+  line-height: 1.75 !important;
   letter-spacing: -0.02em;
   white-space: normal;
   flex-wrap: wrap;
-  min-height: 3.5rem;
+  min-height: 4rem;
   padding: 0.25rem 0;
   overflow: visible !important;
 }
 .tdv-hero-name {
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif !important;
   display: inline-block;
-  line-height: 1.7 !important;
+  line-height: 1.8 !important;
   letter-spacing: 0;
   padding: 0.12rem 0;
   overflow: visible !important;
@@ -288,18 +288,18 @@ st.markdown("""
     padding: 1.1rem 0.65rem 1.25rem !important;
   }
   .tdv-hero {
-    padding: 0.45rem 0.2rem 0.35rem;
+    padding: 1.15rem 0.25rem 0.75rem;
     margin-bottom: 0.25rem;
-    min-height: 6.6rem;
+    min-height: 8rem;
   }
   .tdv-hero-title {
     font-size: clamp(1.24rem, 5.4vw, 1.48rem);
     gap: 0.3rem;
-    line-height: 1.4 !important;
-    min-height: 2.8rem;
+    line-height: 1.75 !important;
+    min-height: 3.6rem;
     padding: 0.1rem 0;
   }
-  .tdv-hero-name {line-height: 1.7 !important;}
+  .tdv-hero-name {line-height: 1.8 !important;}
   .tdv-hero-icon {width: 2.25rem; height: 2.25rem;}
   .tdv-preview-tag {
     margin-top: 0.2rem;
