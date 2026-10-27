@@ -140,8 +140,27 @@ st.set_page_config(
     layout="wide"
 )
 APP_ICON_DATA = base64.b64encode(APP_ICON.read_bytes()).decode("ascii")
-# Mobile home-screen icon is served from static/index.html, which declares
-# apple-touch-icon and a web manifest in the document head.
+# Set the actual host page metadata (Streamlit renders the Python app
+# inside a same-origin iframe; window.parent alone only changes the inner page).
+import streamlit.components.v1 as components
+components.html("""
+<script>
+(() => {
+  let doc;
+  try { doc = window.top.document; } catch (_) { return; }
+  const iconUrl = "/app/static/tdv_icon_144.png?v=20261027d";
+  const setLink = (rel, href) => {
+    let link = doc.head.querySelector('link[rel="' + rel + '"]');
+    if (!link) { link = doc.createElement("link"); link.rel = rel; doc.head.appendChild(link); }
+    link.href = href;
+    if (rel !== "manifest") { link.type = "image/png"; link.sizes = "144x144"; }
+  };
+  setLink("apple-touch-icon", iconUrl);
+  setLink("icon", iconUrl);
+  setLink("manifest", "/app/static/manifest.json?v=20261027b");
+})();
+</script>
+""", width=0, height=0)
 
 
 cookie_controller = CookieController(key="tdv_cookie_controller_v1")
@@ -717,32 +736,27 @@ def leadership_login():
 PREVIEW_HOME_URL = (
     "https://quan-ly-trien-khai-qfzumkrq7escxbxpv9v9tr.streamlit.app"
 )
-PREVIEW_ICON_SETUP_URL = PREVIEW_HOME_URL + "/app/static/tdv-home.html?v=20261027c"
 
 
 def home_screen_guide(expanded=False):
     """One-time device-owner shortcut setup; no silent install is possible."""
     with st.expander("📲 ĐƯA APP RA MÀN HÌNH ĐIỆN THOẠI",expanded=expanded):
         st.write("**Ghim logo TDV của QUẢN LÝ DỰ ÁN để mở app bằng một lần chạm.** "
-                 "Nếu đã ghim icon Streamlit cũ, hãy xóa icon cũ trước rồi cài lại.")
-        st.caption("Mở trang cài biểu tượng trong Safari/Chrome. Nếu đang xem app "
-                   "trong Zalo hoặc Facebook, hãy chọn Mở bằng trình duyệt trước.")
-        st.link_button("🟡 MỞ TRANG CÀI BIỂU TƯỢNG TDV", PREVIEW_ICON_SETUP_URL,
-                       use_container_width=True)
+                 "Nếu đã ghim icon cũ, hãy xóa icon đó rồi thêm lại từ app này.")
+        st.caption("Mở app trong Safari hoặc Chrome. Nếu đang xem trong Zalo "
+                   "hoặc Facebook, hãy chọn Mở bằng trình duyệt trước.")
         ios,android=st.tabs(["🍎 iPhone","🤖 Android"])
         with ios:
             st.markdown(
-                "**①** Bấm nút **MỞ TRANG CÀI BIỂU TƯỢNG TDV** phía trên.\n\n"
-                "**②** Trong Safari: **Chia sẻ ⬆️ → Thêm vào Màn hình chính "
+                "**①** Trong Safari: **Chia sẻ ⬆️ → Thêm vào Màn hình chính "
                 "→ Thêm**. Bật *Mở dưới dạng ứng dụng web* nếu có."
             )
         with android:
             st.markdown(
-                "**①** Bấm nút **MỞ TRANG CÀI BIỂU TƯỢNG TDV** phía trên.\n\n"
-                "**②** Trong Chrome: **⋮ → Cài đặt và tạo lối tắt** "
+                "**①** Trong Chrome: **⋮ → Cài đặt và tạo lối tắt** "
                 "(hoặc **Thêm vào màn hình chính**) **→ Thêm**."
             )
-        st.info("Sau khi ghim, biểu tượng mới dùng logo TDV màu vàng cam. "
+        st.info("Biểu tượng app dùng logo TDV màu vàng cam. "
                 "Mật khẩu tự đặt khi đăng ký chỉ dùng được **sau khi "
                 "ADMIN duyệt**; có thể chọn ghi nhớ đăng nhập 30 ngày "
                 "trên thiết bị cá nhân.")
