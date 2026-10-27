@@ -110,7 +110,7 @@ def display_centered_table(data, *args, **kwargs):
         "background:var(--secondary-background-color,#f0f2f6);"
         "position:sticky;top:0;z-index:1;}"
         "#" + table_id + " tbody td,#" + table_id + " tbody th{"
-        "text-align:left;font-weight:400!important;}"
+        "text-align:left;font-weight:500!important;}"
         "</style><div id=\"" + table_id + "\">" + markup + "</div>",
         unsafe_allow_html=True,
     )
