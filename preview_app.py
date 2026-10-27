@@ -301,7 +301,7 @@ st.markdown("""
   overflow: visible !important;
 }
 .tdv-hero-title {
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif !important;
+  font-family: Arial, Helvetica, sans-serif !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -310,7 +310,7 @@ st.markdown("""
   font-weight: 800;
   font-size: clamp(1.55rem, 4.5vw, 2rem);
   line-height: 1.75 !important;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   white-space: normal;
   flex-wrap: wrap;
   min-height: 4rem;
@@ -318,7 +318,7 @@ st.markdown("""
   overflow: visible !important;
 }
 .tdv-hero-name {
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif !important;
+  font-family: Arial, Helvetica, sans-serif !important;
   display: inline-block;
   line-height: 1.8 !important;
   letter-spacing: 0;
