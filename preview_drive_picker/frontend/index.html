@@ -16,6 +16,7 @@
   <script>
     let args = null;
     let pickerReady = false;
+    let pickerOpened = false;
     const button = document.getElementById("pick");
     const status = document.getElementById("status");
     function send(type, value) {
@@ -39,6 +40,12 @@
         button.disabled = false;
         button.textContent = "Chọn thư mục ảnh trong Google Drive";
         height();
+        if (args.openPicker && !pickerOpened) {
+          pickerOpened = true;
+          openPickerDialog();
+        } else if (!args.openPicker) {
+          pickerOpened = false;
+        }
       }
     }
     window.addEventListener("message", event => {
@@ -60,7 +67,7 @@
         onerror: () => { status.textContent = "Google Picker chưa tải được."; }
       });
     });
-    button.addEventListener("click", () => {
+    function openPickerDialog() {
       if (!args || !args.apiKey || !args.accessToken || !window.google?.picker) {
         status.textContent = "Thiếu API key hoặc quyền OAuth Drive.";
         return;
@@ -93,7 +100,8 @@
         })
         .build();
       window.setTimeout(() => picker.setVisible(true), 150);
-    });
+    }
+    button.addEventListener("click", openPickerDialog);
   </script>
 </body>
 </html>
