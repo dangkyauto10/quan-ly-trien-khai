@@ -3410,6 +3410,25 @@ def report():
             return f"{key[0]} • {name}{suffix}"
         chosen=st.selectbox("Điểm được giao để báo cáo",available,
                              format_func=site_option)
+        site=next((p for p in read_sheet("DANH_SACH_DIEM")
+                   if p.get("Mã dự án")==chosen[0]
+                   and p.get("Mã điểm")==chosen[1]),{})
+        if site:
+            verified_pin=bool(site.get("Vĩ độ") and site.get("Kinh độ"))
+            destination=(
+                str(site["Vĩ độ"])+","+str(site["Kinh độ"])
+                if verified_pin else ", ".join(filter(None,[
+                    site.get("Tên xã/phường/đơn vị") or locs.get(chosen[1]),
+                    site.get("Địa chỉ chi tiết",""),
+                    site.get("Tỉnh/Thành","")]))
+            )
+            maps_url=("https://www.google.com/maps/dir/?api=1&destination="
+                      +quote(destination))
+            st.link_button("🧭 TÌM ĐƯỜNG ĐẾN ĐIỂM NÀY",
+                           maps_url,use_container_width=True)
+            if not verified_pin:
+                st.caption("Điểm chưa có GPS xác minh; kiểm tra đúng đích "
+                           "trên Google Maps trước khi bắt đầu.")
         vrows=[r for r in vc if (r["Mã dự án"],r["Mã điểm"])==chosen]
         lrows=[r for r in ld if (r["Mã dự án"],r["Mã điểm"])==chosen]
         modes=(["Đã giao hàng"] if vrows else [])+(["Đã lắp đặt"] if lrows else [])
@@ -3469,16 +3488,14 @@ def report():
                            "đã trừ số lượng báo cáo trước đó.")
         st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-PICKER-APPID-20261027-B")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
-        # Put direct capture first for fewer taps; keep the photo picker as
-        # a fallback for browser/device camera permission limitations.
-        captured=st.camera_input(
-            "📸 CHỤP ẢNH HIỆN TRƯỜNG (bắt buộc)",
-            key=f"report_camera_{photo_key}")
+        # Use the phone's native photo picker so the app does not request
+        # live camera access every time this report screen is opened.
         uploaded=st.file_uploader(
-            "🖼️ Hoặc chọn ảnh hiện trường (tối đa 10)",
+            "📸 ẢNH HIỆN TRƯỜNG BẮT BUỘC — bấm Chọn ảnh rồi chọn Chụp ảnh "
+            "(tối đa 10)",
             type=["jpg","jpeg","png"],accept_multiple_files=True,
             key=f"report_files_{photo_key}")
-        photos=([captured] if captured is not None else [])+list(uploaded or [])
+        photos=list(uploaded or [])
         st.caption(f"Ảnh minh chứng đã chọn: {len(photos)}/10")
         require_gps = mode!="Đã giao hàng"
         gps=None
