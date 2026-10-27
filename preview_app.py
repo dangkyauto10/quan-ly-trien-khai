@@ -457,7 +457,16 @@ def configure_photo_folder():
         return
     st.caption("Google chỉ cấp quyền cho thư mục được chọn ở đây "
                "(phạm vi drive.file).")
-    picked = pick_folder(api_key, cred.token, key="preview_photo_folder_picker")
+    open_picker = st.button(
+        "📂 MỞ CHỌN THƯ MỤC ẢNH",
+        key="preview_open_photo_folder_picker",
+        help="Mở cửa sổ Google Drive để chọn đúng thư mục ảnh PREVIEW."
+    )
+    picked = pick_folder(
+        api_key, cred.token,
+        key="preview_photo_folder_picker",
+        open_picker=open_picker
+    )
     if not picked:
         return
     if picked.get("folderId") != folder:
