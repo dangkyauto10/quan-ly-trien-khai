@@ -8,7 +8,8 @@
     button { border: 0; border-radius: 8px; padding: 10px 14px; background: #155eef; color: #fff; font-weight: 700; cursor: pointer; }
     button:disabled { background: #8aa9e8; }
     #pick { display: none; }
-    #status { margin: 8px 0; color: #334155; }
+    #status { margin: 5px 0; color: #334155; }
+    body { min-height: 0; overflow: hidden; }
   </style>
 </head>
 <body>
@@ -40,7 +41,7 @@
       if (args && pickerReady) {
         button.disabled = false;
         button.textContent = "Chọn thư mục ảnh trong Google Drive";
-        height();
+        height(args.openPicker ? 720 : 88);
         if (args.openPicker && !pickerOpened) {
           pickerOpened = true;
           openPickerDialog();
@@ -58,7 +59,7 @@
     });
     window.addEventListener("load", () => {
       send("streamlit:componentReady", {apiVersion: 1});
-      height();
+      height(88);
       if (!window.gapi) {
         status.textContent = "Không tải được Google Picker. Kiểm tra API Picker/API key.";
         return;
@@ -94,9 +95,9 @@
               name: folder.name || "",
               mimeType: folder.mimeType || ""
             });
-            window.setTimeout(() => height(), 100);
+            window.setTimeout(() => height(88), 180);
           } else if (data.action === google.picker.Action.CANCEL) {
-            height();
+            height(88);
           }
         })
         .build();
