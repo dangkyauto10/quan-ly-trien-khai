@@ -717,7 +717,7 @@ def leadership_login():
 PREVIEW_HOME_URL = (
     "https://quan-ly-trien-khai-qfzumkrq7escxbxpv9v9tr.streamlit.app"
 )
-PREVIEW_ICON_SETUP_URL = PREVIEW_HOME_URL + "/app/static/index.html?v=20261027b"
+PREVIEW_ICON_SETUP_URL = PREVIEW_HOME_URL + "/app/static/tdv-home.html?v=20261027c"
 
 
 def home_screen_guide(expanded=False):
