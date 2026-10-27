@@ -3678,11 +3678,10 @@ def dashboard():
         '.chart-title{margin-bottom:4px}}'
         '</style></head><body><div class="layout"><div class="kpis">'+card_html+
         '</div><div class="chart"><div class="chart-title">Tiến độ theo điểm</div>'+
-        rows_html+'<div class="note">Mỗi chỉ tiêu là số điểm đã đủ SKU / tổng số điểm. '
-        'Số liệu báo cáo phục vụ theo dõi, chưa thay thế nghiệm thu hoặc đối soát '
-        'xuất kho vật lý.</div></div></div></body></html>'
+        rows_html+'<div class="note">Hai số tập kết đếm xã đủ SKU theo biên bản, không phải số chuyến. '
+        'Báo cáo tiến độ chưa thay nghiệm thu/đối soát.</div></div></div></body></html>'
     )
-    st.components.v1.html(html,height=390,scrolling=False)
+    st.components.v1.html(html,height=420,scrolling=False)
 
 def main():
     try:
