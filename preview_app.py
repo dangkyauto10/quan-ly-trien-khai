@@ -3585,25 +3585,24 @@ def report():
                              " trong BAO_CAO_TRIEN_KHAI trước khi thử tiếp.")
 
 def dashboard():
-    """Read-only progress dashboard: strictly ADMIN / LANH_DAO."""
-    a=require_role("ADMIN","LANH_DAO")
-    st.subheader("📊 Báo cáo tiến độ dự án")
-    st.caption("Chỉ ADMIN và LÃNH ĐẠO xem toàn dự án. "
-               "Số liệu theo nhiệm vụ và báo cáo đã ghi vào Google Sheets; "
-               "chưa phải biên bản nghiệm thu hay đối soát xuất kho vật lý.")
-    if st.button("🔄 CẬP NHẬT SỐ LIỆU",use_container_width=True,
-                 key="leadership_refresh"):
-        read_sheet.clear()
-        st.rerun()
+    """Compact, read-only leadership dashboard: ADMIN / LANH_DAO."""
+    require_role("ADMIN","LANH_DAO")
+    st.subheader("📊 Báo cáo tiến độ")
     projects=read_sheet("DANH_SACH_DU_AN")
     ids=[p["Mã dự án"] for p in projects if p.get("Mã dự án")]
     if not ids:
         st.info("Chưa có dự án để báo cáo.")
         return
-    # Always show KPIs per project, never merge unrelated project points.
     preferred=ids.index("DA880") if "DA880" in ids else 0
-    project=st.selectbox("Dự án cần xem",ids,index=preferred,
-                         key="leadership_project")
+    project_col,refresh_col=st.columns([3,1])
+    with project_col:
+        project=st.selectbox("Dự án",ids,index=preferred,
+                             key="leadership_project")
+    with refresh_col:
+        if st.button("🔄 CẬP NHẬT",key="leadership_refresh",
+                     use_container_width=True):
+            read_sheet.clear()
+            st.rerun()
     progress=build_progress(
         project,projects,
         read_sheet("DANH_SACH_DIEM"),
@@ -3615,196 +3614,75 @@ def dashboard():
         read_sheet("QUAN_LY_DOI"),
         read_sheet("BAN_GIAO_TAP_KET")
     )
-    team_rows=read_sheet("QUAN_LY_DOI")
-    team_by_id={r.get("Mã đội"):r for r in team_rows if r.get("Mã đội")}
-    product_by_key={(r.get("Dự án"),r.get("SKU")):r.get("Hàng hóa","")
-                    for r in progress["skus"]}
     m=progress["metrics"]
-    total=m["sites"]
+    total=max(0,int(m.get("sites",0) or 0))
     st.caption("Số liệu đọc lúc "+now().replace("T"," ")[:19]+
-               " (giờ Việt Nam). Nhấn CẬP NHẬT để lấy dữ liệu mới nhất.")
-    st.markdown("#### 1. Tổng quan tiến độ")
-    a1,a2=st.columns(2)
-    a1.metric("Điểm dự án",m["sites"])
-    a2.metric("Đã phân bổ hàng",m["sites_allocated"])
-    b1,b2=st.columns(2)
-    b1.metric("VC giao tận xã đủ",m["sites_delivered"])
-    b2.metric("LĐ đã lắp đủ",m["sites_installed"])
-    h1,h2=st.columns(2)
-    h1.metric("VC bàn giao tập kết đủ",m["sites_vc_hub_done"])
-    h2.metric("KTV nhận tập kết đủ",m["sites_at_hub"])
-    st.caption("Hai số tập kết tính theo SỐ XÃ có đủ SKU; "
-               "một biên bản ký tại một điểm tập kết có thể gồm nhiều xã. "
-               "Không phải số chuyến xe hay số điểm giao tận xã.")
-    st.metric("Đủ hàng, chờ/đang lắp",m["sites_ready_install"])
-    if total:
-        st.write(f"**VC giao TẬN XÃ đủ: {m['sites_delivered']}/{total} điểm** "
-                 f"({m['sites_delivered']/total:.1%})")
-        st.progress(min(1.,m["sites_delivered"]/total))
-        st.write(f"**Lắp đặt đủ: {m['sites_installed']}/{total} điểm** "
-                 f"({m['sites_installed']/total:.1%})")
-        st.progress(min(1.,m["sites_installed"]/total))
-    with st.expander("Chi tiết nhiệm vụ và việc chưa giao đội",expanded=False):
-        st.write(f"VC báo giao tận xã: **{m['vc_tasks_done']}/{m['vc_tasks']}** nhiệm vụ/SKU. "
-                 f"VC bàn giao tập kết đủ: **{m['sites_vc_hub_done']}** địa điểm "
-                 "(xác nhận theo biên bản có mã đội VC).")
-        st.write(f"LĐ báo hoàn thành: **{m['ld_tasks_done']}/{m['ld_tasks']}** nhiệm vụ/SKU.")
-        st.write(f"Nhiệm vụ VC chưa có đội: **{m['vc_unassigned']}**; "
-                 f"LĐ chưa có đội: **{m['ld_unassigned']}**.")
-        st.caption("VC giao tận xã và KTV nhận hàng tập kết là hai chỉ tiêu "
-                   "riêng. Chỉ báo cáo KTV có ảnh/GPS và đủ SL lắp mới tính "
-                   "điểm hoàn thành. Thiếu chứng từ giao hàng sẽ cảnh báo "
-                   "đối soát, không tự xóa số liệu KTV đã báo.")
-
-    if progress["pending_report_count"]:
-        st.warning(f"⚠️ Có {progress['pending_report_count']} báo cáo chưa đồng bộ "
-                   "hoặc cần ADMIN đối soát. Không coi các báo cáo này là nghiệm thu.")
-    if progress["anomalies"]:
-        with st.expander(f"⚠️ Cần kiểm tra dữ liệu ({len(progress['anomalies'])} cảnh báo)"):
-            for issue in progress["anomalies"][:30]:
-                st.write("• "+issue)
-            if len(progress["anomalies"])>30:
-                st.caption("Còn các cảnh báo khác; ADMIN cần kiểm tra Google Sheets.")
-
-    st.markdown("#### 2. Tra cứu tiến độ từng xã/đơn vị")
-    sites=progress["sites"]
-    statuses=["Tất cả"]+sorted({p["status"] for p in sites})
-    f1,f2=st.columns([1,1])
-    status=f1.selectbox("Trạng thái",statuses,key="leadership_status")
-    search=f2.text_input("🔎 Tìm địa điểm",placeholder="Tên xã, đơn vị hoặc mã điểm...",
-                         key="leadership_search")
-    needle=search.casefold().strip()
-    matching=[p for p in sites if
-              (status=="Tất cả" or p["status"]==status)
-              and (not needle or needle in p["name"].casefold()
-                   or needle in p["point_id"].casefold()
-                   or needle in p["project"].casefold())]
-    st.caption(f"Đang hiển thị {len(matching)} / {len(sites)} địa điểm.")
-    if matching:
-        st.dataframe([{
-            "Địa điểm":p["name"],
-            "Dự án":p["project"],
-            "VC đủ SKU":f"{p['vc_done']}/{p['sku_count']}",
-            "LĐ đủ SKU":f"{p['ld_done']}/{p['sku_count']}",
-            "Tình trạng":p["status"]
-        } for p in matching],hide_index=True,use_container_width=True)
-        selected_site=st.selectbox("Xem chi tiết một địa điểm",
-            list(range(len(matching))),
-            format_func=lambda i:(matching[i]["name"]+
-                                  " • "+matching[i]["project"]+
-                                  " • "+matching[i]["status"]),
-            key="leadership_site_detail")
-        site=matching[selected_site]
-        st.write("**"+site["name"]+"** • "+site["point_id"])
-        st.write(f"**VC:** {', '.join(site['vc_teams']) or 'Chưa gán đội'}")
-        st.write(f"**LĐ:** {', '.join(site['ld_teams']) or 'Chưa gán đội'}")
-        if site["skus"]:
-            st.dataframe([{
-                "Tên hàng":product_by_key.get((site["project"],item["sku"])) or "Chưa có tên trong kho",
-                "SKU":item["sku"],"SL phân bổ":display_amount(item["planned"]),
-                "VC giao tận xã":display_amount(item["delivered"]),
-                "KTV nhận tập kết":display_amount(item["hub"]),
-                "LĐ đã báo lắp":display_amount(item["installed"]),
-                "Đã phân bổ chưa lắp":display_amount(
-                    item["planned"]-item["installed"])
-            } for item in site["skus"]],hide_index=True,use_container_width=True)
-        else:
-            st.info("Địa điểm chưa được phân bổ hàng.")
-    else:
-        st.info("Không có địa điểm khớp điều kiện tìm kiếm.")
-
-    st.markdown("#### 3. Nhập kho – Phân bổ – Giao – Lắp theo SKU")
-    st.caption("VC giao tận xã và KTV nhận tập kết được báo riêng. "
-               "'Đã phân bổ chưa lắp' = SL phân bổ trừ SL KTV đã báo lắp "
-               "(kể cả lắp một phần); KHÔNG phải tồn kho vật lý. "
-               "Mỗi SKU giữ nguyên ĐVT của mình.")
-    if progress["skus"]:
-        st.dataframe(progress["skus"],hide_index=True,use_container_width=True)
-    else:
-        st.info("Chưa có dữ liệu nhập kho/phân bổ của dự án.")
-
-    st.markdown("#### 4. Báo cáo hiện trường gần đây")
-    activity=progress["activity"]
-    def readable_report_items(row):
-        raw=str(row.get("Danh sách SKU:SL thực tế") or "").strip()
-        if not raw:
-            return "Chưa ghi"
-        readable=[]
-        for part in raw.split(","):
-            sku,sep,amount=part.strip().partition(":")
-            if not sep:
-                readable.append(part.strip())
-                continue
-            name=product_by_key.get((row.get("Mã dự án"),sku)) or ""
-            readable.append(f"{name or sku} (SKU {sku}): {amount.strip()}")
-        return ", ".join(readable)
-    if activity:
-        st.dataframe([{
-            "Thời gian":str(r.get("Thời gian máy chủ","")).replace("T"," ")[:19],
-            "Dự án":r.get("Mã dự án",""),
-            "Mã điểm":r.get("Mã điểm",""),
-            "Tên đội":team_by_id.get(r.get("Mã đội"),{}).get("Tên đội/đội trưởng","") or "Chưa có tên đội",
-            "Mã đội":r.get("Mã đội",""),
-            "Nội dung":r.get("Loại báo cáo",""),
-            "Mặt hàng và SL":readable_report_items(r),
-            "Đồng bộ":r.get("Trạng thái đồng bộ","")
-        } for r in activity],hide_index=True,use_container_width=True)
-        st.caption("Bảng tóm tắt 40 báo cáo mới nhất. Bấm chọn "
-                   "một báo cáo dưới đây để xem bằng chứng kèm theo.")
-        index=st.selectbox(
-            "Xem chi tiết một báo cáo hiện trường",
-            list(range(len(activity))),
-            format_func=lambda i:(
-                str(activity[i].get("Thời gian máy chủ",""))[:19].replace("T"," ")
-                +" • "+str(activity[i].get("Loại báo cáo",""))
-                +" • "+str(activity[i].get("Mã báo cáo",""))),
-            key="leadership_report_detail"
+               " (giờ Việt Nam). Nhấn CẬP NHẬT để đọc dữ liệu mới nhất.")
+    cards=[
+        ("Điểm dự án","sites"),
+        ("Đã phân bổ hàng","sites_allocated"),
+        ("VC giao tận xã đủ","sites_delivered"),
+        ("LĐ đã lắp đủ","sites_installed"),
+        ("VC bàn giao tập kết đủ","sites_vc_hub_done"),
+        ("KTV nhận tập kết đủ","sites_at_hub"),
+    ]
+    chart_rows=[
+        ("Phân bổ hàng","sites_allocated"),
+        ("VC giao tận xã","sites_delivered"),
+        ("LĐ lắp đặt đủ","sites_installed"),
+        ("VC bàn giao tập kết","sites_vc_hub_done"),
+        ("KTV nhận tập kết","sites_at_hub"),
+    ]
+    card_html="".join(
+        '<div class="kpi"><div class="label">'+label+
+        '</div><div class="value">'+str(max(0,int(m.get(key,0) or 0)))+
+        '</div></div>'
+        for label,key in cards
+    )
+    rows_html=""
+    for label,key in chart_rows:
+        value=max(0,int(m.get(key,0) or 0))
+        pct=min(100.0,(value/total*100.0) if total else 0.0)
+        rows_html+=(
+            '<div class="row"><div class="row-label">'+label+
+            '</div><div class="track"><div class="fill" style="width:'+
+            f'{pct:.1f}%'+
+            ';"></div></div><div class="row-value">'+str(value)+
+            '/'+str(total)+'</div></div>'
         )
-        record=activity[index]
-        with st.container(border=True):
-            st.write("**Báo cáo:** "+str(record.get("Mã báo cáo","")))
-            report_team_detail=team_by_id.get(record.get("Mã đội"),{})
-            st.write("**Đội:** "+
-                     str(report_team_detail.get("Tên đội/đội trưởng") or "Chưa có tên đội")+
-                     " • Mã đội: "+str(record.get("Mã đội","")))
-            st.write("**Dự án/điểm:** "+str(record.get("Mã dự án",""))+
-                     " / "+str(record.get("Mã điểm","")))
-            st.write("**Nội dung:** "+str(record.get("Loại báo cáo","")))
-            st.write("**Hàng hóa và SL thực tế:** "+readable_report_items(record))
-            st.write("**Kết quả đối soát:** "+
-                     str(record.get("Kết quả đối soát") or "Chưa ghi"))
-            st.write("**Trạng thái đồng bộ:** "+
-                     str(record.get("Trạng thái đồng bộ") or "Chưa ghi"))
-            if record.get("Ghi chú"):
-                st.caption("Ghi chú: "+str(record.get("Ghi chú")))
-            def safe_evidence_url(raw,kind="image"):
-                parsed=urlparse(str(raw).strip())
-                hosts=({"drive.google.com","docs.google.com",
-                         "lh3.googleusercontent.com","storage.googleapis.com"}
-                       if kind=="image" else
-                       {"www.google.com","google.com","maps.google.com"})
-                return str(raw).strip() if (parsed.scheme=="https" and
-                                            parsed.hostname in hosts) else ""
-            photos=str(record.get("Link ảnh") or "").split(",")
-            image_links=[safe_evidence_url(x) for x in photos]
-            image_links=[x for x in image_links if x][:10]
-            if image_links:
-                for i,photo in enumerate(image_links,1):
-                    st.link_button(f"📷 Xem ảnh hiện trường {i}",photo,
-                                   use_container_width=True)
-            else:
-                st.caption("Báo cáo chưa có liên kết ảnh được xác minh.")
-            url=safe_evidence_url(record.get("Link Google Maps"),"map")
-            if url:
-                st.link_button("📍 Xem vị trí báo cáo trên Maps",url,
-                               use_container_width=True)
-            st.caption("Ảnh Drive có thể yêu cầu quyền xem riêng. "
-                       "Không có nút sửa/xóa hoặc duyệt từ màn hình này.")
-    else:
-        st.info("Chưa có báo cáo hiện trường. "
-                "Phân bổ và gán đội không được tính là đã giao/lắp.")
-    st.caption("Báo cáo chỉ đọc. ADMIN xử lý nhập kho, phân bổ, phân công "
-               "và đối soát tại các chức năng riêng; LÃNH ĐẠO không được sửa dữ liệu.")
+    html=(
+        '<!doctype html><html><head><meta name="viewport" '
+        'content="width=device-width, initial-scale=1">'
+        '<style>'
+        '*{box-sizing:border-box}body{margin:0;padding:2px;background:transparent;'
+        'font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;'
+        'color:#1f2937}.layout{display:grid;grid-template-columns:1.05fr .95fr;'
+        'gap:10px}.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));'
+        'gap:8px}.kpi,.chart{border:1px solid #dbe4ee;border-radius:12px;'
+        'background:#f3f7fb}.kpi{min-height:70px;padding:9px 10px;'
+        'display:flex;flex-direction:column;justify-content:space-between}'
+        '.label{font-size:12px;line-height:1.25;color:#475569;min-height:28px}'
+        '.value{font-size:22px;line-height:1;font-weight:700;color:#111827}'
+        '.chart{padding:12px}.chart-title{font-size:14px;font-weight:700;'
+        'margin:0 0 7px}.row{display:grid;grid-template-columns:108px minmax(35px,1fr) 43px;'
+        'gap:6px;align-items:center;margin:10px 0}.row-label{font-size:11px;'
+        'line-height:1.15;color:#475569}.track{height:9px;border-radius:99px;'
+        'background:#dbe5ef;overflow:hidden}.fill{height:100%;border-radius:99px;'
+        'background:#2878c8}.row-value{font-size:11px;text-align:right;'
+        'font-variant-numeric:tabular-nums;color:#334155}.note{font-size:10px;'
+        'line-height:1.25;color:#64748b;margin-top:8px}'
+        '@media(max-width:620px){.layout{grid-template-columns:1fr;gap:8px}'
+        '.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}'
+        '.kpi{min-height:62px;padding:8px 9px}.chart{padding:9px 10px}'
+        '.row{grid-template-columns:102px minmax(35px,1fr) 42px;margin:7px 0}'
+        '.chart-title{margin-bottom:4px}}'
+        '</style></head><body><div class="layout"><div class="kpis">'+card_html+
+        '</div><div class="chart"><div class="chart-title">Tiến độ theo điểm</div>'+
+        rows_html+'<div class="note">Mỗi chỉ tiêu là số điểm đã đủ SKU / tổng số điểm. '
+        'Số liệu báo cáo phục vụ theo dõi, chưa thay thế nghiệm thu hoặc đối soát '
+        'xuất kho vật lý.</div></div></div></body></html>'
+    )
+    st.components.v1.html(html,height=390,scrolling=False)
 
 def main():
     try:
