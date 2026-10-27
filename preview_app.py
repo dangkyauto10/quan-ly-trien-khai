@@ -135,7 +135,7 @@ def approved_team_site_overview(team, registrations, locations, tasksets):
 APP_ICON = Path(__file__).resolve().parent / "assets" / "tdv_icon_144.png"
 # Use the approved TDV square logo for the tab favicon and app masthead.
 st.set_page_config(
-    page_title="QUẢN LÝ DỰ ÁN • PREVIEW",
+    page_title="DỰ ÁN TDV",
     page_icon=str(APP_ICON),
     layout="wide"
 )
@@ -516,7 +516,7 @@ def configure_photo_folder():
     open_picker = st.button(
         "📂 MỞ CHỌN THƯ MỤC ẢNH",
         key="preview_open_photo_folder_picker",
-        help="Mở cửa sổ Google Drive để chọn đúng thư mục ảnh PREVIEW."
+        help="Mở cửa sổ Google Drive để chọn đúng thư mục ảnh DỰ ÁN."
     )
     picked = pick_folder(
         api_key, cred.token, app_id=app_id,
@@ -526,7 +526,7 @@ def configure_photo_folder():
     if not picked:
         return
     if picked.get("folderId") != folder:
-        st.error("Đã chọn nhầm thư mục. Hãy chọn đúng thư mục ảnh PREVIEW "
+        st.error("Đã chọn nhầm thư mục. Hãy chọn đúng thư mục ảnh DỰ ÁN "
                  "đã cấu hình; chưa cấp quyền tải ảnh.")
         return
     try:
@@ -1256,7 +1256,7 @@ def projects_and_inventory():
                     append("NHAP_KHO",["NK-"+uuid.uuid4().hex[:12].upper(),project,now(),sku,name,unit,quantity,"",auth()["username"],""])
                 audit(auth()["username"],"THÊM DANH MỤC",choice,code if choice != "Hàng nhập kho" else sku,"OK")
                 read_sheet.clear()
-                st.success("Đã lưu vào Google Sheets Preview.")
+                st.success("Đã lưu vào Google Sheets DỰ ÁN.")
             except Exception as e:
                 st.error(f"Lưu thất bại: {type(e).__name__}")
     if choice == "Hàng nhập kho":
@@ -2043,7 +2043,7 @@ def provision_team_password():
                 sheet("TAI_KHOAN_DOI").update(
                     range_name=f"E{idx}:J{idx}",
                     values=[[salt,digest,"Hoạt động",when,admin,
-                             "ADMIN đặt lại mật khẩu trên PREVIEW"]],
+                             "ADMIN đặt lại mật khẩu trên DỰ ÁN"]],
                     value_input_option="RAW")
                 username=row["Mã tài khoản"]
             else:
@@ -2053,7 +2053,7 @@ def provision_team_password():
                 append("TAI_KHOAN_DOI", [
                     username,team["Mã đội"],team["Mã dự án"],
                     "DOI_TRUONG",salt,digest,"Hoạt động",when,
-                    admin,"ADMIN cấp mật khẩu trên PREVIEW"])
+                    admin,"ADMIN cấp mật khẩu trên DỰ ÁN"])
             read_sheet.clear()
             verified=effective_accounts().get(username)
             if not verified or verified.get("hash")!=digest or (
@@ -2367,7 +2367,7 @@ def team_reassignment_admin():
         digest=hashlib.sha256(repr(change_signature(planned)).encode()).hexdigest()[:16]
         ack=st.checkbox(
             "Tôi đã kiểm tra đúng đội, địa điểm và các nhiệm vụ sẽ thay đổi. "
-            "Tôi đồng ý thực hiện trên PREVIEW.",
+            "Tôi đồng ý thực hiện trên DỰ ÁN.",
             key=f"team_change_confirm_{digest}")
         label=("✅ XÁC NHẬN NGỪNG ĐỘI / THU HỒI VIỆC" if suspend else
                "✅ XÁC NHẬN GIAO LẠI ĐỘI KHÁC" if transfer else
@@ -2455,7 +2455,7 @@ def teams_and_approval():
     account_count=sum(bool(r.get("Mã tài khoản"))
                       for r in read_sheet("TAI_KHOAN_DOI")
                       if r.get("Trạng thái")=="Hoạt động")
-    st.caption(f"Google Sheets PREVIEW: **{len(registrations)} hồ sơ đăng ký**"
+    st.caption(f"Google Sheets DỰ ÁN: **{len(registrations)} hồ sơ đăng ký**"
                f" • **{len(active_teams)} đội trưởng đang hoạt động**"
                f" • **{account_count} tài khoản cấp qua app**.")
     if not registrations and active_teams:
@@ -2854,12 +2854,12 @@ def images_to_drive(files, report_id, project_id="", point_id="", point_name="",
         safe=lambda x: "".join(c for c in str(x) if c.isalnum() or c in "-_")[:48]
         stamp="".join(c for c in recorded_at if c.isdigit() or c=="T")[:15]
         photo_prefix=f"{safe(project_id)}_{safe(point_id)}_{stamp}_{report_id}"
-        description=(f"TDV PREVIEW | Dự án: {project_id} | "
+        description=(f"TDV DỰ ÁN | Dự án: {project_id} | "
                      f"Điểm: {point_name} ({point_id}) | "
                      f"Thời điểm gửi: {recorded_at} | Mã báo cáo: {report_id}")
     else:
         photo_prefix=report_id
-        description=f"TDV PREVIEW | Mã chứng từ: {report_id}"
+        description=f"TDV DỰ ÁN | Mã chứng từ: {report_id}"
     urls=[]
     for i, f in enumerate(files[:10]):
         img=Image.open(f)
@@ -3115,7 +3115,7 @@ def hub_admin():
                          "ADMIN cần kiểm tra BAN_GIAO_TAP_KET.")
     st.caption("Biên bản gắn MÃ ĐỘI VC giao và MÃ ĐỘI KTV nhận. "
                "Hai bên có trách nhiệm đối soát theo từng SKU. "
-               "Bảng biên bản chỉ dùng trên PREVIEW. "
+               "Bảng biên bản chỉ dùng trên DỰ ÁN. "
                "Không thay phiếu xuất kho hoặc biên bản nghiệm thu lắp đặt.")
 
 
@@ -3141,7 +3141,7 @@ def report():
                    f"{report_team.get('Tên đội/đội trưởng') or 'Chưa có tên'}"
                    f" • Mã đội: {tid}")
     if a["role"] == "ADMIN":
-        with st.expander("🔐 Kết nối thư mục ảnh PREVIEW (chỉ thư mục đã chọn)",
+        with st.expander("🔐 Kết nối thư mục ảnh DỰ ÁN (chỉ thư mục đã chọn)",
                          expanded=False):
             configure_photo_folder()
     if st.button("🔄 CẬP NHẬT HÀNG VC ĐÃ GIAO",use_container_width=True,
@@ -3378,7 +3378,7 @@ def report():
         # Never offer an actionable submit if the PREVIEW photo destination
         # is missing; this used to surface only after clicking GỬI BÁO CÁO.
         if not str(st.secrets.get("photos_folder_id", "")).strip():
-            st.error("⛔ Chưa cấu hình thư mục lưu ảnh PREVIEW "
+            st.error("⛔ Chưa cấu hình thư mục lưu ảnh DỰ ÁN "
                      "(photos_folder_id). Chưa thể gửi báo cáo. "
                      "ADMIN cần bổ sung cấu hình ảnh trên Streamlit Cloud; "
                      "không bấm gửi lại khi chưa hoàn tất.")
@@ -3389,7 +3389,7 @@ def report():
                                   "picker_api_key"))
         if not oauth_ready:
             st.error("⛔ Chưa cấu hình OAuth giới hạn thư mục ảnh. "
-                     "ADMIN cần hoàn tất Kết nối thư mục ảnh PREVIEW trước; "
+                     "ADMIN cần hoàn tất Kết nối thư mục ảnh DỰ ÁN trước; "
                      "chưa bật gửi báo cáo để tránh tạo báo cáo lỗi.")
             return
         try:
@@ -3398,7 +3398,7 @@ def report():
             st.error("⛔ Chưa xác minh được quyền thư mục ảnh: " +
                      drive_error_summary(exc) +
                      ". ADMIN cần chọn/xác minh thư mục trong mục "
-                     "“Kết nối thư mục ảnh PREVIEW” trước khi gửi.")
+                     "“Kết nối thư mục ảnh DỰ ÁN” trước khi gửi.")
             return
         eligible=bool(photos) and len(photos)<=10 and (not require_gps or (lat is not None and lon is not None))
         if not eligible:
@@ -3778,10 +3778,10 @@ def main():
         if isinstance(e, PreviewSheetReadError):
             st.error(str(e))
         elif isinstance(e, gspread.exceptions.APIError):
-            st.error("Không thể kết nối Google Sheets PREVIEW: HTTP " +
+            st.error("Không thể kết nối Google Sheets DỰ ÁN: HTTP " +
                      str(_google_api_status(e) or "không rõ"))
         else:
-            st.error("Không thể truy cập dữ liệu Preview: " + type(e).__name__)
+            st.error("Không thể truy cập dữ liệu DỰ ÁN: " + type(e).__name__)
         st.caption("Không ghi hoặc xóa dữ liệu khi bước đọc thất bại; kiểm tra mã HTTP nếu còn lỗi.")
 if __name__=="__main__":
     main()
