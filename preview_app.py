@@ -10,6 +10,7 @@ import hashlib
 import time
 import threading
 import unicodedata
+from preview_site_search import search_assigned_site
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import quote, urlparse
@@ -3417,57 +3418,31 @@ def report():
             summary=status_by_site.get(key)
             suffix=" • "+summary["status"] if summary else ""
             return f"{key[0]} • {name} • {key[1]}{suffix}"
-        def normalize_site_query(value):
-            value=unicodedata.normalize("NFD",str(value).casefold())
-            value="".join(ch for ch in value
-                          if unicodedata.category(ch)!="Mn")
-            return value.replace("đ","d")
-        search_key=f"report_site_query_{tid}"
-        search_query=st.text_input(
-            "🔎 Tìm địa điểm được giao",
-            placeholder="Gõ tên địa điểm hoặc mã điểm",
-            key=search_key)
+        search_options=[]
+        key_by_id={}
+        for point_key in available:
+            option_id=json.dumps(list(point_key),ensure_ascii=False,
+                                 separators=(",",":"))
+            search_options.append({
+                "id":option_id,
+                "label":site_option(point_key),
+            })
+            key_by_id[option_id]=point_key
         selected_key=f"report_site_selected_{tid}"
-        current=st.session_state.get(selected_key)
-        query_norm=normalize_site_query(search_query.strip())
-        filtered=[key for key in available
-                  if not query_norm
-                  or query_norm in normalize_site_query(site_option(key))]
-        if not filtered:
-            st.info("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
-            return
-        if query_norm:
-            result_key=f"report_site_result_{tid}"
-            last_query_key=f"report_site_last_query_{tid}"
-            if st.session_state.get(last_query_key)!=search_query:
-                st.session_state[result_key]=None
-                st.session_state[last_query_key]=search_query
-            shown=filtered[:8]
-            result_options=[None]+shown
-            selected_result=st.radio(
-                "Gợi ý địa điểm — chạm vào đúng điểm để chọn",
-                result_options,
-                index=0,
-                format_func=lambda key:(
-                    "— Chọn điểm bên dưới —" if key is None
-                    else site_option(key)),
-                key=result_key)
-            if len(filtered)>len(shown):
-                st.caption(f"Có {len(filtered)} kết quả; gõ thêm để thu hẹp danh sách.")
-            if selected_result is None:
-                st.info("Chạm chọn một gợi ý để hiện hàng hóa và báo cáo của điểm đó.")
-                return
-            st.session_state[selected_key]=selected_result
-            selected_point=selected_result
-        else:
-            if current not in available:
-                st.session_state[selected_key]=available[0]
-            selected_point=st.selectbox(
-                "Địa điểm được giao",
-                available,
-                format_func=site_option,
-                key=selected_key)
-        chosen=selected_point
+        if st.session_state.get(selected_key) not in available:
+            st.session_state[selected_key]=available[0]
+        selected_point=st.session_state[selected_key]
+        selected_id=json.dumps(list(selected_point),ensure_ascii=False,
+                               separators=(",",":"))
+        search_result=search_assigned_site(
+            search_options,selected_id=selected_id,
+            selected_label=site_option(selected_point),
+            key=f"report_site_dropdown_{tid}")
+        if isinstance(search_result,dict):
+            result_id=str(search_result.get("selected_id") or "")
+            if result_id in key_by_id:
+                st.session_state[selected_key]=key_by_id[result_id]
+        chosen=st.session_state[selected_key]
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
                    and p.get("Mã điểm")==chosen[1]),{})
