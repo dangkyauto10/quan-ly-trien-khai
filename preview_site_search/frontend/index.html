@@ -106,7 +106,8 @@
         button.className = "option";
         button.setAttribute("role", "option");
         button.textContent = option.label;
-        button.addEventListener("click", () => {
+        const choose = () => {
+          clearTimeout(timer);
           query = "";
           input.value = "";
           dropdownOpen = false;
@@ -120,6 +121,19 @@
             match_count: results.length
           });
           render();
+        };
+        let pointerHandled = false;
+        button.addEventListener("pointerdown", event => {
+          event.preventDefault();
+          pointerHandled = true;
+          choose();
+        });
+        button.addEventListener("click", () => {
+          if (pointerHandled) {
+            pointerHandled = false;
+            return;
+          }
+          choose();
         });
         dropdown.appendChild(button);
       });
