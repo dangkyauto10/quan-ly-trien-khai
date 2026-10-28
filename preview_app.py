@@ -3437,19 +3437,28 @@ def report():
             st.info("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
             return
         if query_norm:
-            if current not in filtered:
-                st.session_state[selected_key]=None
-            picker_options=[None]+filtered
-            selected_point=st.selectbox(
-                "Chạm để chọn điểm trong kết quả",
-                picker_options,
+            result_key=f"report_site_result_{tid}"
+            last_query_key=f"report_site_last_query_{tid}"
+            if st.session_state.get(last_query_key)!=search_query:
+                st.session_state[result_key]=None
+                st.session_state[last_query_key]=search_query
+            shown=filtered[:8]
+            result_options=[None]+shown
+            selected_result=st.radio(
+                "Gợi ý địa điểm — chạm vào đúng điểm để chọn",
+                result_options,
+                index=0,
                 format_func=lambda key:(
-                    "— Chọn một địa điểm —" if key is None
+                    "— Chọn điểm bên dưới —" if key is None
                     else site_option(key)),
-                key=selected_key)
-            if selected_point is None:
-                st.info("Chọn một địa điểm trong danh sách để hiện hàng hóa và báo cáo.")
+                key=result_key)
+            if len(filtered)>len(shown):
+                st.caption(f"Có {len(filtered)} kết quả; gõ thêm để thu hẹp danh sách.")
+            if selected_result is None:
+                st.info("Chạm chọn một gợi ý để hiện hàng hóa và báo cáo của điểm đó.")
                 return
+            st.session_state[selected_key]=selected_result
+            selected_point=selected_result
         else:
             if current not in available:
                 st.session_state[selected_key]=available[0]
@@ -3537,14 +3546,15 @@ def report():
                            "đã trừ số lượng báo cáo trước đó.")
         st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-PICKER-APPID-20261027-B")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
-        # Keep the photo picker visible, and let iOS open its native camera
-        # chooser instead of requesting live browser camera permission.
+        camera_photo=st.camera_input(
+            "📸 CHỤP ẢNH HIỆN TRƯỜNG — khung chụp luôn hiển thị",
+            key=f"report_camera_{photo_key}")
         uploaded=st.file_uploader(
-            "📸 ẢNH HIỆN TRƯỜNG BẮT BUỘC — chạm Chọn ảnh rồi chọn "
-            "Chụp ảnh để chụp ngay (tối đa 10)",
+            "Hoặc tải ảnh hiện trường có sẵn (tối đa 10 ảnh tổng cộng)",
             type=["jpg","jpeg","png"],accept_multiple_files=True,
             key=f"report_files_{photo_key}")
-        photos=list(uploaded or [])
+        photos=([camera_photo] if camera_photo is not None else [])
+        photos.extend(list(uploaded or []))
         st.caption(f"Ảnh minh chứng đã chọn: {len(photos)}/10")
         require_gps = mode!="Đã giao hàng"
         gps=None
