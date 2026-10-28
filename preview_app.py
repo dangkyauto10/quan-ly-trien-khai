@@ -3312,9 +3312,9 @@ def report():
     if handover:
         st.caption("Đội KTV xem nơi đã nhận hàng tập kết và các xã đã "
                    "giao trực tiếp, không nhầm hai hình thức bàn giao.")
-    with st.expander("📦 1. KIỂM TRA HÀNG VC / TẬP KẾT",
-                     expanded=bool(handover)):
-        if handover:
+    if handover:
+        with st.expander("📦 1. KIỂM TRA HÀNG VC / TẬP KẾT",
+                         expanded=True):
             st.markdown("#### Hàng VC đã giao tận xã / KTV nhận tập kết")
             st.caption("Chỉ các địa điểm được giao cho đội LĐ này. "
                        "Số liệu VC được đối chiếu theo từng SKU và SL THỰC GIAO; "
