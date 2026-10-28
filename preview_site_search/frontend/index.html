@@ -100,43 +100,43 @@
       empty.textContent = "Không tìm thấy điểm khớp. Hãy sửa từ khóa.";
       dropdown.appendChild(empty);
     } else {
+      const list = document.createElement("select");
+      list.id = "results";
+      list.setAttribute("aria-label", "Chọn địa điểm trong kết quả tìm kiếm");
+      list.size = Math.min(results.length, 6);
+      list.style.width = "100%";
+      list.style.minHeight = "48px";
+      list.style.border = "1px solid #cbd2dc";
+      list.style.borderRadius = "8px";
+      list.style.background = "#fff";
+      list.style.color = "#243449";
+      list.style.fontSize = "16px";
+      list.style.padding = "4px";
       results.slice(0, 12).forEach(option => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "option";
-        button.setAttribute("role", "option");
-        button.textContent = option.label;
-        const choose = () => {
-          clearTimeout(timer);
-          query = "";
-          input.value = "";
-          dropdownOpen = false;
-          args = {...args, selectedId: option.id,
-                  selectedLabel: option.label};
-          lastSelectedId = option.id;
-          selected.textContent = "Đã chọn: " + option.label;
-          send("streamlit:setComponentValue", {
-            query: "",
-            selected_id: option.id,
-            match_count: results.length
-          });
-          render();
-        };
-        let pointerHandled = false;
-        button.addEventListener("pointerdown", event => {
-          event.preventDefault();
-          pointerHandled = true;
-          choose();
-        });
-        button.addEventListener("click", () => {
-          if (pointerHandled) {
-            pointerHandled = false;
-            return;
-          }
-          choose();
-        });
-        dropdown.appendChild(button);
+        const item = document.createElement("option");
+        item.value = option.id;
+        item.textContent = option.label;
+        item.style.padding = "10px 8px";
+        list.appendChild(item);
       });
+      list.addEventListener("change", () => {
+        const option = results.find(item => item.id === list.value);
+        if (!option) return;
+        query = "";
+        input.value = "";
+        dropdownOpen = false;
+        args = {...args, selectedId: option.id,
+                selectedLabel: option.label};
+        lastSelectedId = option.id;
+        selected.textContent = "Đã chọn: " + option.label;
+        send("streamlit:setComponentValue", {
+          query: "",
+          selected_id: option.id,
+          match_count: results.length
+        });
+        render();
+      });
+      dropdown.appendChild(list);
       if (results.length > 12) {
         const more = document.createElement("div");
         more.className = "empty";
