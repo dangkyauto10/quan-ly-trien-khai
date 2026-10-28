@@ -3462,21 +3462,29 @@ def report():
                 st.info("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
                 return
             shown=filtered[:8]
-            result_options=[None]+shown
-            selected_result=st.radio(
-                "Gợi ý địa điểm — chạm đúng dòng để chọn",
-                result_options,
-                index=0,
-                format_func=lambda key:(
-                    "— Chạm chọn một địa điểm —" if key is None
-                    else site_option(key)),
-                key=result_key)
+            selected_result=st.session_state.get(result_key)
+            if selected_result not in shown:
+                selected_result=None
+                st.session_state[result_key]=None
+            st.markdown("**GỢI Ý ĐỊA ĐIỂM — chạm một dòng để chọn**")
+            for index,point_key in enumerate(shown):
+                is_selected=(selected_result==point_key)
+                label=("✅ " if is_selected else "📍 ")+site_option(point_key)
+                if st.button(
+                    label,
+                    key=f"report_site_choice_{tid}_{index}",
+                    type="primary" if is_selected else "secondary",
+                    use_container_width=True):
+                    selected_result=point_key
+                    st.session_state[result_key]=point_key
+                    st.session_state[selected_key]=point_key
             if len(filtered)>len(shown):
                 st.caption(f"Có {len(filtered)} kết quả; gõ thêm để thu hẹp.")
             if selected_result is None:
-                st.info("Chạm chọn một gợi ý để hiện hàng hóa và báo cáo của điểm đó.")
+                st.info("Chạm một điểm để mở hàng hóa và phần báo cáo của điểm đó.")
                 return
             st.session_state[selected_key]=selected_result
+            st.caption("Đã chọn: "+site_option(selected_result))
         else:
             if st.session_state.get(selected_key) not in available:
                 st.session_state[selected_key]=available[0]
