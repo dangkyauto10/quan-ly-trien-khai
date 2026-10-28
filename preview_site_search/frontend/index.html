@@ -19,23 +19,24 @@
   #dropdown {
     display: none; margin-top: 5px; border: 1px solid #d6dbe3;
     border-radius: 8px; background: #fff; overflow-y: auto;
-    max-height: 244px; box-shadow: 0 5px 16px rgba(18, 32, 55, .16);
+    max-height: 300px; box-shadow: 0 5px 16px rgba(18, 32, 55, .16);
   }
   #dropdown.open { display: block; }
   .option {
-    display: block; width: 100%; min-height: 48px; padding: 12px;
+    display: block; width: 100%; min-height: 50px; padding: 12px;
     border: 0; border-bottom: 1px solid #edf0f4; background: #fff;
-    color: #243449; text-align: left; font-size: 15px; line-height: 1.35;
+    color: #243449; text-align: left; font-size: 16px; line-height: 1.35;
+    touch-action: manipulation;
   }
   .option:last-child { border-bottom: 0; }
   .option:active, .option:hover { background: #eef3fb; }
   .empty { padding: 14px; color: #6b7280; font-size: 14px; }
-  #selected { margin-top: 8px; color: #5c6573; font-size: 13px;
-              line-height: 1.4; }
+  #selected { margin-top: 8px; color: #334155; font-size: 15px;
+              font-weight: 600; line-height: 1.4; }
 </style>
 </head>
 <body>
-  <div class="label">🔎 Tìm và chọn điểm được giao</div>
+  <div class="label">🔎 Tìm địa điểm được giao</div>
   <div class="search-wrap">
     <input id="query" type="text" autocomplete="off" autocapitalize="off"
       placeholder="Gõ tên địa điểm hoặc mã điểm" aria-label="Tìm điểm được giao">
@@ -47,7 +48,6 @@
   let query = "";
   let dropdownOpen = false;
   let lastSelectedId = null;
-  let timer = null;
   const input = document.getElementById("query");
   const dropdown = document.getElementById("dropdown");
   const selected = document.getElementById("selected");
@@ -84,6 +84,21 @@
     return options.filter(option => normalize(option.label).includes(needle));
   }
 
+  function choose(option, matchCount) {
+    query = "";
+    input.value = "";
+    dropdownOpen = false;
+    args = {...args, selectedId: option.id, selectedLabel: option.label};
+    lastSelectedId = option.id;
+    selected.textContent = "Đã chọn: " + option.label;
+    render();
+    send("streamlit:setComponentValue", {
+      selected_id: option.id,
+      query: "",
+      match_count: matchCount
+    });
+  }
+
   function render() {
     selected.textContent = args.selectedLabel
       ? "Điểm đang chọn: " + args.selectedLabel : "";
@@ -100,49 +115,23 @@
       empty.textContent = "Không tìm thấy điểm khớp. Hãy sửa từ khóa.";
       dropdown.appendChild(empty);
     } else {
-      const list = document.createElement("select");
-      list.id = "results";
-      list.setAttribute("aria-label", "Chọn địa điểm trong kết quả tìm kiếm");
-      list.size = Math.min(results.length, 6);
-      list.selectedIndex = -1;
-      list.style.width = "100%";
-      list.style.minHeight = "48px";
-      list.style.border = "1px solid #cbd2dc";
-      list.style.borderRadius = "8px";
-      list.style.background = "#fff";
-      list.style.color = "#243449";
-      list.style.fontSize = "16px";
-      list.style.padding = "4px";
-      results.slice(0, 12).forEach(option => {
-        const item = document.createElement("option");
-        item.value = option.id;
-        item.textContent = option.label;
-        item.style.padding = "10px 8px";
-        list.appendChild(item);
-      });
-      list.addEventListener("change", () => {
-        clearTimeout(timer);
-        const option = results.find(item => item.id === list.value);
-        if (!option) return;
-        query = "";
-        input.value = "";
-        dropdownOpen = false;
-        args = {...args, selectedId: option.id,
-                selectedLabel: option.label};
-        lastSelectedId = option.id;
-        selected.textContent = "Đã chọn: " + option.label;
-        send("streamlit:setComponentValue", {
-          query: "",
-          selected_id: option.id,
-          match_count: results.length
+      results.slice(0, 10).forEach(option => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "option";
+        button.setAttribute("role", "option");
+        button.setAttribute("aria-label", "Chọn " + option.label);
+        button.textContent = option.label;
+        button.addEventListener("click", event => {
+          event.preventDefault();
+          choose(option, results.length);
         });
-        render();
+        dropdown.appendChild(button);
       });
-      dropdown.appendChild(list);
-      if (results.length > 12) {
+      if (results.length > 10) {
         const more = document.createElement("div");
         more.className = "empty";
-        more.textContent = "Còn " + (results.length - 12) +
+        more.textContent = "Còn " + (results.length - 10) +
           " điểm khớp. Gõ thêm để thu hẹp kết quả.";
         dropdown.appendChild(more);
       }
@@ -177,22 +166,6 @@
     query = input.value;
     dropdownOpen = true;
     render();
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      send("streamlit:setComponentValue", {
-        query: query.trim(),
-        selected_id: "",
-        match_count: matches().length
-      });
-    }, 320);
-  });
-  input.addEventListener("blur", () => {
-    setTimeout(() => {
-      if (!dropdown.contains(document.activeElement)) {
-        dropdownOpen = false;
-        render();
-      }
-    }, 120);
   });
   window.addEventListener("load", () => {
     send("streamlit:componentReady", {apiVersion: 1});
