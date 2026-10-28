@@ -9,6 +9,7 @@ import hmac
 import hashlib
 import time
 import threading
+import unicodedata
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import quote, urlparse
@@ -3404,17 +3405,39 @@ def report():
         site_rows=read_sheet("DANH_SACH_DIEM")
         locs={p.get("Mã điểm"):p.get("Tên xã/phường/đơn vị")
               for p in site_rows}
+        site_by_key={(p.get("Mã dự án"),p.get("Mã điểm")):p
+                     for p in site_rows}
         def site_option(key):
             name=locs.get(key[1],key[1])
             summary=status_by_site.get(key)
             suffix=" • "+summary["status"] if summary else ""
             return f"{key[0]} • {name} • {key[1]}{suffix}"
-        site_labels={site_option(key):key for key in available}
+        def normalize_site_query(value):
+            value=unicodedata.normalize("NFD",str(value).casefold())
+            value="".join(ch for ch in value
+                          if unicodedata.category(ch)!="Mn")
+            return value.replace("đ","d")
+        site_query=st.text_input(
+            "🔎 Tìm điểm được giao",
+            placeholder="Gõ tên địa điểm hoặc mã điểm",
+            key=f"report_site_search_{tid}")
+        query=normalize_site_query(site_query.strip())
+        search_fields={}
+        for key in available:
+            site=site_by_key.get(key,{})
+            search_fields[key]=normalize_site_query(" ".join([
+                key[0],key[1],locs.get(key[1],"") or "",
+                site.get("Địa chỉ chi tiết","") or "",
+                site.get("Tỉnh/Thành","") or ""]))
+        matched=[key for key in available if query in search_fields[key]] if query else available
+        no_site_match=bool(query and not matched)
+        if no_site_match:
+            st.warning("Không tìm thấy điểm khớp. Hãy sửa hoặc xóa từ khóa.")
+        suggestions=matched if matched else available
+        site_labels={site_option(key):key for key in suggestions}
         chosen_label=st.selectbox(
-            "🔎 Tìm tên điểm hoặc mã điểm rồi chạm chọn",
+            "Chạm chọn điểm trong gợi ý",
             list(site_labels),
-            help="Chạm vào ô này, gõ tên địa điểm hoặc mã điểm để lọc gợi ý, "
-                 "rồi chạm chọn đúng địa điểm.",
             key=f"report_site_choice_{tid}")
         chosen=site_labels[chosen_label]
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
@@ -3538,9 +3561,14 @@ def report():
                      ". ADMIN cần chọn/xác minh thư mục trong mục "
                      "“Kết nối thư mục ảnh DỰ ÁN” trước khi gửi.")
             return
-        eligible=bool(photos) and len(photos)<=10 and (not require_gps or (lat is not None and lon is not None))
+        eligible=(bool(photos) and len(photos)<=10
+                  and not no_site_match
+                  and (not require_gps or (lat is not None and lon is not None)))
         if not eligible:
-            st.info("Cần ảnh và" + (" GPS check-in." if require_gps else " đúng số ảnh quy định."))
+            if no_site_match:
+                st.info("Hãy nhập từ khóa có gợi ý khớp rồi chọn đúng điểm.")
+            else:
+                st.info("Cần ảnh và" + (" GPS check-in." if require_gps else " đúng số ảnh quy định."))
             return
         if st.button("✅ GỬI BÁO CÁO",type="primary",use_container_width=True):
             if not any(v>0 for v in increments.values()):
