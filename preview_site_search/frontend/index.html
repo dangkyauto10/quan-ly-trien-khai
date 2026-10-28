@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 4px 0 8px; color: #253247;
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .label { margin: 0 0 7px; font-size: 16px; font-weight: 600; }
+  .search-wrap { position: relative; }
+  input {
+    width: 100%; min-height: 48px; padding: 11px 14px;
+    border: 1px solid #cbd2dc; border-radius: 8px;
+    background: #f4f6f9; color: #1f2937; font-size: 16px;
+    outline: none;
+  }
+  input:focus { border: 2px solid #4b73bd; background: #fff; }
+  #dropdown {
+    display: none; margin-top: 5px; border: 1px solid #d6dbe3;
+    border-radius: 8px; background: #fff; overflow-y: auto;
+    max-height: 244px; box-shadow: 0 5px 16px rgba(18, 32, 55, .16);
+  }
+  #dropdown.open { display: block; }
+  .option {
+    display: block; width: 100%; min-height: 48px; padding: 12px;
+    border: 0; border-bottom: 1px solid #edf0f4; background: #fff;
+    color: #243449; text-align: left; font-size: 15px; line-height: 1.35;
+  }
+  .option:last-child { border-bottom: 0; }
+  .option:active, .option:hover { background: #eef3fb; }
+  .empty { padding: 14px; color: #6b7280; font-size: 14px; }
+  #selected { margin-top: 8px; color: #5c6573; font-size: 13px;
+              line-height: 1.4; }
+</style>
+</head>
+<body>
+  <div class="label">🔎 Tìm và chọn điểm được giao</div>
+  <div class="search-wrap">
+    <input id="query" type="text" autocomplete="off" autocapitalize="off"
+      placeholder="Gõ tên địa điểm hoặc mã điểm" aria-label="Tìm điểm được giao">
+    <div id="dropdown" role="listbox"></div>
+  </div>
+  <div id="selected" aria-live="polite"></div>
+<script>
+  let args = {};
+  let query = "";
+  let dropdownOpen = false;
+  let lastSelectedId = null;
+  let timer = null;
+  const input = document.getElementById("query");
+  const dropdown = document.getElementById("dropdown");
+  const selected = document.getElementById("selected");
+
+  function send(type, value) {
+    const message = {isStreamlitMessage: true, type};
+    if (type === "streamlit:componentReady") {
+      message.apiVersion = value?.apiVersion;
+    } else {
+      message.value = value;
+    }
+    window.parent.postMessage(message, "*");
+  }
+
+  function setHeight() {
+    const height = Math.ceil(document.documentElement.scrollHeight + 8);
+    window.parent.postMessage({
+      isStreamlitMessage: true,
+      type: "streamlit:setFrameHeight",
+      height
+    }, "*");
+  }
+
+  function normalize(value) {
+    return String(value || "").toLocaleLowerCase("vi")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d");
+  }
+
+  function matches() {
+    const needle = normalize(query.trim());
+    const options = Array.isArray(args.options) ? args.options : [];
+    if (!needle) return [];
+    return options.filter(option => normalize(option.label).includes(needle));
+  }
+
+  function render() {
+    selected.textContent = args.selectedLabel
+      ? "Điểm đang chọn: " + args.selectedLabel : "";
+    dropdown.replaceChildren();
+    if (!dropdownOpen || !query.trim()) {
+      dropdown.classList.remove("open");
+      setHeight();
+      return;
+    }
+    const results = matches();
+    if (!results.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "Không tìm thấy điểm khớp. Hãy sửa từ khóa.";
+      dropdown.appendChild(empty);
+    } else {
+      results.slice(0, 12).forEach(option => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "option";
+        button.setAttribute("role", "option");
+        button.textContent = option.label;
+        button.addEventListener("mousedown", event => event.preventDefault());
+        button.addEventListener("click", () => {
+          query = "";
+          input.value = "";
+          dropdownOpen = false;
+          send("streamlit:setComponentValue", {
+            query: "",
+            selected_id: option.id,
+            match_count: results.length
+          });
+          render();
+        });
+        dropdown.appendChild(button);
+      });
+      if (results.length > 12) {
+        const more = document.createElement("div");
+        more.className = "empty";
+        more.textContent = "Còn " + (results.length - 12) +
+          " điểm khớp. Gõ thêm để thu hẹp kết quả.";
+        dropdown.appendChild(more);
+      }
+    }
+    dropdown.classList.add("open");
+    setHeight();
+  }
+
+  function onRender(data) {
+    const nextArgs = data.args || {};
+    const nextId = String(nextArgs.selectedId || "");
+    args = nextArgs;
+    if (lastSelectedId !== nextId) {
+      lastSelectedId = nextId;
+      query = "";
+      input.value = "";
+      dropdownOpen = false;
+    }
+    render();
+  }
+
+  window.addEventListener("message", event => {
+    const data = event.data || {};
+    if (data.type === "streamlit:render") onRender(data);
+  });
+
+  input.addEventListener("focus", () => {
+    dropdownOpen = true;
+    render();
+  });
+  input.addEventListener("input", () => {
+    query = input.value;
+    dropdownOpen = true;
+    render();
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      send("streamlit:setComponentValue", {
+        query: query.trim(),
+        selected_id: "",
+        match_count: matches().length
+      });
+    }, 320);
+  });
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (!dropdown.contains(document.activeElement)) {
+        dropdownOpen = false;
+        render();
+      }
+    }, 120);
+  });
+  window.addEventListener("load", () => {
+    send("streamlit:componentReady", {apiVersion: 1});
+    setHeight();
+  });
+</script>
+</body>
+</html>
