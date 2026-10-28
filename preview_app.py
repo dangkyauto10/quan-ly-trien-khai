@@ -10,6 +10,7 @@ import hashlib
 import time
 import threading
 import unicodedata
+from preview_site_search import search_assigned_site
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import quote, urlparse
@@ -3417,44 +3418,40 @@ def report():
             value="".join(ch for ch in value
                           if unicodedata.category(ch)!="Mn")
             return value.replace("đ","d")
-        search_key=f"report_site_search_{tid}"
+        search_options=[]
+        key_by_id={}
+        for point_key in available:
+            option_id=json.dumps(list(point_key),ensure_ascii=False,
+                                 separators=(",",":"))
+            search_options.append({
+                "id":option_id,
+                "label":site_option(point_key),
+            })
+            key_by_id[option_id]=point_key
         selected_key=f"report_site_selected_{tid}"
         if st.session_state.get(selected_key) not in available:
             st.session_state[selected_key]=available[0]
-        def choose_report_site(key):
-            st.session_state[selected_key]=key
-            st.session_state[search_key]=""
-        search_fields={}
-        for key in available:
-            site=site_by_key.get(key,{})
-            search_fields[key]=normalize_site_query(" ".join([
-                key[0],key[1],locs.get(key[1],"") or "",
-                site.get("Địa chỉ chi tiết","") or "",
-                site.get("Tỉnh/Thành","") or ""]))
-        site_query=st.text_input(
-            "🔎 Tìm và chọn điểm được giao",
-            placeholder="Gõ tên địa điểm hoặc mã điểm",
-            key=search_key)
-        query=normalize_site_query(site_query.strip())
-        matched=[key for key in available
-                 if query in search_fields[key]] if query else []
-        no_site_match=bool(query and not matched)
-        if query and matched:
-            st.caption("Chạm vào gợi ý để chọn đúng địa điểm.")
-            for key in matched[:10]:
-                st.button(
-                    "📍 "+site_option(key),
-                    key=f"report_site_pick_{tid}_{key[0]}_{key[1]}",
-                    on_click=choose_report_site,args=(key,),
-                    use_container_width=True)
-            if len(matched)>10:
-                st.caption(f"Có {len(matched)} điểm khớp; gõ thêm vài chữ "
-                           "để thu hẹp gợi ý.")
-        elif no_site_match:
-            st.warning("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
+        selected_point=st.session_state[selected_key]
+        selected_id=json.dumps(list(selected_point),ensure_ascii=False,
+                               separators=(",",":"))
+        search_result=search_assigned_site(
+            search_options,selected_id=selected_id,
+            selected_label=site_option(selected_point),
+            key=f"report_site_dropdown_{tid}")
+        search_query=""
+        match_count=0
+        if isinstance(search_result,dict):
+            search_query=str(search_result.get("query") or "")
+            try:
+                match_count=int(search_result.get("match_count") or 0)
+            except (TypeError,ValueError):
+                match_count=0
+            result_id=str(search_result.get("selected_id") or "")
+            if result_id in key_by_id:
+                st.session_state[selected_key]=key_by_id[result_id]
+        search_selection_pending=bool(search_query)
         chosen=st.session_state[selected_key]
-        st.caption("Điểm đang chọn: "+site_option(chosen))
-        site=next((p for p in read_sheet("DANH_SACH_DIEM")
+        st.caption("Điểm đang chọn: "+site_option(chosen))        site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
                    and p.get("Mã điểm")==chosen[1]),{})
         if site:
@@ -3576,11 +3573,11 @@ def report():
                      "“Kết nối thư mục ảnh DỰ ÁN” trước khi gửi.")
             return
         eligible=(bool(photos) and len(photos)<=10
-                  and not no_site_match
+                  and not search_selection_pending
                   and (not require_gps or (lat is not None and lon is not None)))
         if not eligible:
-            if no_site_match:
-                st.info("Hãy nhập từ khóa có gợi ý khớp rồi chọn đúng điểm.")
+            if search_selection_pending:
+                st.info("Chạm chọn một gợi ý địa điểm trước khi gửi báo cáo.")
             else:
                 st.info("Cần ảnh và" + (" GPS check-in." if require_gps else " đúng số ảnh quy định."))
             return
