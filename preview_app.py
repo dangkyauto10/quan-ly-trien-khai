@@ -3423,39 +3423,44 @@ def report():
             value="".join(ch for ch in value
                           if unicodedata.category(ch)!="Mn")
             return value.replace("đ","d")
-        search_options=[]
-        key_by_id={}
-        for point_key in available:
-            option_id=json.dumps(list(point_key),ensure_ascii=False,
-                                 separators=(",",":"))
-            search_options.append({
-                "id":option_id,
-                "label":site_option(point_key),
-            })
-            key_by_id[option_id]=point_key
+        search_key=f"report_site_query_{tid}"
+        search_query=st.text_input(
+            "🔎 Tìm địa điểm được giao",
+            placeholder="Gõ tên địa điểm hoặc mã điểm",
+            key=search_key)
         selected_key=f"report_site_selected_{tid}"
-        if st.session_state.get(selected_key) not in available:
-            st.session_state[selected_key]=available[0]
-        selected_point=st.session_state[selected_key]
-        selected_id=json.dumps(list(selected_point),ensure_ascii=False,
-                               separators=(",",":"))
-        search_result=search_assigned_site(
-            search_options,selected_id=selected_id,
-            selected_label=site_option(selected_point),
-            key=f"report_site_dropdown_{tid}")
-        search_query=""
-        match_count=0
-        if isinstance(search_result,dict):
-            search_query=str(search_result.get("query") or "")
-            try:
-                match_count=int(search_result.get("match_count") or 0)
-            except (TypeError,ValueError):
-                match_count=0
-            result_id=str(search_result.get("selected_id") or "")
-            if result_id in key_by_id:
-                st.session_state[selected_key]=key_by_id[result_id]
-        search_selection_pending=bool(search_query)
-        chosen=st.session_state[selected_key]
+        current=st.session_state.get(selected_key)
+        query_norm=normalize_site_query(search_query.strip())
+        filtered=[key for key in available
+                  if not query_norm
+                  or query_norm in normalize_site_query(site_option(key))]
+        if not filtered:
+            st.info("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
+            return
+        if query_norm:
+            if current not in filtered:
+                st.session_state[selected_key]=None
+            picker_options=[None]+filtered
+            selected_point=st.selectbox(
+                "Chạm để chọn điểm trong kết quả",
+                picker_options,
+                format_func=lambda key:(
+                    "— Chọn một địa điểm —" if key is None
+                    else site_option(key)),
+                key=selected_key)
+            if selected_point is None:
+                st.info("Chọn một địa điểm trong danh sách để hiện hàng hóa và báo cáo.")
+                return
+        else:
+            if current not in available:
+                st.session_state[selected_key]=available[0]
+            selected_point=st.selectbox(
+                "Địa điểm được giao",
+                available,
+                format_func=site_option,
+                key=selected_key)
+        search_selection_pending=False
+        chosen=selected_point
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
                    and p.get("Mã điểm")==chosen[1]),{})
@@ -3578,13 +3583,9 @@ def report():
                      "“Kết nối thư mục ảnh DỰ ÁN” trước khi gửi.")
             return
         eligible=(bool(photos) and len(photos)<=10
-                  and not search_selection_pending
                   and (not require_gps or (lat is not None and lon is not None)))
         if not eligible:
-            if search_selection_pending:
-                st.info("Chạm chọn một gợi ý địa điểm trước khi gửi báo cáo.")
-            else:
-                st.info("Cần ảnh và" + (" GPS check-in." if require_gps else " đúng số ảnh quy định."))
+            st.info("Cần ảnh và" + (" GPS check-in." if require_gps else " đúng số ảnh quy định."))
             return
         if st.button("✅ GỬI BÁO CÁO",type="primary",use_container_width=True):
             if not any(v>0 for v in increments.values()):
