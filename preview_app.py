@@ -3521,15 +3521,12 @@ def report():
                            "đã trừ số lượng báo cáo trước đó.")
         st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-PICKER-APPID-20261027-B")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
-        camera_photo=st.camera_input(
-            "📸 CHỤP ẢNH HIỆN TRƯỜNG — khung chụp luôn hiển thị",
-            key=f"report_camera_{photo_key}")
         uploaded=st.file_uploader(
-            "Hoặc tải ảnh hiện trường có sẵn (tối đa 10 ảnh tổng cộng)",
+            "📸 CHỤP HOẶC CHỌN ẢNH HIỆN TRƯỜNG — chạm để mở Camera/Thư viện "
+            "(tối đa 10 ảnh)",
             type=["jpg","jpeg","png"],accept_multiple_files=True,
             key=f"report_files_{photo_key}")
-        photos=([camera_photo] if camera_photo is not None else [])
-        photos.extend(list(uploaded or []))
+        photos=list(uploaded or [])
         st.caption(f"Ảnh minh chứng đã chọn: {len(photos)}/10")
         require_gps = mode!="Đã giao hàng"
         gps=None
