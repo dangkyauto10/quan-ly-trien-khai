@@ -5,10 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   * { box-sizing: border-box; }
-  body { margin: 0; padding: 4px 0 8px; color: #253247;
+  body { margin: 0; padding: 4px 0 6px; color: #253247;
          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
   .label { margin: 0 0 7px; font-size: 16px; font-weight: 600; }
-  .search-wrap { position: relative; }
   input {
     width: 100%; min-height: 48px; padding: 11px 14px;
     border: 1px solid #cbd2dc; border-radius: 8px;
@@ -16,40 +15,23 @@
     outline: none;
   }
   input:focus { border: 2px solid #4b73bd; background: #fff; }
-  #dropdown {
-    display: none; margin-top: 5px; border: 1px solid #d6dbe3;
-    border-radius: 8px; background: #fff; overflow-y: auto;
-    max-height: 300px; box-shadow: 0 5px 16px rgba(18, 32, 55, .16);
-  }
-  #dropdown.open { display: block; }
-  .option {
-    display: block; width: 100%; min-height: 50px; padding: 12px;
-    border: 0; border-bottom: 1px solid #edf0f4; background: #fff;
-    color: #243449; text-align: left; font-size: 16px; line-height: 1.35;
-    touch-action: manipulation;
-  }
-  .option:last-child { border-bottom: 0; }
-  .option:active, .option:hover { background: #eef3fb; }
-  .empty { padding: 14px; color: #6b7280; font-size: 14px; }
-  #selected { margin-top: 8px; color: #334155; font-size: 15px;
+  #selected { margin-top: 8px; color: #334155; font-size: 14px;
               font-weight: 600; line-height: 1.4; }
+  .hint { margin-top: 5px; color: #64748b; font-size: 13px; }
 </style>
 </head>
 <body>
-  <div class="label">🔎 Gõ để tìm điểm — chạm gợi ý để chọn</div>
-  <div class="search-wrap">
-    <input id="query" type="text" autocomplete="off" autocapitalize="off"
-      placeholder="Gõ tên địa điểm hoặc mã điểm" aria-label="Tìm điểm được giao">
-    <div id="dropdown" role="listbox"></div>
-  </div>
+  <div class="label">🔎 Gõ để tìm điểm — chạm gợi ý bên dưới để chọn</div>
+  <input id="query" type="text" autocomplete="off" autocapitalize="off"
+    placeholder="Gõ tên địa điểm hoặc mã điểm" aria-label="Tìm điểm được giao">
   <div id="selected" aria-live="polite"></div>
+  <div class="hint">Kết quả sẽ hiện ngay bên dưới khi gõ.</div>
 <script>
   let args = {};
   let query = "";
-  let dropdownOpen = false;
-  let lastSelectedId = null;
+  let timer = null;
+  let lastSent = null;
   const input = document.getElementById("query");
-  const dropdown = document.getElementById("dropdown");
   const selected = document.getElementById("selected");
 
   function send(type, value) {
@@ -71,86 +53,17 @@
     }, "*");
   }
 
-  function normalize(value) {
-    return String(value || "").toLocaleLowerCase("vi")
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/đ/g, "d");
-  }
-
-  function matches() {
-    const needle = normalize(query.trim());
-    const options = Array.isArray(args.options) ? args.options : [];
-    if (!needle) return [];
-    return options.filter(option => normalize(option.label).includes(needle));
-  }
-
-  function choose(option, matchCount) {
-    query = "";
-    input.value = "";
-    dropdownOpen = false;
-    args = {...args, selectedId: option.id, selectedLabel: option.label};
-    lastSelectedId = option.id;
-    selected.textContent = "Đã chọn: " + option.label;
-    render();
-    send("streamlit:setComponentValue", {
-      selected_id: option.id,
-      query: "",
-      match_count: matchCount
-    });
-  }
-
-  function render() {
+  function onRender(data) {
+    args = data.args || {};
+    const nextQuery = String(args.query || "");
+    if (nextQuery !== query && document.activeElement !== input) {
+      query = nextQuery;
+      input.value = nextQuery;
+      lastSent = nextQuery;
+    }
     selected.textContent = args.selectedLabel
       ? "Điểm đang chọn: " + args.selectedLabel : "";
-    dropdown.replaceChildren();
-    if (!dropdownOpen || !query.trim()) {
-      dropdown.classList.remove("open");
-      setHeight();
-      return;
-    }
-    const results = matches();
-    if (!results.length) {
-      const empty = document.createElement("div");
-      empty.className = "empty";
-      empty.textContent = "Không tìm thấy điểm khớp. Hãy sửa từ khóa.";
-      dropdown.appendChild(empty);
-    } else {
-      results.slice(0, 10).forEach(option => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "option";
-        button.setAttribute("role", "option");
-        button.setAttribute("aria-label", "Chọn " + option.label);
-        button.textContent = option.label;
-        button.addEventListener("click", event => {
-          event.preventDefault();
-          choose(option, results.length);
-        });
-        dropdown.appendChild(button);
-      });
-      if (results.length > 10) {
-        const more = document.createElement("div");
-        more.className = "empty";
-        more.textContent = "Còn " + (results.length - 10) +
-          " điểm khớp. Gõ thêm để thu hẹp kết quả.";
-        dropdown.appendChild(more);
-      }
-    }
-    dropdown.classList.add("open");
     setHeight();
-  }
-
-  function onRender(data) {
-    const nextArgs = data.args || {};
-    const nextId = String(nextArgs.selectedId || "");
-    args = nextArgs;
-    if (lastSelectedId !== nextId) {
-      lastSelectedId = nextId;
-      query = "";
-      input.value = "";
-      dropdownOpen = false;
-    }
-    render();
   }
 
   window.addEventListener("message", event => {
@@ -158,15 +71,16 @@
     if (data.type === "streamlit:render") onRender(data);
   });
 
-  input.addEventListener("focus", () => {
-    dropdownOpen = true;
-    render();
-  });
   input.addEventListener("input", () => {
     query = input.value;
-    dropdownOpen = true;
-    render();
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (query === lastSent) return;
+      lastSent = query;
+      send("streamlit:setComponentValue", {query});
+    }, 220);
   });
+
   window.addEventListener("load", () => {
     send("streamlit:componentReady", {apiVersion: 1});
     setHeight();
