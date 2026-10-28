@@ -3518,17 +3518,14 @@ def report():
                            "đã trừ số lượng báo cáo trước đó.")
         st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-PICKER-APPID-20261027-B")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
-        # Keep direct capture visible on the report screen so members can
-        # take the required on-site photo without enabling a separate control.
-        captured_photo=st.camera_input(
-            "📸 CHỤP ẢNH HIỆN TRƯỜNG — hiển thị sẵn",
-            key=f"report_camera_{photo_key}")
+        # Keep the photo picker visible, and let iOS open its native camera
+        # chooser instead of requesting live browser camera permission.
         uploaded=st.file_uploader(
-            "➕ Chọn thêm ảnh hiện trường (tối đa 10 ảnh tổng cộng)",
+            "📸 ẢNH HIỆN TRƯỜNG BẮT BUỘC — chạm Chọn ảnh rồi chọn "
+            "Chụp ảnh để chụp ngay (tối đa 10)",
             type=["jpg","jpeg","png"],accept_multiple_files=True,
             key=f"report_files_{photo_key}")
-        photos=([captured_photo] if captured_photo is not None else [])
-        photos.extend(list(uploaded or []))
+        photos=list(uploaded or [])
         st.caption(f"Ảnh minh chứng đã chọn: {len(photos)}/10")
         require_gps = mode!="Đã giao hàng"
         gps=None
