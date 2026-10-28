@@ -104,6 +104,7 @@
       list.id = "results";
       list.setAttribute("aria-label", "Chọn địa điểm trong kết quả tìm kiếm");
       list.size = Math.min(results.length, 6);
+      list.selectedIndex = -1;
       list.style.width = "100%";
       list.style.minHeight = "48px";
       list.style.border = "1px solid #cbd2dc";
@@ -120,6 +121,7 @@
         list.appendChild(item);
       });
       list.addEventListener("change", () => {
+        clearTimeout(timer);
         const option = results.find(item => item.id === list.value);
         if (!option) return;
         query = "";
