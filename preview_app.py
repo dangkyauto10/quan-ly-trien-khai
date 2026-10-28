@@ -3451,7 +3451,7 @@ def report():
                 st.session_state[selected_key]=key_by_id[result_id]
         search_selection_pending=bool(search_query)
         chosen=st.session_state[selected_key]
-        st.caption("Điểm đang chọn: "+site_option(chosen))        site=next((p for p in read_sheet("DANH_SACH_DIEM")
+        site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
                    and p.get("Mã điểm")==chosen[1]),{})
         if site:
