@@ -3478,6 +3478,7 @@ def report():
                     selected_result=point_key
                     st.session_state[result_key]=point_key
                     st.session_state[selected_key]=point_key
+                    st.rerun()
             if len(filtered)>len(shown):
                 st.caption(f"Có {len(filtered)} kết quả; gõ thêm để thu hẹp.")
             if selected_result is None:
