@@ -106,11 +106,14 @@
         button.className = "option";
         button.setAttribute("role", "option");
         button.textContent = option.label;
-        button.addEventListener("mousedown", event => event.preventDefault());
         button.addEventListener("click", () => {
           query = "";
           input.value = "";
           dropdownOpen = false;
+          args = {...args, selectedId: option.id,
+                  selectedLabel: option.label};
+          lastSelectedId = option.id;
+          selected.textContent = "Đã chọn: " + option.label;
           send("streamlit:setComponentValue", {
             query: "",
             selected_id: option.id,
