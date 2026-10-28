@@ -3417,11 +3417,13 @@ def report():
             value="".join(ch for ch in value
                           if unicodedata.category(ch)!="Mn")
             return value.replace("đ","d")
-        site_query=st.text_input(
-            "🔎 Tìm điểm được giao",
-            placeholder="Gõ tên địa điểm hoặc mã điểm",
-            key=f"report_site_search_{tid}")
-        query=normalize_site_query(site_query.strip())
+        search_key=f"report_site_search_{tid}"
+        selected_key=f"report_site_selected_{tid}"
+        if st.session_state.get(selected_key) not in available:
+            st.session_state[selected_key]=available[0]
+        def choose_report_site(key):
+            st.session_state[selected_key]=key
+            st.session_state[search_key]=""
         search_fields={}
         for key in available:
             site=site_by_key.get(key,{})
@@ -3429,17 +3431,29 @@ def report():
                 key[0],key[1],locs.get(key[1],"") or "",
                 site.get("Địa chỉ chi tiết","") or "",
                 site.get("Tỉnh/Thành","") or ""]))
-        matched=[key for key in available if query in search_fields[key]] if query else available
+        site_query=st.text_input(
+            "🔎 Tìm và chọn điểm được giao",
+            placeholder="Gõ tên địa điểm hoặc mã điểm",
+            key=search_key)
+        query=normalize_site_query(site_query.strip())
+        matched=[key for key in available
+                 if query in search_fields[key]] if query else []
         no_site_match=bool(query and not matched)
-        if no_site_match:
-            st.warning("Không tìm thấy điểm khớp. Hãy sửa hoặc xóa từ khóa.")
-        suggestions=matched if matched else available
-        site_labels={site_option(key):key for key in suggestions}
-        chosen_label=st.selectbox(
-            "Chạm chọn điểm trong gợi ý",
-            list(site_labels),
-            key=f"report_site_choice_{tid}")
-        chosen=site_labels[chosen_label]
+        if query and matched:
+            st.caption("Chạm vào gợi ý để chọn đúng địa điểm.")
+            for key in matched[:10]:
+                st.button(
+                    "📍 "+site_option(key),
+                    key=f"report_site_pick_{tid}_{key[0]}_{key[1]}",
+                    on_click=choose_report_site,args=(key,),
+                    use_container_width=True)
+            if len(matched)>10:
+                st.caption(f"Có {len(matched)} điểm khớp; gõ thêm vài chữ "
+                           "để thu hẹp gợi ý.")
+        elif no_site_match:
+            st.warning("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
+        chosen=st.session_state[selected_key]
+        st.caption("Điểm đang chọn: "+site_option(chosen))
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
                    and p.get("Mã điểm")==chosen[1]),{})
