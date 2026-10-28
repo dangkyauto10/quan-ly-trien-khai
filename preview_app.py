@@ -10,7 +10,6 @@ import hashlib
 import time
 import threading
 import unicodedata
-from preview_site_search import search_assigned_site
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import quote, urlparse
@@ -3459,7 +3458,6 @@ def report():
                 available,
                 format_func=site_option,
                 key=selected_key)
-        search_selection_pending=False
         chosen=selected_point
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
