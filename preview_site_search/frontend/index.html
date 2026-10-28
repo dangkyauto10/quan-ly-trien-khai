@@ -31,6 +31,7 @@
   let query = "";
   let timer = null;
   let lastSent = null;
+  let lastSelectedId = null;
   const input = document.getElementById("query");
   const selected = document.getElementById("selected");
 
@@ -55,6 +56,11 @@
 
   function onRender(data) {
     args = data.args || {};
+    const nextSelectedId = String(args.selectedId || "");
+    if (lastSelectedId !== null && nextSelectedId !== lastSelectedId) {
+      input.blur();
+    }
+    lastSelectedId = nextSelectedId;
     const nextQuery = String(args.query || "");
     if (nextQuery !== query && document.activeElement !== input) {
       query = nextQuery;
