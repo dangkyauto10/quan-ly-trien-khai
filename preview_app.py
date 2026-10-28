@@ -9,6 +9,7 @@ import hmac
 import hashlib
 import time
 import threading
+import unicodedata
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import quote, urlparse
@@ -3401,15 +3402,44 @@ def report():
         if not available:
             st.info("Đội chưa được giao nhiệm vụ hoặc đã báo cáo hết.")
             return
+        site_rows=read_sheet("DANH_SACH_DIEM")
         locs={p.get("Mã điểm"):p.get("Tên xã/phường/đơn vị")
-              for p in read_sheet("DANH_SACH_DIEM")}
+              for p in site_rows}
+        site_by_key={(p.get("Mã dự án"),p.get("Mã điểm")):p
+                     for p in site_rows}
         def site_option(key):
             name=locs.get(key[1],key[1])
             summary=status_by_site.get(key)
             suffix=" • "+summary["status"] if summary else ""
-            return f"{key[0]} • {name}{suffix}"
-        chosen=st.selectbox("Điểm được giao để báo cáo",available,
-                             format_func=site_option)
+            return f"{key[0]} • {name} • {key[1]}{suffix}"
+        def normalize_site_query(value):
+            value=unicodedata.normalize("NFD",str(value).casefold())
+            value="".join(ch for ch in value
+                          if unicodedata.category(ch)!="Mn")
+            return value.replace("đ","d")
+        site_query=st.text_input(
+            "🔎 Tìm điểm được giao",
+            placeholder="Gõ tên xã/đơn vị hoặc mã điểm; có thể gõ không dấu",
+            key=f"report_site_search_{tid}")
+        query=normalize_site_query(site_query.strip())
+        search_fields={}
+        for key in available:
+            site=site_by_key.get(key,{})
+            search_fields[key]=normalize_site_query(" ".join([
+                key[0],key[1],locs.get(key[1],"") or "",
+                site.get("Địa chỉ chi tiết","") or "",
+                site.get("Tỉnh/Thành","") or ""]))
+        suggestions=([key for key in available
+                      if query in search_fields[key]] if query else available)
+        if query and not suggestions:
+            st.warning("Không tìm thấy điểm khớp. Hãy sửa hoặc xóa từ khóa.")
+            suggestions=available
+        st.caption("Gõ tên hoặc mã điểm ở ô trên; danh sách bên dưới sẽ lọc "
+                   "thành gợi ý để chạm chọn.")
+        chosen=st.selectbox(
+            "Chọn điểm trong danh sách gợi ý",suggestions,
+            format_func=site_option,
+            key=f"report_site_choice_{tid}")
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
                    and p.get("Mã điểm")==chosen[1]),{})
