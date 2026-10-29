@@ -3428,45 +3428,76 @@ def report():
                 "label":site_option(point_key),
             })
             key_by_id[option_id]=point_key
+        search_options=[]
+        for point_key in available:
+            option_id=json.dumps(list(point_key),ensure_ascii=False,
+                                 separators=(",",":"))
+            search_options.append({
+                "id":option_id,
+                "label":site_option(point_key),
+            })
         selected_key=f"report_site_selected_{tid}"
         if st.session_state.get(selected_key) not in available:
             st.session_state[selected_key]=available[0]
         search_key=f"report_site_query_{tid}"
-        event_key=f"report_site_last_selection_event_{tid}"
+        query_event_key=f"report_site_query_event_{tid}"
+        selection_token_key=f"report_site_selection_token_{tid}"
         selected_point=st.session_state[selected_key]
         selected_id=json.dumps(list(selected_point),ensure_ascii=False,
                                separators=(",",":"))
+        search_value=str(st.session_state.get(search_key) or "")
         search_result=search_assigned_site(
             search_options,selected_id=selected_id,
             selected_label=site_option(selected_point),
-            query=str(st.session_state.get(search_key) or ""),
+            query=search_value,
+            selection_token=str(st.session_state.get(selection_token_key) or ""),
             key=f"report_site_dropdown_{tid}")
-        selection_payload=search_result
-        if isinstance(selection_payload,str):
+        payload=search_result
+        if isinstance(payload,str):
             try:
-                selection_payload=json.loads(selection_payload)
+                payload=json.loads(payload)
             except (TypeError,ValueError):
                 pass
-        result_id=""
-        event_id=""
-        if isinstance(selection_payload,dict):
-            result_id=str(selection_payload.get("selectedId") or "")
-            event_id=str(selection_payload.get("eventId") or "")
-        elif isinstance(selection_payload,list):
-            result_id=json.dumps(selection_payload,ensure_ascii=False,
-                                 separators=(",",":"))
-        elif isinstance(selection_payload,str):
-            result_id=selection_payload
-        if result_id in key_by_id:
-            if not event_id:
-                event_id="legacy:"+result_id
-            if event_id!=str(st.session_state.get(event_key) or ""):
-                st.session_state[selected_key]=key_by_id[result_id]
-                st.session_state[search_key]=""
-                st.session_state[event_key]=event_id
-                # Rerun with the new selected ID so the report fields below
-                # are rendered for the point the user just tapped.
-                st.rerun()
+        if isinstance(payload,dict):
+            event_id=str(payload.get("eventId") or "")
+            if event_id and event_id!=str(st.session_state.get(query_event_key) or ""):
+                search_value=str(payload.get("query") or "")
+                st.session_state[search_key]=search_value
+                st.session_state[query_event_key]=event_id
+        st.session_state[search_key]=search_value
+        query_norm=unicodedata.normalize("NFD",search_value.casefold())
+        query_norm="".join(ch for ch in query_norm
+                           if unicodedata.category(ch)!="Mn").replace("đ","d").strip()
+        if query_norm:
+            filtered=[point_key for point_key in available
+                      if query_norm in unicodedata.normalize(
+                          "NFD",site_option(point_key).casefold()
+                      ).replace("đ","d")
+                      and query_norm in "".join(
+                          ch for ch in unicodedata.normalize(
+                              "NFD",site_option(point_key).casefold()
+                          ) if unicodedata.category(ch)!="Mn"
+                      ).replace("đ","d")]
+            if not filtered:
+                st.info("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
+                return
+            st.markdown("**GỢI Ý ĐỊA ĐIỂM — chạm một dòng để mở báo cáo**")
+            for point_key in filtered[:10]:
+                option_id=json.dumps(list(point_key),ensure_ascii=False,
+                                     separators=(",",":"))
+                button_key=hashlib.sha1(option_id.encode("utf-8")).hexdigest()[:12]
+                if st.button(
+                    "📍 "+site_option(point_key),
+                    key=f"report_site_choice_{tid}_{button_key}",
+                    use_container_width=True):
+                    st.session_state[selected_key]=point_key
+                    st.session_state[search_key]=""
+                    st.session_state[selection_token_key]=uuid.uuid4().hex
+                    st.rerun()
+            if len(filtered)>10:
+                st.caption(f"Có {len(filtered)} kết quả; gõ thêm để thu hẹp.")
+            st.info("Chạm một dòng để mở hàng hóa và phần báo cáo của điểm đó.")
+            return
         chosen=st.session_state[selected_key]
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
