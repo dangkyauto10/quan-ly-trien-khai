@@ -9,6 +9,7 @@ import hmac
 import hashlib
 import time
 import threading
+from preview_site_search import search_assigned_site
 import unicodedata
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -3417,17 +3418,56 @@ def report():
             summary=status_by_site.get(key)
             suffix=" • "+summary["status"] if summary else ""
             return f"{key[0]} • {name} • {key[1]}{suffix}"
+        search_options=[]
+        key_by_id={}
+        for point_key in available:
+            option_id=json.dumps(list(point_key),ensure_ascii=False,
+                                 separators=(",",":"))
+            search_options.append({
+                "id":option_id,
+                "label":site_option(point_key),
+            })
+            key_by_id[option_id]=point_key
         selected_key=f"report_site_selected_{tid}"
         if st.session_state.get(selected_key) not in available:
             st.session_state[selected_key]=available[0]
-        # Use Streamlit's native searchable selectbox so mobile taps are
-        # handled as a normal widget selection and rerun the report reliably.
-        chosen=st.selectbox(
-            "🔎 Tìm điểm được giao",
-            available,
-            format_func=site_option,
-            key=selected_key,
-            help="Gõ tên địa điểm hoặc mã điểm để lọc; chạm kết quả để mở báo cáo.")
+        search_key=f"report_site_query_{tid}"
+        event_key=f"report_site_last_selection_event_{tid}"
+        selected_point=st.session_state[selected_key]
+        selected_id=json.dumps(list(selected_point),ensure_ascii=False,
+                               separators=(",",":"))
+        search_result=search_assigned_site(
+            search_options,selected_id=selected_id,
+            selected_label=site_option(selected_point),
+            query=str(st.session_state.get(search_key) or ""),
+            key=f"report_site_dropdown_{tid}")
+        selection_payload=search_result
+        if isinstance(selection_payload,str):
+            try:
+                selection_payload=json.loads(selection_payload)
+            except (TypeError,ValueError):
+                pass
+        result_id=""
+        event_id=""
+        if isinstance(selection_payload,dict):
+            result_id=str(selection_payload.get("selectedId") or "")
+            event_id=str(selection_payload.get("eventId") or "")
+        elif isinstance(selection_payload,list):
+            result_id=json.dumps(selection_payload,ensure_ascii=False,
+                                 separators=(",",":"))
+        elif isinstance(selection_payload,str):
+            result_id=selection_payload
+        if result_id in key_by_id:
+            if not event_id:
+                event_id="legacy:"+result_id
+            if event_id!=str(st.session_state.get(event_key) or ""):
+                st.session_state[selected_key]=key_by_id[result_id]
+                st.session_state[search_key]=""
+                st.session_state[event_key]=event_id
+                # Rerun with the new selected ID so the report fields below
+                # are rendered for the point the user just tapped.
+                st.rerun()
+        chosen=st.session_state[selected_key]
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
                    and p.get("Mã điểm")==chosen[1]),{})
