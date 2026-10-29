@@ -3465,19 +3465,14 @@ def report():
                 st.session_state[search_key]=search_value
                 st.session_state[query_event_key]=event_id
         st.session_state[search_key]=search_value
-        query_norm=unicodedata.normalize("NFD",search_value.casefold())
-        query_norm="".join(ch for ch in query_norm
-                           if unicodedata.category(ch)!="Mn").replace("đ","d").strip()
+        def normalize_site_query(value):
+            normalized=unicodedata.normalize("NFD",str(value).casefold())
+            return "".join(ch for ch in normalized
+                           if unicodedata.category(ch)!="Mn").replace("đ","d")
+        query_norm=normalize_site_query(search_value.strip())
         if query_norm:
             filtered=[point_key for point_key in available
-                      if query_norm in unicodedata.normalize(
-                          "NFD",site_option(point_key).casefold()
-                      ).replace("đ","d")
-                      and query_norm in "".join(
-                          ch for ch in unicodedata.normalize(
-                              "NFD",site_option(point_key).casefold()
-                          ) if unicodedata.category(ch)!="Mn"
-                      ).replace("đ","d")]
+                      if query_norm in normalize_site_query(site_option(point_key))]
             if not filtered:
                 st.info("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
                 return
