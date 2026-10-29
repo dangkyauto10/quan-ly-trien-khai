@@ -51,6 +51,9 @@
       message.apiVersion = value && value.apiVersion;
     } else {
       message.value = value;
+      if (type === "streamlit:setComponentValue") {
+        message.dataType = "json";
+      }
     }
     window.parent.postMessage(message, "*");
   }
