@@ -3463,6 +3463,12 @@ def report():
             # Older component runtimes can return a selected JSON ID as a string.
             st.session_state[selected_key]=key_by_id[selection_payload]
             st.session_state[search_key]=""
+        elif isinstance(selection_payload,list):
+            result_id=json.dumps(selection_payload,ensure_ascii=False,
+                                 separators=(",",":"))
+            if result_id in key_by_id:
+                st.session_state[selected_key]=key_by_id[result_id]
+                st.session_state[search_key]=""
         chosen=st.session_state[selected_key]
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
