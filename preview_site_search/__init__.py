@@ -2,7 +2,7 @@ from pathlib import Path
 import streamlit.components.v1 as components
 
 _component = components.declare_component(
-    "tdv_assigned_site_search_20261029",
+    "tdv_assigned_site_search_20261029_livequery",
     path=str(Path(__file__).parent / "frontend"),
 )
 
