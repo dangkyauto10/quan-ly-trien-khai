@@ -3449,6 +3449,9 @@ def report():
                 st.session_state[selected_key]=key_by_id[result_id]
                 st.session_state[search_key]=""
                 st.session_state[event_key]=event_id
+                # Run once more with the new selected-site state before rendering
+                # the report controls below the search component.
+                st.rerun()
         chosen=st.session_state[selected_key]
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
@@ -3472,6 +3475,10 @@ def report():
         vrows=[r for r in vc if (r["Mã dự án"],r["Mã điểm"])==chosen]
         lrows=[r for r in ld if (r["Mã dự án"],r["Mã điểm"])==chosen]
         modes=(["Đã giao hàng"] if vrows else [])+(["Đã lắp đặt"] if lrows else [])
+        if not modes:
+            st.info("Điểm này hiện không còn nhiệm vụ VC/KTV chờ báo cáo. "
+                    "Chọn điểm khác hoặc nhờ ADMIN kiểm tra phân công.")
+            return
         if vrows and lrows:
             st.caption("Đội VC+LĐ báo GIAO HÀNG trước, sau khi đã xác nhận "
                        "giao đủ mới được báo LẮP ĐẶT XONG. Hai bước lưu riêng.")
