@@ -97,6 +97,10 @@ class MultiSkuAllocationTests(unittest.TestCase):
         ld=batch[IDS["LAP_DAT"]]["rows"][0]["values"][1]["userEnteredValue"]["stringValue"]
         self.assertEqual(kpb,vc)
         self.assertEqual(kpb,ld)
+        self.assertEqual(batch[IDS["VAN_CHUYEN"]]["rows"][0]["values"][14]
+                         ["userEnteredValue"]["stringValue"],"Phường A")
+        self.assertEqual(batch[IDS["LAP_DAT"]]["rows"][0]["values"][14]
+                         ["userEnteredValue"]["stringValue"],"Phường A")
 
     def test_progress_updates_current_point(self):
         prior=[{"Mã dự án":PROJECT,"Mã điểm":"DD-1","_row":2}]
