@@ -3418,53 +3418,17 @@ def report():
             summary=status_by_site.get(key)
             suffix=" • "+summary["status"] if summary else ""
             return f"{key[0]} • {name} • {key[1]}{suffix}"
-        search_options=[]
-        key_by_id={}
-        for point_key in available:
-            option_id=json.dumps(list(point_key),ensure_ascii=False,
-                                 separators=(",",":"))
-            search_options.append({
-                "id":option_id,
-                "label":site_option(point_key),
-            })
-            key_by_id[option_id]=point_key
-        search_options=[]
-        for point_key in available:
-            option_id=json.dumps(list(point_key),ensure_ascii=False,
-                                 separators=(",",":"))
-            search_options.append({
-                "id":option_id,
-                "label":site_option(point_key),
-            })
         selected_key=f"report_site_selected_{tid}"
         if st.session_state.get(selected_key) not in available:
             st.session_state[selected_key]=available[0]
         search_key=f"report_site_query_{tid}"
-        query_event_key=f"report_site_query_event_{tid}"
-        selection_token_key=f"report_site_selection_token_{tid}"
         selected_point=st.session_state[selected_key]
-        selected_id=json.dumps(list(selected_point),ensure_ascii=False,
-                               separators=(",",":"))
-        search_value=str(st.session_state.get(search_key) or "")
-        search_result=search_assigned_site(
-            search_options,selected_id=selected_id,
-            selected_label=site_option(selected_point),
-            query=search_value,
-            selection_token=str(st.session_state.get(selection_token_key) or ""),
-            key=f"report_site_dropdown_{tid}")
-        payload=search_result
-        if isinstance(payload,str):
-            try:
-                payload=json.loads(payload)
-            except (TypeError,ValueError):
-                pass
-        if isinstance(payload,dict):
-            event_id=str(payload.get("eventId") or "")
-            if event_id and event_id!=str(st.session_state.get(query_event_key) or ""):
-                search_value=str(payload.get("query") or "")
-                st.session_state[search_key]=search_value
-                st.session_state[query_event_key]=event_id
-        st.session_state[search_key]=search_value
+        search_value=st.text_input(
+            "🔎 Tìm điểm được giao",
+            placeholder="Gõ tên địa điểm hoặc mã điểm",
+            key=search_key,
+            help="Gõ vài chữ; danh sách điểm phù hợp hiện ngay bên dưới.")
+
         def normalize_site_query(value):
             normalized=unicodedata.normalize("NFD",str(value).casefold())
             return "".join(ch for ch in normalized
@@ -3477,18 +3441,21 @@ def report():
                 st.info("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
                 return
             st.markdown("**GỢI Ý ĐỊA ĐIỂM — chạm một dòng để mở báo cáo**")
+
+            def select_assigned_site(point_key):
+                st.session_state[selected_key]=point_key
+                st.session_state[search_key]=""
+
             for point_key in filtered[:10]:
                 option_id=json.dumps(list(point_key),ensure_ascii=False,
                                      separators=(",",":"))
                 button_key=hashlib.sha1(option_id.encode("utf-8")).hexdigest()[:12]
-                if st.button(
+                st.button(
                     "📍 "+site_option(point_key),
                     key=f"report_site_choice_{tid}_{button_key}",
-                    use_container_width=True):
-                    st.session_state[selected_key]=point_key
-                    st.session_state[search_key]=""
-                    st.session_state[selection_token_key]=uuid.uuid4().hex
-                    st.rerun()
+                    use_container_width=True,
+                    on_click=select_assigned_site,
+                    args=(point_key,))
             if len(filtered)>10:
                 st.caption(f"Có {len(filtered)} kết quả; gõ thêm để thu hẹp.")
             st.info("Chạm một dòng để mở hàng hóa và phần báo cáo của điểm đó.")
