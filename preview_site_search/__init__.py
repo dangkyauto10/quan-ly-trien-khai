@@ -7,13 +7,15 @@ _component = components.declare_component(
 )
 
 
-def search_assigned_site(options, selected_id="", selected_label="", query="", key=None):
+def search_assigned_site(options, selected_id="", selected_label="", query="",
+                         selection_token="", key=None):
     """Render a mobile-friendly, live-filtering dropdown for assigned sites."""
     return _component(
         options=options,
         selectedId=str(selected_id or ""),
         selectedLabel=str(selected_label or ""),
         query=str(query or ""),
+        selectionToken=str(selection_token or ""),
         default=None,
         key=key,
     )
