@@ -3401,7 +3401,7 @@ def report():
         report_title="📝 BÁO CÁO LẮP ĐẶT"
     else:
         report_title="📝 BÁO CÁO GIAO HÀNG / LẮP ĐẶT"
-    with st.expander(report_title, expanded=not bool(handover)):
+    with st.expander(report_title, expanded=True):
         available=sorted(
             set((r["Mã dự án"],r["Mã điểm"]) for r in vc+ld),
             key=lambda k:(0 if status_by_site.get(k,{}).get("ready") else 1,k))
