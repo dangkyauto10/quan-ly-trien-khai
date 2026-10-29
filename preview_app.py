@@ -3441,17 +3441,28 @@ def report():
             selected_label=site_option(selected_point),
             query=str(st.session_state.get(search_key) or ""),
             key=f"report_site_dropdown_{tid}")
-        if isinstance(search_result,dict):
-            result_id=str(search_result.get("selectedId") or "")
-            event_id=str(search_result.get("eventId") or "")
-            if (result_id in key_by_id and event_id and
-                    event_id!=str(st.session_state.get(event_key) or "")):
+        selection_payload=search_result
+        if isinstance(selection_payload,str):
+            try:
+                selection_payload=json.loads(selection_payload)
+            except (TypeError,ValueError):
+                pass
+        if isinstance(selection_payload,dict):
+            result_id=str(selection_payload.get("selectedId") or "")
+            event_id=str(selection_payload.get("eventId") or "")
+            last_event=str(st.session_state.get(event_key) or "")
+            if result_id in key_by_id and (not event_id or event_id!=last_event):
                 st.session_state[selected_key]=key_by_id[result_id]
                 st.session_state[search_key]=""
-                st.session_state[event_key]=event_id
-                # Run once more with the new selected-site state before rendering
-                # the report controls below the search component.
-                st.rerun()
+                st.session_state[event_key]=event_id or ("legacy:"+result_id)
+                # Synchronize the chosen ID in the component props before
+                # rendering the report controls below it.
+                if event_id:
+                    st.rerun()
+        elif isinstance(selection_payload,str) and selection_payload in key_by_id:
+            # Older component runtimes can return a selected JSON ID as a string.
+            st.session_state[selected_key]=key_by_id[selection_payload]
+            st.session_state[search_key]=""
         chosen=st.session_state[selected_key]
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
