@@ -22,6 +22,7 @@ from google.oauth2.service_account import Credentials
 from google.oauth2.credentials import Credentials as OAuthCredentials
 from google.auth.transport.requests import Request
 from preview_drive_picker import pick_folder
+from preview_photo_capture import capture_report_photos
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from PIL import Image
@@ -3543,31 +3544,35 @@ def report():
                            "đã trừ số lượng báo cáo trước đó.")
         st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-PICKER-APPID-20261027-B")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
-        camera_slots_key=f"report_camera_slots_{photo_key}"
-        if camera_slots_key not in st.session_state:
-            st.session_state[camera_slots_key]=1
-        camera_slots=max(1,min(10,int(st.session_state[camera_slots_key])))
-        camera_photos=[]
-        for camera_index in range(camera_slots):
-            camera_photo=st.camera_input(
-                f"📸 CHỤP ẢNH HIỆN TRƯỜNG {camera_index+1}",
-                key=f"report_camera_{photo_key}_{camera_index}")
-            if camera_photo is not None:
-                camera_photos.append(camera_photo)
-        st.caption("Ảnh đã chụp được giữ lại. Chụp xong bấm “Chụp thêm ảnh”; "
-                   "tổng ảnh chụp và ảnh thư viện tối đa 10.")
+        gallery_key=f"report_files_{photo_key}"
+        gallery_before=st.session_state.get(gallery_key) or []
+        camera_state_key=f"report_camera_saved_{photo_key}"
+        camera_widget_key=f"report_camera_capture_{photo_key}"
+        capture_result=capture_report_photos(
+            max_photos=max(0,10-len(gallery_before)),
+            initial_photos=st.session_state.get(camera_state_key,[]),
+            key=camera_widget_key)
+        if isinstance(capture_result,dict) and isinstance(
+                capture_result.get("photos"),list):
+            st.session_state[camera_state_key]=capture_result["photos"][:10]
+        camera_items=st.session_state.get(camera_state_key,[])
         uploaded=st.file_uploader(
-            "🖼️ CHỌN ẢNH TỪ THƯ VIỆN",
+            "🖼️ CHỌN ẢNH TỪ THƯ VIỆN (nếu cần)",
             type=["jpg","jpeg","png"],accept_multiple_files=True,
-            key=f"report_files_{photo_key}")
-        photos=camera_photos+list(uploaded or [])
-        if photos and len(photos)<10 and camera_slots<10:
-            if st.button("➕ CHỤP THÊM ẢNH",
-                         key=f"report_add_camera_{photo_key}",
-                         use_container_width=True):
-                st.session_state[camera_slots_key]=camera_slots+1
-                st.rerun()
+            key=gallery_key)
+        photos=[]
+        for item in camera_items:
+            data_url=item.get("data","") if isinstance(item,dict) else ""
+            if not data_url.startswith("data:image/") or "," not in data_url:
+                continue
+            image_file=io.BytesIO(base64.b64decode(data_url.split(",",1)[1]))
+            image_file.name=item.get("name") or "anh_hien_truong.jpg"
+            photos.append(image_file)
+        photos.extend(list(uploaded or []))
         st.caption(f"Ảnh minh chứng đã chọn: {len(photos)}/10")
+        if len(photos)>10:
+            st.error("Tối đa 10 ảnh cho một báo cáo. Bỏ bớt ảnh thư viện rồi gửi.")
+            return
         require_gps = mode!="Đã giao hàng"
         gps=None
         if require_gps:
