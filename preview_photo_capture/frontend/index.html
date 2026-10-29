@@ -14,7 +14,7 @@ button:disabled{background:#aab7cf;cursor:not-allowed}#count{margin:7px 0;color:
 <div id="count">Đã chụp 0/10 ảnh</div><div id="status" role="status"></div>
 <div id="gallery" aria-label="Ảnh đã chụp"></div>
 <script>
-let args={maxPhotos:10,initialPhotos:[]},photos=[],lastSeed=null;
+let args={maxPhotos:10,initialPhotos:[]},photos=[],hydrated=false;
 const input=document.getElementById("camera"),button=document.getElementById("capture");
 const count=document.getElementById("count"),status=document.getElementById("status");
 const gallery=document.getElementById("gallery");
@@ -64,8 +64,10 @@ input.addEventListener("change",async()=>{
 window.addEventListener("message",event=>{
  const data=event.data||{};if(data.type!=="streamlit:render")return;
  args=data.args||args;
- const seed=JSON.stringify(Array.isArray(args.initialPhotos)?args.initialPhotos:[]);
- if(seed!==lastSeed){lastSeed=seed;photos=Array.isArray(args.initialPhotos)?args.initialPhotos.slice(0,10):[]}
+ if(!hydrated){
+  photos=Array.isArray(args.initialPhotos)?args.initialPhotos.slice(0,10):[];
+  hydrated=true;
+ }
  render();
 });
 window.addEventListener("load",()=>{send("streamlit:componentReady",{apiVersion:1});setHeight();render()});
