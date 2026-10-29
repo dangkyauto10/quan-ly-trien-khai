@@ -3543,17 +3543,30 @@ def report():
                            "đã trừ số lượng báo cáo trước đó.")
         st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-PICKER-APPID-20261027-B")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
-        camera_photo=st.camera_input(
-            "📸 CHỤP ẢNH HIỆN TRƯỜNG",
-            key=f"report_camera_{photo_key}")
-        st.caption("Hoặc chọn ảnh có sẵn trong Thư viện — tổng cộng tối đa 10 ảnh.")
+        camera_slots_key=f"report_camera_slots_{photo_key}"
+        if camera_slots_key not in st.session_state:
+            st.session_state[camera_slots_key]=1
+        camera_slots=max(1,min(10,int(st.session_state[camera_slots_key])))
+        camera_photos=[]
+        for camera_index in range(camera_slots):
+            camera_photo=st.camera_input(
+                f"📸 CHỤP ẢNH HIỆN TRƯỜNG {camera_index+1}",
+                key=f"report_camera_{photo_key}_{camera_index}")
+            if camera_photo is not None:
+                camera_photos.append(camera_photo)
+        st.caption("Ảnh đã chụp được giữ lại. Chụp xong bấm “Chụp thêm ảnh”; "
+                   "tổng ảnh chụp và ảnh thư viện tối đa 10.")
         uploaded=st.file_uploader(
             "🖼️ CHỌN ẢNH TỪ THƯ VIỆN",
             type=["jpg","jpeg","png"],accept_multiple_files=True,
             key=f"report_files_{photo_key}")
-        photos=list(uploaded or [])
-        if camera_photo is not None:
-            photos.insert(0,camera_photo)
+        photos=camera_photos+list(uploaded or [])
+        if photos and len(photos)<10 and camera_slots<10:
+            if st.button("➕ CHỤP THÊM ẢNH",
+                         key=f"report_add_camera_{photo_key}",
+                         use_container_width=True):
+                st.session_state[camera_slots_key]=camera_slots+1
+                st.rerun()
         st.caption(f"Ảnh minh chứng đã chọn: {len(photos)}/10")
         require_gps = mode!="Đã giao hàng"
         gps=None
