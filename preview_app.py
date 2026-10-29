@@ -3418,11 +3418,6 @@ def report():
             summary=status_by_site.get(key)
             suffix=" • "+summary["status"] if summary else ""
             return f"{key[0]} • {name} • {key[1]}{suffix}"
-        def normalize_site_query(value):
-            value=unicodedata.normalize("NFD",str(value).casefold())
-            value="".join(ch for ch in value
-                          if unicodedata.category(ch)!="Mn")
-            return value.replace("đ","d")
         search_options=[]
         key_by_id={}
         for point_key in available:
@@ -3437,63 +3432,23 @@ def report():
         if st.session_state.get(selected_key) not in available:
             st.session_state[selected_key]=available[0]
         search_key=f"report_site_query_{tid}"
-        query_key=f"report_site_last_query_{tid}"
-        result_key=f"report_site_result_{tid}"
+        event_key=f"report_site_last_selection_event_{tid}"
         selected_point=st.session_state[selected_key]
         selected_id=json.dumps(list(selected_point),ensure_ascii=False,
                                separators=(",",":"))
-        search_value=str(st.session_state.get(search_key) or "")
         search_result=search_assigned_site(
             search_options,selected_id=selected_id,
-            selected_label=site_option(selected_point),query=search_value,
+            selected_label=site_option(selected_point),
+            query=str(st.session_state.get(search_key) or ""),
             key=f"report_site_dropdown_{tid}")
-        search_query=search_value
         if isinstance(search_result,dict):
-            search_query=str(search_result.get("query") or "")
-        if search_query!=str(st.session_state.get(query_key) or ""):
-            st.session_state[result_key]=None
-            st.session_state[query_key]=search_query
-        st.session_state[search_key]=search_query
-        query_norm=normalize_site_query(search_query.strip())
-        if query_norm:
-            filtered=[key for key in available
-                      if query_norm in normalize_site_query(site_option(key))]
-            if not filtered:
-                st.info("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
-                return
-            shown=filtered[:8]
-            selected_result=st.session_state.get(result_key)
-            if selected_result not in shown:
-                selected_result=None
-                st.session_state[result_key]=None
-            st.markdown("**GỢI Ý ĐỊA ĐIỂM — chạm một dòng để chọn**")
-            for index,point_key in enumerate(shown):
-                is_selected=(selected_result==point_key)
-                label=("✅ " if is_selected else "📍 ")+site_option(point_key)
-                if st.button(
-                    label,
-                    key=f"report_site_choice_{tid}_{index}",
-                    type="primary" if is_selected else "secondary",
-                    use_container_width=True):
-                    selected_result=point_key
-                    st.session_state[result_key]=point_key
-                    st.session_state[selected_key]=point_key
-                    st.rerun()
-            if len(filtered)>len(shown):
-                st.caption(f"Có {len(filtered)} kết quả; gõ thêm để thu hẹp.")
-            if selected_result is None:
-                st.info("Chạm một điểm để mở hàng hóa và phần báo cáo của điểm đó.")
-                return
-            st.session_state[selected_key]=selected_result
-            st.caption("Đã chọn: "+site_option(selected_result))
-        else:
-            if st.session_state.get(selected_key) not in available:
-                st.session_state[selected_key]=available[0]
-            st.selectbox(
-                "Địa điểm được giao",
-                available,
-                format_func=site_option,
-                key=selected_key)
+            result_id=str(search_result.get("selectedId") or "")
+            event_id=str(search_result.get("eventId") or "")
+            if (result_id in key_by_id and event_id and
+                    event_id!=str(st.session_state.get(event_key) or "")):
+                st.session_state[selected_key]=key_by_id[result_id]
+                st.session_state[search_key]=""
+                st.session_state[event_key]=event_id
         chosen=st.session_state[selected_key]
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
