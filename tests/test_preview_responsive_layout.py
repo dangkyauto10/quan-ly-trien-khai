@@ -38,7 +38,7 @@ class ResponsiveLayoutTests(unittest.TestCase):
         self.assertIn('key=f"report_camera_capture_{photo_key}"',src)
         self.assertIn('streamlit_geolocation()',src)
         self.assertIn('st.file_uploader(',src)
-        camera=(ROOT/"preview_photo_capture"/"frontend"/"index.html")\\
+        camera=(ROOT/"preview_photo_capture"/"frontend"/"index.html")\
             .read_text(encoding="utf-8")
         self.assertIn('capture="environment"',camera)
 
