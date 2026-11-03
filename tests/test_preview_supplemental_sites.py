@@ -48,7 +48,7 @@ class SupplementalTests(unittest.TestCase):
         ui = ast.get_source_segment(source, funcs["supplemental_site_assignment_admin"])
         self.assertIn("GIAO BỔ SUNG ĐIỂM CHƯA CÓ ĐỘI", ui)
         self.assertIn('with st.container(border=True):', ui)
-        self.assertIn('st.dataframe(preview, hide_index=True, use_container_width=True)', ui)
+        self.assertIn('display_centered_table(preview, hide_index=True, use_container_width=True)', ui)
         approval = ast.get_source_segment(source, funcs["teams_and_approval"])
         self.assertLess(approval.index("supplemental_site_assignment_admin()"),
                         approval.index("team_reassignment_admin()"))

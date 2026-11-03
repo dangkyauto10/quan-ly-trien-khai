@@ -853,6 +853,10 @@ def home_screen_guide(expanded=False):
                 "**①** Trong Chrome: **⋮ → Cài đặt và tạo lối tắt** "
                 "(hoặc **Thêm vào màn hình chính**) **→ Thêm**."
             )
+        st.warning("Biểu tượng khi ghim lên iPhone/Android vẫn phụ thuộc "
+                   "trình duyệt và bộ nhớ đệm của thiết bị. Nếu còn icon cũ, "
+                   "hãy xóa lối tắt cũ, mở lại app sau khi PREVIEW cập nhật, "
+                   "rồi ghim lại để kiểm tra.")
         st.info("Biểu tượng app dùng logo TDV màu vàng cam. "
                 "Mật khẩu tự đặt khi đăng ký chỉ dùng được **sau khi "
                 "ADMIN duyệt**; có thể chọn ghi nhớ đăng nhập 30 ngày "
@@ -3692,6 +3696,16 @@ def report():
                             current.get("Mã đội VC" if tab=="VAN_CHUYEN" else "Mã đội KTV")!=tid):
                         raise ValueError("Nhiệm vụ thay đổi trong khi tải ảnh; tải lại và đối soát.")
                     refreshed.append(current)
+                if mode=="Đã lắp đặt":
+                    # Delivery/accepted-hub evidence can change while Drive
+                    # uploads are in flight. Revalidate against the same fresh
+                    # rows used for the final atomic Sheets transaction.
+                    hub_latest=read_sheet_live("BAN_GIAO_TAP_KET")
+                    if not site_may_complete_installation(
+                            chosen[0],chosen[1],ld_latest,vc_latest,hub_latest):
+                        raise ValueError("Xác nhận giao hàng/bàn giao tập kết "
+                                         "đã thay đổi trong lúc tải ảnh; cần "
+                                         "đối soát trước khi báo lắp đặt.")
                 tabs=("BAO_CAO_TRIEN_KHAI","VAN_CHUYEN","LAP_DAT",
                       "TIEN_DO","NHAT_KY_HE_THONG")
                 sheets={name:sheet(name).id for name in tabs}

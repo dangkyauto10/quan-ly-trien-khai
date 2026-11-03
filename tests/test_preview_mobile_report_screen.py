@@ -18,7 +18,7 @@ class PreviewMobileReportTests(unittest.TestCase):
         self.assertIn('sku_display=[]', REPORT)
         self.assertIn('sku_display.append({', REPORT)
         self.assertIn('"Thiết bị":item["name"]', REPORT)
-        self.assertIn('st.dataframe(sku_display,hide_index=True,use_container_width=True)', REPORT)
+        self.assertIn('display_centered_table(\n                sku_display, hide_index=True, use_container_width=True,', REPORT)
         self.assertIn('Mã điểm: {chosen[1]}', REPORT)
         self.assertIn('Đã trừ', REPORT.replace('đã trừ', 'Đã trừ'))
         self.assertNotIn("st.write(f\"Đơn vị tính:", REPORT)
@@ -28,7 +28,7 @@ class PreviewMobileReportTests(unittest.TestCase):
         first = REPORT.index('if not str(st.secrets.get("photos_folder_id", "")).strip():')
         send = REPORT.index('if st.button("✅ GỬI BÁO CÁO"')
         self.assertLess(first, send)
-        self.assertIn("Chưa cấu hình thư mục lưu ảnh PREVIEW", REPORT)
+        self.assertIn("Chưa cấu hình thư mục lưu ảnh DỰ ÁN", REPORT)
 
     def test_ambiguous_commit_is_not_retried(self):
         self.assertIn('phase="lưu ảnh Drive"', REPORT)
