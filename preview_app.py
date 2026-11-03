@@ -304,7 +304,7 @@ st.markdown("""
   overflow: visible !important;
 }
 .tdv-hero-title {
-  font-family: Arial, Helvetica, sans-serif !important;
+  font-family: "Times New Roman", Times, serif !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -321,7 +321,7 @@ st.markdown("""
   overflow: visible !important;
 }
 .tdv-hero-name {
-  font-family: Arial, Helvetica, sans-serif !important;
+  font-family: "Times New Roman", Times, serif !important;
   display: inline-block;
   line-height: 1.8 !important;
   letter-spacing: 0;
@@ -338,6 +338,7 @@ st.markdown("""
   border-radius: 0;
 }
 .tdv-hero-subtitle {
+  font-family: "Times New Roman", Times, serif !important;
   margin-top: 0.18rem;
   color: #64748b;
   font-size: 0.84rem;
