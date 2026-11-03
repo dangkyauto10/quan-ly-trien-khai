@@ -225,7 +225,7 @@ components.html("""
     setLink("icon", iconUrl);
   }
   // Override Streamlit Cloud's default manifest name, which is "Streamlit".
-  setLink("manifest", "/~/+/app/static/manifest.json?v=20261104a");
+  setLink("manifest", "/~/+/app/static/manifest.json?v=20261027h");
   const setMeta = (selector, attribute, value) => {
     let meta = doc.head.querySelector(selector);
     if (!meta) { meta = doc.createElement("meta"); meta.setAttribute(attribute, selector.includes("property=") ? selector.match(/property="([^"]+)"/)[1] : selector.match(/name="([^"]+)"/)[1]); doc.head.appendChild(meta); }

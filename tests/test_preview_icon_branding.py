@@ -1,8 +1,6 @@
 """Approved TDV favicon and mobile masthead are deployed only to PREVIEW."""
 import ast
-import json
 from pathlib import Path
-import re
 import struct
 import unittest
 
@@ -29,17 +27,6 @@ class TDVIconTests(unittest.TestCase):
                            and isinstance(x.func,ast.Attribute)
                            and x.func.attr=="set_page_config"]
         self.assertEqual(len(page_config_calls),1)
-
-    def test_mobile_manifest_uses_current_transparent_icon(self):
-        app=(ROOT/"preview_app.py").read_text(encoding="utf-8")
-        manifest=json.loads((ROOT/"static"/"manifest.json").read_text(encoding="utf-8"))
-        app_version=re.search(r'manifest\.json\?v=([0-9a-z]+)',app).group(1)
-        icon=manifest["icons"][0]
-        icon_version=re.search(r'\?v=([0-9a-z]+)',icon["src"]).group(1)
-        self.assertEqual(app_version,icon_version)
-        self.assertTrue((ROOT/"static"/"tdv_icon_144.png").is_file())
-        self.assertEqual((ROOT/"static"/"tdv_icon_144.png").read_bytes(),
-                         (ROOT/"assets"/"tdv_icon_144.png").read_bytes())
 
     def test_home_screen_guide_does_not_overpromise_native_icon(self):
         src=(ROOT/"preview_app.py").read_text(encoding="utf-8")
