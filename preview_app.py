@@ -488,7 +488,6 @@ st.markdown(f"""
     <span class="tdv-hero-name" lang="vi">QU&#7842;N L&#221; D&#7920; &#193;N</span>
   </div>
   <div class="tdv-hero-subtitle">Hệ thống điều hành hiện trường</div>
-  <div class="tdv-preview-tag">BẢN THỬ NGHIỆM · CHƯA VẬN HÀNH</div>
 </div>
 """, unsafe_allow_html=True)
 
