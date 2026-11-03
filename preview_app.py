@@ -9,20 +9,13 @@ import hmac
 import hashlib
 import time
 import threading
-from preview_site_search import search_assigned_site
-import unicodedata
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import quote, urlparse
 
 import gspread
 import streamlit as st
-import pandas as pd
 from google.oauth2.service_account import Credentials
-from google.oauth2.credentials import Credentials as OAuthCredentials
-from google.auth.transport.requests import Request
-from preview_drive_picker import pick_folder
-from preview_photo_capture import capture_report_photos
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from PIL import Image
@@ -50,11 +43,8 @@ from preview_allocation_groups import (
     match_contract_locations, read_contract_locations_excel, preview_basket
 )
 from preview_leadership import build_progress, display_amount
-from preview_leader_access import (
-    LEADER_SESSION_USERNAME, check_leader_password,
-    make_leader_session, verify_leader_session
-)
-from preview_team_access import resolve_login_username, friendly_account_name, project_login_choices
+from preview_leader_access import leadership_username
+from preview_team_access import resolve_login_username, friendly_account_name
 from preview_team_access import normalized_name
 from preview_credential_accounts import (
     team_accounts, visible_credential_state, next_account_id,
@@ -69,9 +59,7 @@ from preview_team_reassignment import (
     team_change_plan, change_signature, team_change_requests
 )
 from preview_site_rights import (
-    allocation_owners, active_registration, site_ids, RIGHT_FIELDS,
-    owner_index, supplemental_site_plan, supplemental_site_signature,
-    supplemental_site_requests
+    allocation_owners, active_registration, site_ids, RIGHT_FIELDS
 )
 from preview_assignment import ROLE_TABS, TASK_SCHEMA
 from preview_remember import account_fingerprint
@@ -86,56 +74,6 @@ from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
 from preview_import_locations import (read_location_file, candidate_names,
     column_choice, is_header, normalize_name, blank_excel_template)
-
-
-def display_centered_table(data, *args, **kwargs):
-    """Display read-only tables with centered bold headers and optional compact columns."""
-    center_columns = tuple(kwargs.pop("center_columns", ()))
-    compact = bool(kwargs.pop("compact", False))
-    frame = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
-    # st.dataframe draws headers on a canvas and ignores Pandas header CSS.
-    # These read-only summaries use escaped HTML so header styling is reliable.
-    if args or any(key not in {"hide_index", "use_container_width", "height", "width"}
-                   for key in kwargs):
-        return st.dataframe(frame, *args, **kwargs)
-    table_id = "tdv-table-" + uuid.uuid4().hex
-    height = kwargs.get("height")
-    hide_index = kwargs.get("hide_index", False)
-    scrolling = ("max-height:" + str(max(80, int(height))) + "px;"
-                 if isinstance(height, (int, float)) else "")
-    markup = frame.to_html(index=not hide_index, escape=True, border=0, na_rep="")
-    table_width = ("width:fit-content;max-width:100%;table-layout:auto;"
-                   if compact else "width:100%;")
-    body_center_rules = "".join(
-        "#" + table_id + " tbody td:nth-child(" +
-        str(index + 1 + (0 if hide_index else 1)) +
-        "){text-align:center!important;}"
-        for index, column in enumerate(frame.columns)
-        if column in center_columns
-    )
-    compact_column_rules = (
-        "#" + table_id + " tbody td:nth-child(2),#" + table_id +
-        " thead th:nth-child(2){max-width:min(58vw,620px);"
-        "white-space:normal;overflow-wrap:anywhere;}"
-        if compact else ""
-    )
-    return st.markdown(
-        "<style>"
-        "#" + table_id + "{overflow:auto;" + scrolling + "}"
-        "#" + table_id + " table{" + table_width +
-        "border-collapse:collapse;font-size:0.9rem;}"
-        "#" + table_id + " th,#" + table_id + " td{"
-        "padding:0.45rem 0.6rem;border-bottom:1px solid #dfe3e8;}"
-        "#" + table_id + " thead th{"
-        "text-align:center!important;font-weight:700!important;"
-        "background:var(--secondary-background-color,#f0f2f6);"
-        "position:sticky;top:0;z-index:1;}"
-        "#" + table_id + " tbody td,#" + table_id + " tbody th{"
-        "text-align:left;font-weight:500!important;}"
-        + body_center_rules + compact_column_rules +
-        "</style><div id=\"" + table_id + "\">" + markup + "</div>",
-        unsafe_allow_html=True,
-    )
 
 _OVERVIEW_ROLE_MODES = {
     "VC": ("VAN_CHUYEN",),
@@ -192,53 +130,11 @@ def approved_team_site_overview(team, registrations, locations, tasksets):
 APP_ICON = Path(__file__).resolve().parent / "assets" / "tdv_icon_144.png"
 # Use the approved TDV square logo for the tab favicon and app masthead.
 st.set_page_config(
-    page_title="DỰ ÁN",
+    page_title="QUẢN LÝ DỰ ÁN • PREVIEW",
     page_icon=str(APP_ICON),
     layout="wide"
 )
 APP_ICON_DATA = base64.b64encode(APP_ICON.read_bytes()).decode("ascii")
-# Set the actual host page metadata (Streamlit renders the Python app
-# inside a same-origin iframe; window.parent alone only changes the inner page).
-import streamlit.components.v1 as components
-components.html("""
-<script>
-(() => {
-  let doc;
-  try { doc = window.top.document; } catch (_) { return; }
-  const iconSource = doc.head.querySelector('link[rel="alternate icon"]')
-    || doc.head.querySelector('link[rel~="icon"]');
-  const iconUrl = iconSource ? iconSource.href : "";
-  const setLink = (rel, href) => {
-    let link = doc.head.querySelector('link[rel="' + rel + '"]');
-    if (!link) { link = doc.createElement("link"); link.rel = rel; doc.head.appendChild(link); }
-    link.href = href;
-    if (rel === "manifest") {
-      link.type = "application/manifest+json";
-      link.crossOrigin = "anonymous";
-    } else {
-      link.type = "image/png";
-      link.sizes = "144x144";
-    }
-  };
-  if (iconUrl) {
-    setLink("apple-touch-icon", iconUrl);
-    setLink("icon", iconUrl);
-  }
-  // Override Streamlit Cloud's default manifest name, which is "Streamlit".
-  setLink("manifest", "/~/+/app/static/manifest.json?v=20261027h");
-  const setMeta = (selector, attribute, value) => {
-    let meta = doc.head.querySelector(selector);
-    if (!meta) { meta = doc.createElement("meta"); meta.setAttribute(attribute, selector.includes("property=") ? selector.match(/property="([^"]+)"/)[1] : selector.match(/name="([^"]+)"/)[1]); doc.head.appendChild(meta); }
-    meta.content = value;
-  };
-  setMeta('meta[name="apple-mobile-web-app-title"]', "name", "DỰ ÁN");
-  setMeta('meta[name="application-name"]', "name", "DỰ ÁN");
-  setMeta('meta[property="og:title"]', "property", "DỰ ÁN");
-  doc.title = "DỰ ÁN";
-})();
-</script>
-""", width=0, height=0)
-
 
 cookie_controller = CookieController(key="tdv_cookie_controller_v1")
 
@@ -297,14 +193,13 @@ st.markdown("""
   text-align: center;
   /* Reserve vertical room for Vietnamese accents on all devices.
      Streamlit may otherwise clip the top of a short HTML line. */
-  padding: 1.4rem 0.3rem 1rem;
+  padding: 1.05rem 0.25rem 1rem;
   margin: 0 auto 0.55rem;
   height: auto !important;
-  min-height: 9rem;
+  min-height: 8.3rem;
   overflow: visible !important;
 }
 .tdv-hero-title {
-  font-family: "Times New Roman", Times, serif !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -312,19 +207,17 @@ st.markdown("""
   color: #173A73;
   font-weight: 800;
   font-size: clamp(1.55rem, 4.5vw, 2rem);
-  line-height: 1.75 !important;
-  letter-spacing: 0;
+  line-height: 1.5 !important;
+  letter-spacing: -0.02em;
   white-space: normal;
   flex-wrap: wrap;
-  min-height: 4rem;
+  min-height: 3.5rem;
   padding: 0.25rem 0;
   overflow: visible !important;
 }
 .tdv-hero-name {
-  font-family: "Times New Roman", Times, serif !important;
   display: inline-block;
-  line-height: 1.8 !important;
-  letter-spacing: 0;
+  line-height: 1.5 !important;
   padding: 0.12rem 0;
   overflow: visible !important;
 }
@@ -334,11 +227,9 @@ st.markdown("""
   height: 3.15rem;
   object-fit: contain;
   flex-shrink: 0;
-  background: transparent;
-  border-radius: 0;
+  border-radius: 0.68rem;
 }
 .tdv-hero-subtitle {
-  font-family: "Times New Roman", Times, serif !important;
   margin-top: 0.18rem;
   color: #64748b;
   font-size: 0.84rem;
@@ -357,59 +248,23 @@ st.markdown("""
   letter-spacing: 0.02em;
 }
 @media (max-width: 600px) {
-  /* Reserve space for Streamlit Cloud's fixed top bar; keep the brand below it. */
   .block-container {
-    padding: 4.5rem 0.65rem 1.25rem !important;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-  }
-  .stApp button, .stApp input, .stApp textarea, .stApp label,
-  .stApp select, .stApp [data-testid="stMarkdownContainer"] {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    padding-top: 1.8rem !important;
+    padding-left: 0.8rem !important;
+    padding-right: 0.8rem !important;
   }
   .tdv-hero {
-    position: sticky;
-    top: 4rem;
-    z-index: 100;
-    background: rgba(255, 255, 255, 0.98);
-    padding: 0.22rem 0.25rem 0.28rem;
-    margin-bottom: 0.25rem;
-    min-height: 0;
-    border-bottom: 1px solid #edf2f7;
+    padding-top: 1rem;
+    min-height: 8.3rem;
   }
   .tdv-hero-title {
-    font-size: clamp(1.08rem, 4.8vw, 1.32rem);
-    font-weight: 700;
-    gap: 0.28rem;
-    line-height: 1.45 !important;
-    min-height: 0;
-    padding: 0.08rem 0;
+    font-size: clamp(1.28rem, 5.8vw, 1.55rem);
+    gap: 0.35rem;
+    line-height: 1.55 !important;
+    min-height: 3.35rem;
   }
-  .tdv-hero-name {
-    line-height: 1.45 !important;
-    padding: 0.04rem 0;
-  }
-  .tdv-hero-icon {width: 1.8rem; height: 1.8rem;}
-  .tdv-hero-subtitle {display: none;}
-  .tdv-preview-tag {
-    margin-top: 0.08rem;
-    padding: 0.06rem 0.36rem;
-    font-size: 0.66rem !important;
-  }
-  .stApp [data-testid="stVerticalBlock"] {gap: 0.65rem;}
-  .stApp [data-testid="stHorizontalBlock"] {gap: 0.5rem;}
-  div[data-testid="stMetric"] {
-    padding: 8px 10px;
-    border-radius: 10px;
-  }
-  div[data-testid="stForm"] {
-    padding: 10px;
-    border-radius: 12px;
-  }
-  .stApp div.stButton > button,
-  .stApp div.stLinkButton > a {
-    min-height: 44px !important;
-    font-size: 1rem !important;
-  }
+  .tdv-hero-name {line-height: 1.55 !important;}
+  .tdv-hero-icon {width: 2.65rem; height: 2.65rem;}
 }
 h2, h3 {color: #173A73;}
 div[data-testid="stMetric"] {
@@ -461,25 +316,6 @@ input {border-radius: 10px !important;}
 .stApp div.stButton > button {
   min-height: 48px !important;
 }
-/* Compact iPhone typography after the app-wide accessibility defaults above. */
-@media (max-width: 600px) {
-  .tdv-preview-tag {font-size: 0.66rem !important;}
-  .stApp [data-testid="stWidgetLabel"] p,
-  .stApp [data-testid="stMarkdownContainer"] p,
-  .stApp [data-testid="stMarkdownContainer"] li,
-  .stApp label {
-    font-size: 0.98rem !important;
-    line-height: 1.45 !important;
-  }
-  .stApp [data-testid="stCaptionContainer"] p {font-size: 0.88rem !important;}
-  .stApp input,
-  .stApp textarea,
-  .stApp div[data-baseweb="select"] > div,
-  .stApp div.stButton > button {
-    font-size: 0.98rem !important;
-  }
-  .stApp div.stButton > button {min-height: 44px !important;}
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -487,16 +323,16 @@ st.markdown(f"""
 <div class="tdv-hero">
   <div class="tdv-hero-title">
     <img class="tdv-hero-icon" src="data:image/png;base64,{APP_ICON_DATA}" alt="TDV" />
-    <span class="tdv-hero-name" lang="vi">QU&#7842;N L&#221; D&#7920; &#193;N</span>
+    <span class="tdv-hero-name">QUẢN LÝ DỰ ÁN</span>
   </div>
-  <div class="tdv-hero-subtitle">( Hệ thống Điều hành - Triển khai )</div>
+  <div class="tdv-hero-subtitle">Hệ thống điều hành hiện trường</div>
+  <div class="tdv-preview-tag">BẢN THỬ NGHIỆM · CHƯA VẬN HÀNH</div>
 </div>
 """, unsafe_allow_html=True)
 
 
 SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive.file"]
-DRIVE_UPLOAD_SCOPE = ["https://www.googleapis.com/auth/drive.file"]
 READY = "Đã đồng bộ"
 
 class PreviewSheetReadError(RuntimeError):
@@ -559,149 +395,6 @@ def client():
     gs = gspread.authorize(cred)
     sh = _retry_google_read(lambda: gs.open_by_key(st.secrets["spreadsheet_id"]))
     return sh, cred
-
-
-def drive_oauth_credentials():
-    """Build the narrowly scoped owner OAuth credentials."""
-    oauth = st.secrets.get("google_drive_oauth", {})
-    required = ("client_id", "client_secret", "refresh_token")
-    missing = [key for key in required if not str(oauth.get(key, "")).strip()]
-    if missing:
-        raise RuntimeError(
-            "Thiếu [google_drive_oauth] client_id, client_secret hoặc "
-            "refresh_token trong Streamlit Secrets.")
-    cred = OAuthCredentials(
-        token=None,
-        refresh_token=str(oauth["refresh_token"]).strip(),
-        token_uri="https://oauth2.googleapis.com/token",
-        client_id=str(oauth["client_id"]).strip(),
-        client_secret=str(oauth["client_secret"]).strip(),
-        scopes=DRIVE_UPLOAD_SCOPE,
-    )
-    if not cred.valid:
-        cred.refresh(Request())
-    return cred
-
-
-def drive_client():
-    """Use only the owner's per-file Drive OAuth grant."""
-    cred = drive_oauth_credentials()
-    return build("drive", "v3", credentials=cred, cache_discovery=False)
-
-
-def verify_configured_photo_folder(credentials=None):
-    """Verify the configured folder and report the OAuth identity on failure."""
-    folder = str(st.secrets.get("photos_folder_id", "")).strip()
-    if not folder:
-        raise RuntimeError("Thiếu photos_folder_id trong Streamlit Secrets.")
-    if credentials is None and st.session_state.get(
-            "_tdv_verified_photo_folder_id") == folder:
-        return {"id": folder, "name": folder,
-                "mimeType": "application/vnd.google-apps.folder"}
-    cred = credentials or drive_oauth_credentials()
-    drive = build("drive", "v3", credentials=cred, cache_discovery=False)
-    oauth_email = ""
-    try:
-        about = drive.about().get(fields="user(emailAddress)").execute()
-        oauth_email = str((about.get("user") or {}).get("emailAddress") or "").strip()
-    except Exception:
-        # Folder access check remains authoritative if profile metadata is unavailable.
-        pass
-    try:
-        info = drive.files().get(
-            fileId=folder, supportsAllDrives=True,
-            fields="id,name,mimeType").execute()
-    except Exception as exc:
-        detail = drive_error_summary(exc)
-        if oauth_email:
-            detail += "; tài khoản OAuth đang dùng: " + oauth_email
-        raise RuntimeError(detail) from exc
-    if info.get("mimeType") != "application/vnd.google-apps.folder":
-        raise RuntimeError("Mục đã cấu hình không phải thư mục Google Drive.")
-    info["_oauthEmail"] = oauth_email
-    st.session_state["_tdv_verified_photo_folder_id"] = folder
-    return info
-
-
-def configure_photo_folder():
-    """ADMIN selects and verifies only the configured photo folder."""
-    folder = str(st.secrets.get("photos_folder_id", "")).strip()
-    oauth = st.secrets.get("google_drive_oauth", {})
-    api_key = str(oauth.get("picker_api_key", "")).strip()
-    if not folder:
-        st.error("Thiếu photos_folder_id trong Streamlit Secrets.")
-        return
-    if not api_key:
-        st.info("ADMIN cần thêm picker_api_key trong [google_drive_oauth] "
-                "sau khi bật Google Picker API trên project OAuth.")
-        return
-    try:
-        cred = drive_oauth_credentials()
-    except Exception as exc:
-        st.info("Chưa đủ OAuth Drive: " + str(exc))
-        return
-    st.caption("Google chỉ cấp quyền cho thư mục được chọn ở đây "
-               "(phạm vi drive.file).")
-    client_id = str(oauth.get("client_id", "")).strip()
-    app_id = client_id.split("-", 1)[0] if "-" in client_id else ""
-    if not app_id.isdigit():
-        st.error("Client ID OAuth không chứa mã project hợp lệ để mở Picker.")
-        return
-    open_picker = st.button(
-        "📂 MỞ CHỌN THƯ MỤC ẢNH",
-        key="preview_open_photo_folder_picker",
-        help="Mở cửa sổ Google Drive để chọn đúng thư mục ảnh DỰ ÁN."
-    )
-    picked = pick_folder(
-        api_key, cred.token, app_id=app_id,
-        key="preview_photo_folder_picker",
-        open_picker=open_picker
-    )
-    if not picked:
-        return
-    if picked.get("folderId") != folder:
-        st.error("Đã chọn nhầm thư mục. Hãy chọn đúng thư mục ảnh DỰ ÁN "
-                 "đã cấu hình; chưa cấp quyền tải ảnh.")
-        return
-    try:
-        # Verify with the exact OAuth credential/token Picker used.
-        info = verify_configured_photo_folder(cred)
-        st.success("Đã xác minh quyền OAuth trên đúng thư mục ảnh: " +
-                   str(info.get("name") or folder))
-    except Exception as exc:
-        st.error("Google Picker đã chọn thư mục nhưng Drive chưa xác nhận quyền: " +
-                 drive_error_summary(exc))
-
-
-def drive_error_summary(error):
-    """Return safe Google API diagnostics without exposing credentials."""
-    response = getattr(error, "resp", None)
-    status = getattr(response, "status", None)
-    payload = {}
-    try:
-        raw = getattr(error, "content", b"")
-        if isinstance(raw, bytes):
-            raw = raw.decode("utf-8", errors="replace")
-        payload = json.loads(raw) if raw else {}
-    except (TypeError, ValueError):
-        payload = {}
-    detail = payload.get("error", {}) if isinstance(payload, dict) else {}
-    reasons = []
-    for item in detail.get("errors", []) if isinstance(detail, dict) else []:
-        reason = item.get("reason")
-        if reason and reason not in reasons:
-            reasons.append(reason)
-    message = detail.get("message", "") if isinstance(detail, dict) else ""
-    if status is None:
-        message = " ".join(str(error).split())
-        return message[:240] if message else type(error).__name__
-    label = "Google Drive HTTP " + str(status)
-    if reasons:
-        label += " (" + ", ".join(reasons[:3]) + ")"
-    if message:
-        label += ": " + " ".join(str(message).split())[:240]
-    return label
-
 
 @st.cache_data(ttl=45, show_spinner=False)
 def read_sheet(name):
@@ -797,35 +490,53 @@ def valid_login(username, pin):
     return None
 
 def leadership_login():
-    """Simple password-only entry for the read-only leadership dashboard."""
+    """One-button entry for a dedicated read-only leadership identity."""
     st.subheader("📊 LÃNH ĐẠO – XEM BÁO CÁO")
-    st.caption("ADMIN đặt một mật khẩu riêng trong Secrets. "
-               "Nhập mật khẩu đó để xem số liệu và biểu đồ.")
+    st.caption("Chỉ cần nhập mật khẩu để xem tiến độ. "
+               "Không cần mã tài khoản hoặc chọn chức năng.")
     if st.button("← Trở về trang chính",key="leader_login_back"):
         st.session_state["leader_login_open"] = False
         st.rerun()
-
-    configured_password = st.secrets.get("leader_view_password", "")
-    if not isinstance(configured_password, str) or not configured_password:
-        st.info('ADMIN thêm một dòng trong Secrets: '
-                'leader_view_password = "mật khẩu tự đặt". '
-                'Không dùng mật khẩu ADMIN.')
+    username = leadership_username(
+        st.secrets.get("accounts", {}),
+        st.secrets.get("leader_login_username", "")
+    )
+    if not username:
+        st.warning("Chưa cấu hình tài khoản riêng cho LÃNH ĐẠO. "
+                   "ADMIN cần tạo tài khoản vai trò LANH_DAO trong Secrets. "
+                   "Không dùng chung tài khoản ADMIN.")
         return
-
+    key = remember_signing_key()
     with st.form("leader_password_only",clear_on_submit=True):
-        password = st.text_input("Mật khẩu Lãnh đạo",type="password")
-        submitted = st.form_submit_button(
-            "🔓 XEM BÁO CÁO",use_container_width=True)
+        password = st.text_input("Mật khẩu Lãnh đạo",
+                                  type="password")
+        remember = st.checkbox(
+            "Ghi nhớ đăng nhập trên thiết bị này (30 ngày)",
+            value=False,disabled=not bool(key),
+            help="Chỉ tích trên điện thoại hoặc máy tính cá nhân, không "
+                 "sử dụng ở thiết bị công cộng hoặc dùng chung."
+        )
+        if not key:
+            st.caption("Cần ADMIN cấu hình remember_login_secret "
+                       "để sử dụng ghi nhớ đăng nhập.")
+        submitted=st.form_submit_button("🔓 XEM BÁO CÁO",
+                                        use_container_width=True)
     if not submitted:
         return
-    if not check_leader_password(password, configured_password):
-        st.error("Mật khẩu Lãnh đạo không đúng.")
+    account=valid_login(username,password)
+    if not account or account.get("role")!="LANH_DAO":
+        st.error("Mật khẩu không đúng hoặc tài khoản đang tạm khóa.")
         return
-
-    # Keep only a password fingerprint in the session, never the password.
-    st.session_state["auth"] = make_leader_session(configured_password)
-    st.session_state["leader_login_open"] = False
-    st.session_state["_remember_action"] = "remove"
+    # No password or PIN is written into browser cookies or session state.
+    st.session_state["auth"]=account
+    st.session_state["leader_login_open"]=False
+    if remember and key:
+        info=st.secrets["accounts"][username]
+        st.session_state["_remember_token"]=issue_remember_token(
+            username,info,key)
+        st.session_state["_remember_action"]="set"
+    else:
+        st.session_state["_remember_action"]="remove"
     st.rerun()
 
 
@@ -838,29 +549,32 @@ PREVIEW_HOME_URL = (
 def home_screen_guide(expanded=False):
     """One-time device-owner shortcut setup; no silent install is possible."""
     with st.expander("📲 ĐƯA APP RA MÀN HÌNH ĐIỆN THOẠI",expanded=expanded):
-        st.write("**Ghim logo TDV của QUẢN LÝ DỰ ÁN để mở app bằng một lần chạm.** "
-                 "Nếu đã ghim icon cũ, hãy xóa icon đó rồi thêm lại từ app này.")
-        st.caption("Mở app trong Safari hoặc Chrome. Nếu đang xem trong Zalo "
-                   "hoặc Facebook, hãy chọn Mở bằng trình duyệt trước.")
+        st.write("**Lưu biểu tượng QUẢN LÝ DỰ ÁN để mở app chỉ bằng một lần chạm.** "
+                 "Không cần quay lại Zalo tìm link. Việc tạo biểu tượng do "
+                 "chính chủ điện thoại xác nhận một lần.")
+        st.caption("Nếu đang xem link trong Zalo hoặc Facebook, hãy chọn "
+                   "Mở bằng trình duyệt / Mở trong Safari hoặc Chrome trước.")
         ios,android=st.tabs(["🍎 iPhone","🤖 Android"])
         with ios:
             st.markdown(
-                "**①** Trong Safari: **Chia sẻ ⬆️ → Thêm vào Màn hình chính "
+                "**①** Nếu mở trong Zalo, chọn **Mở bằng trình duyệt → Safari**.\n\n"
+                "**②** Trong Safari: **Chia sẻ ⬆️ → Thêm vào Màn hình chính "
                 "→ Thêm**. Bật *Mở dưới dạng ứng dụng web* nếu có."
             )
         with android:
             st.markdown(
-                "**①** Trong Chrome: **⋮ → Cài đặt và tạo lối tắt** "
+                "**①** Nếu mở trong Zalo, chọn **Mở bằng trình duyệt → Chrome**.\n\n"
+                "**②** Trong Chrome: **⋮ → Cài đặt và tạo lối tắt** "
                 "(hoặc **Thêm vào màn hình chính**) **→ Thêm**."
             )
-        st.warning("Biểu tượng khi ghim lên iPhone/Android vẫn phụ thuộc "
-                   "trình duyệt và bộ nhớ đệm của thiết bị. Nếu còn icon cũ, "
-                   "hãy xóa lối tắt cũ, mở lại app sau khi PREVIEW cập nhật, "
-                   "rồi ghim lại để kiểm tra.")
-        st.info("Biểu tượng app dùng logo TDV màu vàng cam. "
+        st.info("Biểu tượng giúp mở app ngay từ màn hình điện thoại. "
                 "Mật khẩu tự đặt khi đăng ký chỉ dùng được **sau khi "
                 "ADMIN duyệt**; có thể chọn ghi nhớ đăng nhập 30 ngày "
                 "trên thiết bị cá nhân.")
+        st.caption("B đã cập nhật logo TV vàng cam làm favicon của PREVIEW. "
+                   "Biểu tượng khi ghim lên iPhone/Android vẫn phụ thuộc "
+                   "trình duyệt và Streamlit Cloud; nếu đã ghim icon cũ, "
+                   "cần xóa lối tắt cũ và tạo lại để kiểm tra.")
 
 
 def login(team_only=False):
@@ -876,39 +590,16 @@ def login(team_only=False):
     login_projects=sorted({str(t.get("Mã dự án","")).strip()
                            for t in login_teams
                            if t.get("Trạng thái")=="Hoạt động" and t.get("Mã dự án")})
-    if team_only:
-        # The project selection happens outside the form so changing project
-        # immediately refreshes the name suggestions. Streamlit selectbox
-        # supports built-in search while the member list is open.
-        project_choice=st.selectbox(
-            "Dự án của đội trưởng *",
-            ["— Chọn dự án —"]+login_projects,
-            key="team_login_project_first",
-            help="Chọn dự án trước để chỉ tìm thành viên của dự án đó.")
-        chosen_project=(project_choice
-                        if project_choice!="— Chọn dự án —" else None)
-        available_names=project_login_choices(
-            login_teams,chosen_project,effective_accounts())
-        typed=st.selectbox(
-            "Họ và tên đội trưởng *",
-            available_names,
-            index=None,
-            placeholder="Chạm và gõ vài chữ đầu của họ tên để tìm",
-            disabled=not bool(chosen_project),
-            key=f"team_login_member_{chosen_project or 'none'}",
-            help="Chỉ hiện tên VC/KTV đang hoạt động và đã có tài khoản "
-                 "thuộc dự án đã chọn.")
-        if chosen_project and not available_names:
-            st.info("Dự án này chưa có tài khoản VC/KTV hợp lệ để đăng nhập.")
     with st.form("team_login_form" if team_only else "login_form_preview"):
-        if not team_only:
-            # Keep the previous ADMIN/general login unchanged.
-            typed=st.text_input("Họ tên đội trưởng hoặc mã tài khoản ADMIN")
-            chosen_project=st.selectbox(
-                "Dự án (chỉ chọn khi có đội trưởng trùng họ tên)",
-                ["Tự xác định"]+login_projects,
-                help="Nếu nhiều đội trưởng cùng tên, chọn đúng mã dự án. "
-                     "Không cần chọn khi tên là duy nhất.")
+        typed=st.text_input(
+            "Họ và tên đội trưởng" if team_only else
+            "Họ tên đội trưởng hoặc mã tài khoản ADMIN",
+            placeholder="Ví dụ: Nguyễn Văn A" if team_only else "")
+        chosen_project=st.selectbox(
+            "Dự án (chỉ chọn khi có đội trưởng trùng họ tên)",
+            ["Tự xác định"]+login_projects,
+            help="Nếu nhiều đội trưởng cùng tên, chọn đúng mã dự án của mình. "
+                 "Không cần chọn khi tên là duy nhất.")
         pin=st.text_input("Mật khẩu riêng",type="password")
         remember_key=remember_signing_key()
         remember=st.checkbox(
@@ -923,9 +614,6 @@ def login(team_only=False):
             "✅ VÀO BÁO CÁO" if team_only else "ĐĂNG NHẬP",
             use_container_width=True)
     if not submitted:
-        return
-    if team_only and (not chosen_project or not typed):
-        st.warning("Hãy chọn dự án và họ tên đội trưởng trước khi đăng nhập.")
         return
     accounts=effective_accounts()
     username,reason=resolve_login_username(
@@ -962,12 +650,6 @@ def login(team_only=False):
 def auth():
     a = st.session_state.get("auth")
     if not a:
-        return None
-    if a.get("username") == LEADER_SESSION_USERNAME:
-        if verify_leader_session(
-                a,st.secrets.get("leader_view_password","")):
-            return a
-        st.session_state.pop("auth",None)
         return None
     cur = effective_accounts().get(a.get("username"))
     if (not cur or str(cur.get("role","")).upper() != a.get("role")
@@ -1276,7 +958,7 @@ def bulk_import_locations():
              f"  •  **Đã có trong dự án:** {len(unique)-len(to_add)}"
              f"  •  **Dự kiến thêm:** {len(to_add)}")
     if to_add:
-        display_centered_table([{"STT":i, "Tên xã/phường/đơn vị":name}
+        st.dataframe([{"STT":i, "Tên xã/phường/đơn vị":name}
                       for i,name in enumerate(to_add[:100],1)],
                      hide_index=True, use_container_width=True)
         if len(to_add)>100:
@@ -1377,7 +1059,7 @@ def projects_and_inventory():
                     append("NHAP_KHO",["NK-"+uuid.uuid4().hex[:12].upper(),project,now(),sku,name,unit,quantity,"",auth()["username"],""])
                 audit(auth()["username"],"THÊM DANH MỤC",choice,code if choice != "Hàng nhập kho" else sku,"OK")
                 read_sheet.clear()
-                st.success("Đã lưu vào Google Sheets DỰ ÁN.")
+                st.success("Đã lưu vào Google Sheets Preview.")
             except Exception as e:
                 st.error(f"Lưu thất bại: {type(e).__name__}")
     if choice == "Hàng nhập kho":
@@ -1391,7 +1073,7 @@ def projects_and_inventory():
                 st.error(problem)
             st.warning("Dữ liệu kho có lỗi; cần đối soát trước khi phân bổ.")
         elif records:
-            display_centered_table(records,hide_index=True,use_container_width=True)
+            st.dataframe(records,hide_index=True,use_container_width=True)
             if all(row["Hàng còn chờ phân bổ"] == 0 for row in records):
                 st.success("Toàn bộ hàng đã nhập của dự án đã được phân bổ hết "
                            "(còn chờ phân bổ = 0 cho mọi SKU).")
@@ -1600,7 +1282,7 @@ def allocate_bulk():
              f"trong tổng số {len(point_ids)} điểm của dự án.")
     if chosen_ids:
         with st.expander("Xem tên và mã điểm đã chọn"):
-            display_centered_table([{"Mã điểm":pid,"Xã/phường/đơn vị":names[pid]}
+            st.dataframe([{"Mã điểm":pid,"Xã/phường/đơn vị":names[pid]}
                           for pid in chosen_ids],
                          hide_index=True,use_container_width=True)
     if issues:
@@ -1612,7 +1294,7 @@ def allocate_bulk():
     # Basket totals here are a preview, not a record of a warehouse issue.
     basket_totals=preview_basket(skus,defaults,len(chosen_ids))
     st.markdown("#### Đối chiếu nhanh bộ định mức × số điểm")
-    display_centered_table([{
+    st.dataframe([{
         "SKU":sku,"Hàng hóa":inventory[sku]["name"],
         "ĐVT":inventory[sku]["unit"],
         "SL/điểm":float(defaults[sku]),
@@ -1686,12 +1368,12 @@ def allocate_bulk():
             "Dự kiến phân bổ":float(totals.get(sku, 0)),
             "Còn sau phân bổ":float(itm["remaining"]-totals.get(sku,0))
         })
-    display_centered_table(preview_summary, hide_index=True, use_container_width=True)
+    st.dataframe(preview_summary, hide_index=True, use_container_width=True)
     st.caption(f"Dự kiến ghi {len(candidates)} dòng vào KHO_PHAN_BO; "
                f"phát sinh tương ứng nhiệm vụ VC và KTV. "
                f"Địa điểm được chọn: {len(chosen_ids)}; ngoại lệ: {len(exceptions)}.")
     with st.expander("Xem toàn bộ ma trận địa điểm × SKU",expanded=False):
-        display_centered_table([{"Mã điểm":r["Mã điểm"],"Địa điểm":r["Tên địa điểm"],
+        st.dataframe([{"Mã điểm":r["Mã điểm"],"Địa điểm":r["Tên địa điểm"],
                        **{sku:float(r["quantities"][sku]) for sku in skus}}
                       for r in plan],hide_index=True,use_container_width=True)
     st.download_button("⬇️ Tải ma trận xem trước (.xlsx)",
@@ -1825,10 +1507,7 @@ def adjust_allocated_quantities():
     if not skus:
         st.error("Đợt này thiếu SKU; chưa được điều chỉnh.")
         return
-    sku_names={r.get("SKU"):r.get("Tên hàng hóa","") for r in batch_rows}
-    sku = st.selectbox("3. Hàng hóa cần điều chỉnh", skus,
-                       format_func=lambda code:
-                           f"{sku_names.get(code) or code} • SKU {code}",
+    sku = st.selectbox("3. Mã hàng (SKU)", skus,
                        key=f"adjust_sku_{project}_{batch}")
     matches = [r for r in batch_rows if r.get("SKU") == sku]
     by_alloc = {r["Mã phân bổ"]: r for r in matches}
@@ -1839,10 +1518,9 @@ def adjust_allocated_quantities():
                    for r in read_sheet("DANH_SACH_DIEM")
                    if r.get("Mã dự án") == project}
     st.caption("Đối chiếu toàn bộ địa điểm trong đợt/SKU này; số lượng bên dưới là số đang lưu, chưa phải định mức đúng.")
-    display_centered_table([
+    st.dataframe([
         {"Tên đơn vị": point_names.get(r.get("Mã điểm")) or "(Chưa có trong danh sách địa điểm)",
          "Mã điểm": r.get("Mã điểm", ""),
-         "Tên hàng hóa": sku_names.get(sku,""),
          "SKU": sku,
          "SL đang phân bổ": r.get("SL phân bổ", ""),
          "ĐVT": r.get("ĐVT", ""),
@@ -1887,7 +1565,7 @@ def adjust_allocated_quantities():
                                                     by_alloc[aid].get("Mã điểm")),
                         "SKU": sku, "SL cũ": previous,
                         "SL mới": updated, "Trả lại kho phân bổ": amount})
-    display_centered_table(preview, hide_index=True, use_container_width=True)
+    st.dataframe(preview, hide_index=True, use_container_width=True)
     if all(row["SL cũ"] == row["SL mới"] for row in preview):
         st.warning("Số mới chưa khác số cũ.")
         return
@@ -2164,7 +1842,7 @@ def provision_team_password():
                 sheet("TAI_KHOAN_DOI").update(
                     range_name=f"E{idx}:J{idx}",
                     values=[[salt,digest,"Hoạt động",when,admin,
-                             "ADMIN đặt lại mật khẩu trên DỰ ÁN"]],
+                             "ADMIN đặt lại mật khẩu trên PREVIEW"]],
                     value_input_option="RAW")
                 username=row["Mã tài khoản"]
             else:
@@ -2174,7 +1852,7 @@ def provision_team_password():
                 append("TAI_KHOAN_DOI", [
                     username,team["Mã đội"],team["Mã dự án"],
                     "DOI_TRUONG",salt,digest,"Hoạt động",when,
-                    admin,"ADMIN cấp mật khẩu trên DỰ ÁN"])
+                    admin,"ADMIN cấp mật khẩu trên PREVIEW"])
             read_sheet.clear()
             verified=effective_accounts().get(username)
             if not verified or verified.get("hash")!=digest or (
@@ -2200,172 +1878,6 @@ def provision_team_password():
                      "nào nếu chưa thấy thông báo cấp thành công. "
                      "Cần kiểm tra bảng tài khoản trước khi làm lại.")
 
-
-
-def supplemental_site_assignment_admin():
-    """ADMIN adds previously unowned project sites to an approved VC/KTV team."""
-    require_role("ADMIN")
-    with st.expander("➕ GIAO BỔ SUNG ĐIỂM CHƯA CÓ ĐỘI (VC / LẮP ĐẶT)",
-                     expanded=False):
-        notice = st.session_state.pop("supplemental_site_notice", None)
-        if notice:
-            st.success(notice)
-        st.caption("Chọn đội đang hoạt động và điểm chưa cấp cho đội nào ở "
-                   "đúng công đoạn. Giữ nguyên các điểm đã giao, số lượng "
-                   "kho và mọi báo cáo/biên bản. Có thể làm trên PC hoặc điện thoại.")
-        all_teams = read_sheet("QUAN_LY_DOI")
-        teams = [r for r in all_teams
-                 if r.get("Mã đội") and r.get("Mã dự án")
-                 and r.get("Trạng thái") == "Hoạt động" and allowed_modes(r)]
-        if not teams:
-            st.info("Chưa có đội VC/LĐ đang hoạt động.")
-            return
-        project = st.selectbox("1. Dự án", sorted({r["Mã dự án"] for r in teams}),
-                               key="supplemental_project")
-        team = st.selectbox(
-            "2. Đội nhận thêm điểm",
-            [r for r in teams if r["Mã dự án"] == project],
-            format_func=lambda r: r.get("Tên đội/đội trưởng", r["Mã đội"])
-            + " • " + r.get("Loại nhiệm vụ", ""),
-            key=f"supplemental_team_{project}")
-        mode_labels = {"VC": "Vận chuyển", "LD": "Lắp đặt",
-                       "VC+LD": "Cả VC và lắp đặt"}
-        mode = st.radio("3. Công đoạn bổ sung", allowed_modes(team),
-                        format_func=lambda m: mode_labels[m],
-                        key=f"supplemental_mode_{team['Mã đội']}")
-        tabs = ROLE_TABS[mode]
-        locations = read_sheet("DANH_SACH_DIEM")
-        registrations = read_sheet("DANG_KY_THANH_VIEN")
-        tasksets = {tab: read_sheet(tab) for tab in tabs}
-        hubs = read_sheet("BAN_GIAO_TAP_KET")
-        try:
-            active_registration(registrations, project, team["Mã đội"])
-            owners = owner_index(registrations, all_teams, project)
-            catalog = project_site_catalog(team, mode, locations, tasksets)
-            # Check EVERY candidate with the same pure planner used at commit.
-            ready = {}
-            for pid, (loc, status, _) in catalog.items():
-                if any(
-                        (tab, pid) in owners for tab in tabs):
-                    continue
-                try:
-                    supplemental_site_plan(
-                        team, mode, (pid,), locations, registrations,
-                        all_teams, tasksets, hubs)
-                    ready[pid] = loc
-                except ValueError:
-                    continue
-        except ValueError as exc:
-            st.warning("Cần đối soát quyền đội trước khi bổ sung: " + str(exc))
-            return
-        st.caption(f"**{len(ready)} điểm** chưa cấp quyền cho đội nào "
-                   "ở công đoạn này. Gồm cả điểm chưa phân bổ SKU.")
-        if not ready:
-            st.info("Không có điểm trống hợp lệ để bổ sung. Điểm đã thuộc "
-                    "đội khác phải qua mục Thu hồi / Giao lại đội khác.")
-            return
-        chosen = st.multiselect(
-            "4. Tìm tên đơn vị / điểm cần bổ sung",
-            sorted(ready, key=lambda pid:
-                   ready[pid].get("Tên xã/phường/đơn vị", pid).casefold()),
-            format_func=lambda pid: (
-                ready[pid].get("Tên xã/phường/đơn vị") or pid) + " • " + pid,
-            placeholder="Gõ tên đơn vị hoặc mã điểm...",
-            key=f"supplemental_sites_{project}_{team['Mã đội']}_{mode}")
-        if not chosen:
-            st.info("Chọn một hoặc nhiều điểm để xem đủ SKU và SL trước khi giao.")
-            return
-        try:
-            plan = supplemental_site_plan(
-                team, mode, chosen, locations, registrations,
-                all_teams, tasksets, hubs)
-        except ValueError as exc:
-            st.warning(str(exc))
-            return
-        stock = [r for r in read_sheet("KHO_PHAN_BO")
-                 if r.get("Mã dự án") == project and r.get("Mã điểm") in chosen]
-        stock_by_key = {(r.get("Mã điểm"), r.get("SKU")): r for r in stock}
-        st.markdown("#### 5. Đối chiếu SKU và số lượng từng địa điểm")
-        for pid in chosen:
-            loc = ready[pid]
-            quantities = {}
-            for tab, rows in plan["tasks"].items():
-                for row in rows:
-                    if row.get("Mã điểm") != pid:
-                        continue
-                    sku = row.get("SKU")
-                    entry = quantities.setdefault(sku, {"SKU": sku})
-                    entry["SL VC" if tab == "VAN_CHUYEN" else "SL LĐ"] = (
-                        row.get("SL giao") if tab == "VAN_CHUYEN"
-                        else row.get("SL lắp"))
-            preview = []
-            for sku, values in sorted(quantities.items()):
-                source = stock_by_key.get((pid, sku), {})
-                display = {"SKU": sku,
-                           "Thiết bị": source.get("Tên hàng hóa", ""),
-                           "ĐVT": source.get("ĐVT", "")}
-                if "SL VC" in values:
-                    display["SL giao"] = values["SL VC"]
-                if "SL LĐ" in values:
-                    display["SL lắp"] = values["SL LĐ"]
-                preview.append(display)
-            with st.container(border=True):
-                st.markdown("**📍 " +
-                            (loc.get("Tên xã/phường/đơn vị") or pid) + "**")
-                st.caption(f"Mã điểm: {pid} • {len(preview)} SKU")
-                if preview:
-                    display_centered_table(preview, hide_index=True, use_container_width=True)
-                else:
-                    st.info("Điểm chưa phân bổ SKU. Sau khi ADMIN phân bổ "
-                            "hàng, nhiệm vụ sẽ liên kết theo quyền vừa cấp.")
-        count = sum(len(rows) for rows in plan["tasks"].values())
-        st.caption(f"Tổng cộng: {len(chosen)} điểm, {count} nhiệm vụ SKU. "
-                   "Bổ sung cả quyền địa điểm đã duyệt và nhiệm vụ trong cùng "
-                   "một lần ghi; không thay đổi phân bổ kho.")
-        signature = hashlib.sha256(
-            repr(supplemental_site_signature(plan)).encode("utf-8")
-        ).hexdigest()[:16]
-        checked = st.checkbox(
-            "ADMIN xác nhận các điểm trên chưa thuộc đội nào và đúng hợp đồng.",
-            key=f"supplemental_ack_{signature}")
-        if st.button("✅ XÁC NHẬN GIAO BỔ SUNG ĐIỂM",
-                     disabled=not checked, type="primary",
-                     use_container_width=True,
-                     key=f"supplemental_commit_{signature}"):
-            try:
-                read_sheet.clear()
-                fresh_teams = read_sheet_live("QUAN_LY_DOI")
-                matches = [r for r in fresh_teams if
-                           r.get("Mã đội") == team["Mã đội"]
-                           and r.get("Mã dự án") == project]
-                if len(matches) != 1:
-                    fail("Đội nhận điểm đã thay đổi; chưa ghi.")
-                fresh = supplemental_site_plan(
-                    matches[0], mode, chosen,
-                    read_sheet_live("DANH_SACH_DIEM"),
-                    read_sheet_live("DANG_KY_THANH_VIEN"), fresh_teams,
-                    {tab: read_sheet_live(tab) for tab in tabs},
-                    read_sheet_live("BAN_GIAO_TAP_KET"))
-                if (supplemental_site_signature(fresh) !=
-                        supplemental_site_signature(plan)):
-                    fail("Quyền hoặc nhiệm vụ đã đổi; chưa ghi. Hãy tải lại.")
-                ids = {tab: sheet(tab).id for tab in tabs}
-                ids["DANG_KY_THANH_VIEN"] = sheet("DANG_KY_THANH_VIEN").id
-                requests = supplemental_site_requests(fresh, ids)
-                client()[0].batch_update({"requests": requests})
-                read_sheet.clear()
-                st.session_state["supplemental_site_notice"] = (
-                    f"Đã bổ sung {len(chosen)} điểm và {count} nhiệm vụ "
-                    f"cho đội {team.get('Tên đội/đội trưởng', team['Mã đội'])}. "
-                    "Quyền địa điểm và nhiệm vụ đã ghi cùng giao dịch; "
-                    "KHO_PHAN_BO giữ nguyên.")
-                st.rerun()
-            except Exception as exc:
-                read_sheet.clear()
-                st.error("CHƯA XÁC NHẬN ĐƯỢC LẦN GIAO BỔ SUNG (" +
-                         type(exc).__name__ + "). KHÔNG bấm lại ngay. "
-                         "ADMIN đối chiếu DANG_KY_THANH_VIEN, "
-                         "VAN_CHUYEN và LAP_DAT trước khi thử lại.")
 
 
 def team_reassignment_admin():
@@ -2472,7 +1984,7 @@ def team_reassignment_admin():
                    "Không đổi SL phân bổ cho điểm; không xóa báo cáo hay ảnh.")
         if planned["changes"]:
             with st.expander("Xem các nhiệm vụ sẽ thay đổi"):
-                display_centered_table([{"Công đoạn":r["tab"],"Mã điểm":r["point"],
+                st.dataframe([{"Công đoạn":r["tab"],"Mã điểm":r["point"],
                               "SKU":r["sku"],"Xử lý":
                               ("Giao cho "+planned["target_id"]
                                if planned["target_id"] else "Chờ phân công lại")}
@@ -2481,14 +1993,14 @@ def team_reassignment_admin():
         if planned["protected"]:
             st.warning("Các dòng đã làm/có chứng từ không bị chuyển tự động.")
             with st.expander("Xem nhiệm vụ phải bàn giao / đối soát"):
-                display_centered_table([{"Công đoạn":r["tab"],"Mã điểm":r["point"],
+                st.dataframe([{"Công đoạn":r["tab"],"Mã điểm":r["point"],
                               "SKU":r["sku"],"Lý do":r["reason"]}
                              for r in planned["protected"]],
                              hide_index=True,use_container_width=True)
         digest=hashlib.sha256(repr(change_signature(planned)).encode()).hexdigest()[:16]
         ack=st.checkbox(
             "Tôi đã kiểm tra đúng đội, địa điểm và các nhiệm vụ sẽ thay đổi. "
-            "Tôi đồng ý thực hiện trên DỰ ÁN.",
+            "Tôi đồng ý thực hiện trên PREVIEW.",
             key=f"team_change_confirm_{digest}")
         label=("✅ XÁC NHẬN NGỪNG ĐỘI / THU HỒI VIỆC" if suspend else
                "✅ XÁC NHẬN GIAO LẠI ĐỘI KHÁC" if transfer else
@@ -2576,7 +2088,7 @@ def teams_and_approval():
     account_count=sum(bool(r.get("Mã tài khoản"))
                       for r in read_sheet("TAI_KHOAN_DOI")
                       if r.get("Trạng thái")=="Hoạt động")
-    st.caption(f"Google Sheets DỰ ÁN: **{len(registrations)} hồ sơ đăng ký**"
+    st.caption(f"Google Sheets PREVIEW: **{len(registrations)} hồ sơ đăng ký**"
                f" • **{len(active_teams)} đội trưởng đang hoạt động**"
                f" • **{account_count} tài khoản cấp qua app**.")
     if not registrations and active_teams:
@@ -2641,7 +2153,7 @@ def teams_and_approval():
                                "trách nhiệm KTV đang giữ hàng.")
                 display=impact["pending_details"]+impact["protected_details"]
                 if display:
-                    display_centered_table([{
+                    st.dataframe([{
                         "Công đoạn":r["table"],"Mã điểm":r["point_id"],
                         "SKU":r["sku"],"SL nhiệm vụ":r["quantity"],
                         "Xử lý":r["state"],
@@ -2656,7 +2168,6 @@ def teams_and_approval():
             except ValueError as exc:
                 st.error("Liên kết hoặc đội chưa hợp lệ: "+str(exc))
     provision_team_password()
-    supplemental_site_assignment_admin()
     team_reassignment_admin()
     st.caption("Chỉ quản lý đội trưởng. Thành viên của đội do đội trưởng tự quản lý.")
     st.info("Địa điểm được cấp ngay khi ADMIN duyệt đăng ký đội trưởng. "
@@ -2802,11 +2313,11 @@ def teams_and_approval():
                 "Nhiệm vụ VC":by_role.get("VAN_CHUYEN",0),
                 "Nhiệm vụ LĐ":by_role.get("LAP_DAT",0)
             })
-        display_centered_table(summary,hide_index=True,use_container_width=True)
+        st.dataframe(summary,hide_index=True,use_container_width=True)
         with st.expander("Xem SKU và số lượng tại các địa điểm đã chọn"):
             for tab,rows in planned.items():
                 st.write("**"+("Vận chuyển" if tab=="VAN_CHUYEN" else "Lắp đặt")+"**")
-                display_centered_table([{
+                st.dataframe([{
                     "Điểm":r.get("Mã điểm"),"SKU":r.get("SKU"),
                     "Số lượng":r.get("SL giao" if tab=="VAN_CHUYEN" else "SL lắp")
                 } for r in rows],hide_index=True,use_container_width=True)
@@ -2870,19 +2381,8 @@ def teams_and_approval():
     if not tasks:
         st.info("Chưa có nhiệm vụ đang chờ phân công.")
         return
-    allocation_names={r.get("Mã phân bổ"):r.get("Tên hàng hóa","")
-                      for r in read_sheet("KHO_PHAN_BO")
-                      if r.get("Mã phân bổ")}
-    place_names={r.get("Mã điểm"):r.get("Tên xã/phường/đơn vị","")
-                 for r in read_sheet("DANH_SACH_DIEM")
-                 if r.get("Mã dự án")==tasks[0].get("Mã dự án")}
     selected_task=st.selectbox("Công việc chưa gán",tasks,
-        format_func=lambda x:(
-            f"{x['Mã dự án']} • "
-            f"{place_names.get(x.get('Mã điểm')) or x.get('Mã điểm')} "
-            f"({x.get('Mã điểm')}) • "
-            f"{allocation_names.get(x.get('Mã phân bổ')) or x.get('SKU')} "
-            f"(SKU {x.get('SKU')}) • {x.get(task_key,'')}"))
+        format_func=lambda x:f"{x['Mã dự án']} • {x['Mã điểm']} • {x['SKU']} • {x.get(task_key,'')}")
     teams=[x for x in read_sheet("QUAN_LY_DOI") if
            x.get("Trạng thái")=="Hoạt động"
            and x.get("Mã dự án")==selected_task.get("Mã dự án")
@@ -2891,8 +2391,7 @@ def teams_and_approval():
         st.warning("Chưa có đội hoạt động đúng chuyên môn TRONG CÙNG DỰ ÁN.")
         return
     selected_team=st.selectbox("Đội trưởng nhận nhiệm vụ",teams,
-        format_func=lambda x:
-            f"{x.get('Tên đội/đội trưởng') or 'Chưa có tên'} • {x.get('Mã đội')}")
+        format_func=lambda x:x['Tên đội/đội trưởng'])
     group_site=st.checkbox("Gán tất cả SKU chưa gán tại điểm này cho cùng đội",
                            value=True, key=f"assign_entire_point_{tab}")
     try:
@@ -2907,8 +2406,7 @@ def teams_and_approval():
              f"{selected_task['Mã điểm']}.")
     with st.expander("Xem các SKU và số lượng sẽ giao"):
         for task in preview:
-            item_name=allocation_names.get(task.get("Mã phân bổ")) or task.get("SKU")
-            st.write(f"{item_name} • SKU {task['SKU']}: "
+            st.write(f"{task['SKU']}: "
                      f"{task.get('SL giao' if tab=='VAN_CHUYEN' else 'SL lắp','')} "
                      f"({task[task_key]})")
     if st.button("✅ XÁC NHẬN GÁN ĐỘI", use_container_width=True):
@@ -2966,21 +2464,22 @@ def sync_progress(project_id, point_id):
 
 
 def images_to_drive(files, report_id, project_id="", point_id="", point_name="", recorded_at=""):
+    sh, cred=client()
     folder=st.secrets.get("photos_folder_id", "")
     if not folder:
         raise RuntimeError("Thiếu photos_folder_id.")
-    drive=drive_client()
+    drive=build("drive","v3",credentials=cred,cache_discovery=False)
     # Searchable Drive filename/description; the report Sheet stores the URL.
     if project_id and point_id and recorded_at:
         safe=lambda x: "".join(c for c in str(x) if c.isalnum() or c in "-_")[:48]
         stamp="".join(c for c in recorded_at if c.isdigit() or c=="T")[:15]
         photo_prefix=f"{safe(project_id)}_{safe(point_id)}_{stamp}_{report_id}"
-        description=(f"TDV DỰ ÁN | Dự án: {project_id} | "
+        description=(f"TDV PREVIEW | Dự án: {project_id} | "
                      f"Điểm: {point_name} ({point_id}) | "
                      f"Thời điểm gửi: {recorded_at} | Mã báo cáo: {report_id}")
     else:
         photo_prefix=report_id
-        description=f"TDV DỰ ÁN | Mã chứng từ: {report_id}"
+        description=f"TDV PREVIEW | Mã chứng từ: {report_id}"
     urls=[]
     for i, f in enumerate(files[:10]):
         img=Image.open(f)
@@ -2993,7 +2492,6 @@ def images_to_drive(files, report_id, project_id="", point_id="", point_name="",
             body={"name":f"{photo_prefix}_{i+1}.jpg",
                   "parents":[folder],"description":description},
             media_body=MediaIoBaseUpload(buf,mimetype="image/jpeg",resumable=False),
-            supportsAllDrives=True,
             fields="id,webViewLink").execute()
         urls.append(uploaded.get("webViewLink") or
                     f"https://drive.google.com/file/d/{uploaded['id']}/view")
@@ -3132,7 +2630,7 @@ def hub_admin():
                        "toàn bộ điểm; hãy kiểm tra biên bản/chọn lại các xã.")
         st.caption("Danh sách chi tiết nằm trong bảng cuộn; không cần mở "
                    "thêm nhiều lớp biểu mẫu trên điện thoại.")
-        display_centered_table([{"Xã/đơn vị":r["name"],"SKU":r["sku"],
+        st.dataframe([{"Xã/đơn vị":r["name"],"SKU":r["sku"],
                        "Số lượng":qty_label(r["quantity"]),"ĐVT":r["unit"]}
                       for r in lines],hide_index=True,use_container_width=True,
                      height=180)
@@ -3236,7 +2734,7 @@ def hub_admin():
                          "ADMIN cần kiểm tra BAN_GIAO_TAP_KET.")
     st.caption("Biên bản gắn MÃ ĐỘI VC giao và MÃ ĐỘI KTV nhận. "
                "Hai bên có trách nhiệm đối soát theo từng SKU. "
-               "Bảng biên bản chỉ dùng trên DỰ ÁN. "
+               "Bảng biên bản chỉ dùng trên PREVIEW. "
                "Không thay phiếu xuất kho hoặc biên bản nghiệm thu lắp đặt.")
 
 
@@ -3245,26 +2743,13 @@ def report():
     st.subheader("📋 Báo cáo nhiệm vụ")
     tid=a["team_id"]
     if a["role"]=="ADMIN":
-        allteams=[x for x in read_sheet("QUAN_LY_DOI") if x.get("Mã đội")]
+        allteams=[x["Mã đội"] for x in read_sheet("QUAN_LY_DOI") if x.get("Mã đội")]
         if not allteams:
             st.info("Chưa có đội.")
             return
-        selected_report_team=st.selectbox(
-            "Kiểm thử theo đội (chỉ Admin)",allteams,
-            format_func=lambda x:
-                f"{x.get('Tên đội/đội trưởng') or 'Chưa có tên'} • {x.get('Mã đội')}")
-        tid=selected_report_team["Mã đội"]
+        tid=st.selectbox("Kiểm thử theo mã đội (chỉ Admin)",allteams)
     if not tid:
         fail("Chưa liên kết mã đội cho tài khoản.")
-    report_team=lookup(read_sheet("QUAN_LY_DOI"),"Mã đội",tid) or {}
-    if report_team:
-        st.caption("Đội đang báo cáo: "
-                   f"{report_team.get('Tên đội/đội trưởng') or 'Chưa có tên'}"
-                   f" • Mã đội: {tid}")
-    if a["role"] == "ADMIN":
-        with st.expander("🔐 Kết nối thư mục ảnh DỰ ÁN (chỉ thư mục đã chọn)",
-                         expanded=False):
-            configure_photo_folder()
     if st.button("🔄 CẬP NHẬT HÀNG VC ĐÃ GIAO",use_container_width=True,
                  key="team_report_refresh"):
         st.session_state.pop("_report_attempt_pending",None)
@@ -3288,7 +2773,7 @@ def report():
             approved_sites=[]
         if approved_sites:
             with st.expander("📍 ĐỊA ĐIỂM ADMIN ĐÃ DUYỆT",expanded=True):
-                display_centered_table([{
+                st.dataframe([{
                     "Địa điểm":r["site_name"],
                     "Công việc":r["role"],
                     "Số nhiệm vụ SKU":r["sku_tasks"],
@@ -3318,9 +2803,9 @@ def report():
     if handover:
         st.caption("Đội KTV xem nơi đã nhận hàng tập kết và các xã đã "
                    "giao trực tiếp, không nhầm hai hình thức bàn giao.")
-    if handover:
-        with st.expander("📦 1. KIỂM TRA HÀNG VC / TẬP KẾT",
-                         expanded=True):
+    with st.expander("📦 1. KIỂM TRA HÀNG VC / TẬP KẾT",
+                     expanded=bool(handover)):
+        if handover:
             st.markdown("#### Hàng VC đã giao tận xã / KTV nhận tập kết")
             st.caption("Chỉ các địa điểm được giao cho đội LĐ này. "
                        "Số liệu VC được đối chiếu theo từng SKU và SL THỰC GIAO; "
@@ -3339,7 +2824,7 @@ def report():
                               key="team_handover_filter")
             shown=[r for r in handover if kind=="Tất cả" or r["status"]==kind]
             if shown:
-                display_centered_table([{
+                st.dataframe([{
                     "Địa điểm":r["name"],"Dự án":r["project"],
                     "Tình trạng hàng":r["status"],
                     "SKU phải lắp":r["sku_count"]
@@ -3388,7 +2873,7 @@ def report():
                 st.link_button("🧭 Xem địa điểm trên Google Maps",
                     "https://www.google.com/maps/search/?api=1&query="+quote(query),
                     use_container_width=True)
-                display_centered_table([{
+                st.dataframe([{
                     "SKU":v["sku"],"Cần lắp":v["need"],
                     "VC giao xã":v["delivered"],
                     "KTV nhận tập kết":v["hub_received"],
@@ -3401,98 +2886,26 @@ def report():
             else:
                 st.info("Không có địa điểm trong trạng thái vừa lọc.")
             st.divider()
-    if vc and not ld:
-        report_title="📝 BÁO CÁO GIAO HÀNG"
-    elif ld and not vc:
-        report_title="📝 BÁO CÁO LẮP ĐẶT"
-    else:
-        report_title="📝 BÁO CÁO GIAO HÀNG / LẮP ĐẶT"
-    with st.expander(report_title, expanded=True):
+    with st.expander("📝 2. BÁO CÁO GIAO HÀNG / LẮP ĐẶT",
+                     expanded=not bool(handover)):
         available=sorted(
             set((r["Mã dự án"],r["Mã điểm"]) for r in vc+ld),
             key=lambda k:(0 if status_by_site.get(k,{}).get("ready") else 1,k))
         if not available:
             st.info("Đội chưa được giao nhiệm vụ hoặc đã báo cáo hết.")
             return
-        site_rows=read_sheet("DANH_SACH_DIEM")
         locs={p.get("Mã điểm"):p.get("Tên xã/phường/đơn vị")
-              for p in site_rows}
-        site_by_key={(p.get("Mã dự án"),p.get("Mã điểm")):p
-                     for p in site_rows}
+              for p in read_sheet("DANH_SACH_DIEM")}
         def site_option(key):
             name=locs.get(key[1],key[1])
             summary=status_by_site.get(key)
             suffix=" • "+summary["status"] if summary else ""
-            return f"{key[0]} • {name} • {key[1]}{suffix}"
-        selected_key=f"report_site_selected_{tid}"
-        if st.session_state.get(selected_key) not in available:
-            st.session_state[selected_key]=available[0]
-        search_key=f"report_site_query_{tid}"
-        selected_point=st.session_state[selected_key]
-        search_value=st.text_input(
-            "🔎 Tìm điểm được giao",
-            placeholder="Gõ tên địa điểm hoặc mã điểm",
-            key=search_key,
-            help="Gõ vài chữ; danh sách điểm phù hợp hiện ngay bên dưới.")
-
-        def normalize_site_query(value):
-            normalized=unicodedata.normalize("NFD",str(value).casefold())
-            return "".join(ch for ch in normalized
-                           if unicodedata.category(ch)!="Mn").replace("đ","d")
-        query_norm=normalize_site_query(search_value.strip())
-        if query_norm:
-            filtered=[point_key for point_key in available
-                      if query_norm in normalize_site_query(site_option(point_key))]
-            if not filtered:
-                st.info("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
-                return
-            st.markdown("**GỢI Ý ĐỊA ĐIỂM — chạm một dòng để mở báo cáo**")
-
-            def select_assigned_site(point_key):
-                st.session_state[selected_key]=point_key
-                st.session_state[search_key]=""
-
-            for point_key in filtered[:10]:
-                option_id=json.dumps(list(point_key),ensure_ascii=False,
-                                     separators=(",",":"))
-                button_key=hashlib.sha1(option_id.encode("utf-8")).hexdigest()[:12]
-                st.button(
-                    "📍 "+site_option(point_key),
-                    key=f"report_site_choice_{tid}_{button_key}",
-                    use_container_width=True,
-                    on_click=select_assigned_site,
-                    args=(point_key,))
-            if len(filtered)>10:
-                st.caption(f"Có {len(filtered)} kết quả; gõ thêm để thu hẹp.")
-            st.info("Chạm một dòng để mở hàng hóa và phần báo cáo của điểm đó.")
-            return
-        chosen=st.session_state[selected_key]
-        site=next((p for p in read_sheet("DANH_SACH_DIEM")
-                   if p.get("Mã dự án")==chosen[0]
-                   and p.get("Mã điểm")==chosen[1]),{})
-        if site:
-            verified_pin=bool(site.get("Vĩ độ") and site.get("Kinh độ"))
-            destination=(
-                str(site["Vĩ độ"])+","+str(site["Kinh độ"])
-                if verified_pin else ", ".join(filter(None,[
-                    site.get("Tên xã/phường/đơn vị") or locs.get(chosen[1]),
-                    site.get("Địa chỉ chi tiết",""),
-                    site.get("Tỉnh/Thành","")]))
-            )
-            maps_url=("https://www.google.com/maps/dir/?api=1&destination="
-                      +quote(destination))
-            st.link_button("🧭 TÌM ĐƯỜNG ĐẾN ĐIỂM NÀY",
-                           maps_url,use_container_width=True)
-            if not verified_pin:
-                st.caption("Điểm chưa có GPS xác minh; kiểm tra đúng đích "
-                           "trên Google Maps trước khi bắt đầu.")
+            return f"{key[0]} • {name}{suffix}"
+        chosen=st.selectbox("Điểm được giao để báo cáo",available,
+                             format_func=site_option)
         vrows=[r for r in vc if (r["Mã dự án"],r["Mã điểm"])==chosen]
         lrows=[r for r in ld if (r["Mã dự án"],r["Mã điểm"])==chosen]
         modes=(["Đã giao hàng"] if vrows else [])+(["Đã lắp đặt"] if lrows else [])
-        if not modes:
-            st.info("Điểm này hiện không còn nhiệm vụ VC/KTV chờ báo cáo. "
-                    "Chọn điểm khác hoặc nhờ ADMIN kiểm tra phân công.")
-            return
         if vrows and lrows:
             st.caption("Đội VC+LĐ báo GIAO HÀNG trước, sau khi đã xác nhận "
                        "giao đủ mới được báo LẮP ĐẶT XONG. Hai bước lưu riêng.")
@@ -3514,8 +2927,8 @@ def report():
                           if row.get("Mã dự án")==chosen[0]
                           and row.get("Mã điểm")==chosen[1]]
         increments={}
-        sku_display=[]
         for tab,rows in targets.items():
+            st.caption("VẬN CHUYỂN" if tab=="VAN_CHUYEN" else "LẮP ĐẶT")
             id_key="Mã nhiệm vụ VC" if tab=="VAN_CHUYEN" else "Mã nhiệm vụ LD"
             for r in rows:
                 try:
@@ -3527,57 +2940,22 @@ def report():
                 if remaining<=0:
                     st.error("Số lượng còn lại không hợp lệ. Cần ADMIN đối soát.")
                     return
-                sku_display.append({
-                    "SKU":r.get("SKU",""),
-                    "Thiết bị":item["name"],
-                    "SL cần " + ("giao" if tab=="VAN_CHUYEN" else "lắp"):
-                        f"{remaining:g}",
-                    "ĐVT":item["unit"]})
+                with st.container(border=True):
+                    st.markdown(f"**{item['name']}**")
+                    st.write(f"Đơn vị tính: {item['unit']}")
+                    st.write(f"**Số lượng phân bổ tại điểm: {item['allocated']:g} {item['unit']}**")
+                    st.write(f"Đã xác nhận: {item['already']:g} {item['unit']}")
+                    st.write(f"**Số lượng cần xác nhận hoàn thành: {remaining:g} {item['unit']}**")
                 increments[r[id_key]]=remaining
-        with st.container(border=True):
-            st.markdown("**📍 " + (locs.get(chosen[1]) or chosen[1]) + "**")
-            st.caption(f"Dự án: {chosen[0]} • Mã điểm: {chosen[1]} • "
-                       f"{len(sku_display)} SKU • "
-                       f"{'Báo giao hàng' if mode == 'Đã giao hàng' else 'Báo lắp đặt'}")
-            display_centered_table(
-                sku_display, hide_index=True, use_container_width=True,
-                center_columns=("SKU", "SL cần giao", "SL cần lắp", "ĐVT"),
-                compact=True)
-            if any(numeric(r.get("SL thực tế"))>0
-                   for rows in targets.values() for r in rows):
-                st.caption("SL ở bảng là phần còn phải thực hiện; "
-                           "đã trừ số lượng báo cáo trước đó.")
-        st.caption("🧪 MÃ BẢN KIỂM TRA ẢNH DRIVE: DRIVE-PICKER-APPID-20261027-B")
         photo_key=f"{chosen[0]}_{chosen[1]}_{mode}"
-        gallery_key=f"report_files_{photo_key}"
-        gallery_before=st.session_state.get(gallery_key) or []
-        camera_state_key=f"report_camera_saved_{photo_key}"
-        camera_widget_key=f"report_camera_capture_{photo_key}"
-        capture_result=capture_report_photos(
-            max_photos=max(0,10-len(gallery_before)),
-            initial_photos=st.session_state.get(camera_state_key,[]),
-            key=camera_widget_key)
-        if isinstance(capture_result,dict) and isinstance(
-                capture_result.get("photos"),list):
-            st.session_state[camera_state_key]=capture_result["photos"][:10]
-        camera_items=st.session_state.get(camera_state_key,[])
+        captured=st.camera_input(
+            "📸 CHỤP ẢNH HIỆN TRƯỜNG",key=f"report_camera_{photo_key}")
         uploaded=st.file_uploader(
-            "🖼️ CHỌN ẢNH TỪ THƯ VIỆN (nếu cần)",
+            "🖼️ HOẶC CHỌN ẢNH CÓ SẴN (tối đa 10)",
             type=["jpg","jpeg","png"],accept_multiple_files=True,
-            key=gallery_key)
-        photos=[]
-        for item in camera_items:
-            data_url=item.get("data","") if isinstance(item,dict) else ""
-            if not data_url.startswith("data:image/") or "," not in data_url:
-                continue
-            image_file=io.BytesIO(base64.b64decode(data_url.split(",",1)[1]))
-            image_file.name=item.get("name") or "anh_hien_truong.jpg"
-            photos.append(image_file)
-        photos.extend(list(uploaded or []))
+            key=f"report_files_{photo_key}")
+        photos=([captured] if captured is not None else [])+list(uploaded or [])
         st.caption(f"Ảnh minh chứng đã chọn: {len(photos)}/10")
-        if len(photos)>10:
-            st.error("Tối đa 10 ảnh cho một báo cáo. Bỏ bớt ảnh thư viện rồi gửi.")
-            return
         require_gps = mode!="Đã giao hàng"
         gps=None
         if require_gps:
@@ -3587,33 +2965,7 @@ def report():
             st.caption("Vận chuyển không bắt buộc GPS check-in.")
         lat=gps.get("latitude") if isinstance(gps,dict) else None
         lon=gps.get("longitude") if isinstance(gps,dict) else None
-        # Never offer an actionable submit if the PREVIEW photo destination
-        # is missing; this used to surface only after clicking GỬI BÁO CÁO.
-        if not str(st.secrets.get("photos_folder_id", "")).strip():
-            st.error("⛔ Chưa cấu hình thư mục lưu ảnh DỰ ÁN "
-                     "(photos_folder_id). Chưa thể gửi báo cáo. "
-                     "ADMIN cần bổ sung cấu hình ảnh trên Streamlit Cloud; "
-                     "không bấm gửi lại khi chưa hoàn tất.")
-            return
-        drive_oauth=st.secrets.get("google_drive_oauth", {})
-        oauth_ready=all(str(drive_oauth.get(k, "")).strip()
-                        for k in ("client_id", "client_secret", "refresh_token",
-                                  "picker_api_key"))
-        if not oauth_ready:
-            st.error("⛔ Chưa cấu hình OAuth giới hạn thư mục ảnh. "
-                     "ADMIN cần hoàn tất Kết nối thư mục ảnh DỰ ÁN trước; "
-                     "chưa bật gửi báo cáo để tránh tạo báo cáo lỗi.")
-            return
-        try:
-            verify_configured_photo_folder()
-        except Exception as exc:
-            st.error("⛔ Chưa xác minh được quyền thư mục ảnh: " +
-                     drive_error_summary(exc) +
-                     ". ADMIN cần chọn/xác minh thư mục trong mục "
-                     "“Kết nối thư mục ảnh DỰ ÁN” trước khi gửi.")
-            return
-        eligible=(bool(photos) and len(photos)<=10
-                  and (not require_gps or (lat is not None and lon is not None)))
+        eligible=bool(photos) and len(photos)<=10 and (not require_gps or (lat is not None and lon is not None))
         if not eligible:
             st.info("Cần ảnh và" + (" GPS check-in." if require_gps else " đúng số ảnh quy định."))
             return
@@ -3674,14 +3026,12 @@ def report():
             dest=p.get("Link Google Maps") or ("https://www.google.com/maps/search/?api=1&query="+quote(p.get("Tên xã/phường/đơn vị",chosen[1])))
             maps=(f"https://www.google.com/maps?q={lat},{lon}" if require_gps else dest)
             st.session_state["_report_attempt_pending"]=rid
-            phase="lưu ảnh Drive"
             try:
                 urls=images_to_drive(
                     photos,rid,chosen[0],chosen[1],
                     p.get("Tên xã/phường/đơn vị",chosen[1]),submitted_at)
                 # All source rows are refreshed after photo upload. Business
                 # updates are issued together; no half-synced status/report.
-                phase="đối soát dữ liệu sau tải ảnh"
                 read_sheet.clear()
                 vc_latest=read_sheet_live("VAN_CHUYEN")
                 ld_latest=read_sheet_live("LAP_DAT")
@@ -3696,16 +3046,6 @@ def report():
                             current.get("Mã đội VC" if tab=="VAN_CHUYEN" else "Mã đội KTV")!=tid):
                         raise ValueError("Nhiệm vụ thay đổi trong khi tải ảnh; tải lại và đối soát.")
                     refreshed.append(current)
-                if mode=="Đã lắp đặt":
-                    # Delivery/accepted-hub evidence can change while Drive
-                    # uploads are in flight. Revalidate against the same fresh
-                    # rows used for the final atomic Sheets transaction.
-                    hub_latest=read_sheet_live("BAN_GIAO_TAP_KET")
-                    if not site_may_complete_installation(
-                            chosen[0],chosen[1],ld_latest,vc_latest,hub_latest):
-                        raise ValueError("Xác nhận giao hàng/bàn giao tập kết "
-                                         "đã thay đổi trong lúc tải ảnh; cần "
-                                         "đối soát trước khi báo lắp đặt.")
                 tabs=("BAO_CAO_TRIEN_KHAI","VAN_CHUYEN","LAP_DAT",
                       "TIEN_DO","NHAT_KY_HE_THONG")
                 sheets={name:sheet(name).id for name in tabs}
@@ -3718,7 +3058,6 @@ def report():
                     urls,maps,lat,lon,vc_latest,ld_latest,
                     read_sheet_live("TIEN_DO"),
                     p.get("Tên xã/phường/đơn vị",chosen[1]),prior_ids)
-                phase="ghi đồng bộ Google Sheets"
                 client()[0].batch_update({"requests":requests})
                 read_sheet.clear()
                 st.session_state.pop("_report_attempt_pending",None)
@@ -3730,67 +3069,30 @@ def report():
                          ". Cần đối soát trước khi gửi lại.")
             except Exception as exc:
                 read_sheet.clear()
-                # Google Sheets batch_update may commit despite a lost response.
-                # Keep the duplicate-submit guard until ADMIN reconciles.
-                error_label=(drive_error_summary(exc)
-                             if phase=="lưu ảnh Drive" else type(exc).__name__)
-                if phase=="ghi đồng bộ Google Sheets":
-                    st.error("CHƯA XÁC NHẬN ĐƯỢC GIAO DỊCH Google Sheets ("+
-                             type(exc).__name__+"). KHÔNG bấm lại. "
-                             "ADMIN kiểm tra mã "+rid+
-                             " trong BAO_CAO_TRIEN_KHAI rồi mới thử tiếp.")
-                else:
-                    st.error("CHƯA LƯU ĐƯỢC BÁO CÁO tại bước "+phase+
-                             " ("+error_label+"). KHÔNG bấm lại. "
-                             "ADMIN kiểm tra ảnh Drive và mã "+rid+
-                             " trong BAO_CAO_TRIEN_KHAI trước khi thử tiếp.")
+                st.error("CHƯA XÁC NHẬN ĐƯỢC GIAO DỊCH ("+type(exc).__name__+
+                         "). KHÔNG bấm lại. ADMIN kiểm tra mã "+rid+
+                         " trong BAO_CAO_TRIEN_KHAI rồi mới thử tiếp.")
 
 def dashboard():
-    """Compact, read-only leadership dashboard: ADMIN / LANH_DAO."""
-    require_role("ADMIN","LANH_DAO")
-    st.markdown(
-        """
-        <style>
-        [data-testid="stMainBlockContainer"] h3 {
-            font-size:1.25rem !important;
-            margin-top:.2rem !important;
-            margin-bottom:.35rem !important;
-        }
-        [data-testid="stMainBlockContainer"] [data-testid="stSelectbox"] label,
-        [data-testid="stMainBlockContainer"] [data-testid="stCaptionContainer"] p {
-            font-size:.74rem !important;
-            line-height:1.25 !important;
-        }
-        [data-testid="stMainBlockContainer"] [data-testid="stSelectbox"] div[data-baseweb="select"] * {
-            font-size:.84rem !important;
-        }
-        [data-testid="stMainBlockContainer"] [data-testid="stButton"] button {
-            min-height:2.15rem !important;
-            padding:.3rem .55rem !important;
-        }
-        [data-testid="stMainBlockContainer"] [data-testid="stButton"] button p {
-            font-size:.78rem !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.subheader("📊 Báo cáo tiến độ")
+    """Read-only progress dashboard: strictly ADMIN / LANH_DAO."""
+    a=require_role("ADMIN","LANH_DAO")
+    st.subheader("📊 Báo cáo tiến độ dự án")
+    st.caption("Chỉ ADMIN và LÃNH ĐẠO xem toàn dự án. "
+               "Số liệu theo nhiệm vụ và báo cáo đã ghi vào Google Sheets; "
+               "chưa phải biên bản nghiệm thu hay đối soát xuất kho vật lý.")
+    if st.button("🔄 CẬP NHẬT SỐ LIỆU",use_container_width=True,
+                 key="leadership_refresh"):
+        read_sheet.clear()
+        st.rerun()
     projects=read_sheet("DANH_SACH_DU_AN")
     ids=[p["Mã dự án"] for p in projects if p.get("Mã dự án")]
     if not ids:
         st.info("Chưa có dự án để báo cáo.")
         return
+    # Always show KPIs per project, never merge unrelated project points.
     preferred=ids.index("DA880") if "DA880" in ids else 0
-    project_col,refresh_col=st.columns([3,1])
-    with project_col:
-        project=st.selectbox("Dự án",ids,index=preferred,
-                             key="leadership_project")
-    with refresh_col:
-        if st.button("🔄 CẬP NHẬT",key="leadership_refresh",
-                     use_container_width=True):
-            read_sheet.clear()
-            st.rerun()
+    project=st.selectbox("Dự án cần xem",ids,index=preferred,
+                         key="leadership_project")
     progress=build_progress(
         project,projects,
         read_sheet("DANH_SACH_DIEM"),
@@ -3803,74 +3105,173 @@ def dashboard():
         read_sheet("BAN_GIAO_TAP_KET")
     )
     m=progress["metrics"]
-    total=max(0,int(m.get("sites",0) or 0))
-    st.caption("Số liệu lúc "+now().replace("T"," ")[:19]+
-               " (giờ Việt Nam) • Nhấn CẬP NHẬT để làm mới.")
-    cards=[
-        ("Điểm dự án","sites"),
-        ("Đã phân bổ hàng","sites_allocated"),
-        ("VC giao tận xã đủ","sites_delivered"),
-        ("LĐ đã lắp đủ","sites_installed"),
-        ("VC bàn giao tập kết đủ","sites_vc_hub_done"),
-        ("KTV nhận tập kết đủ","sites_at_hub"),
-    ]
-    chart_rows=[
-        ("Phân bổ hàng","sites_allocated"),
-        ("VC giao tận xã","sites_delivered"),
-        ("LĐ lắp đặt đủ","sites_installed"),
-        ("VC bàn giao tập kết","sites_vc_hub_done"),
-        ("KTV nhận tập kết","sites_at_hub"),
-    ]
-    card_html="".join(
-        '<div class="kpi"><div class="label">'+label+
-        '</div><div class="value">'+str(max(0,int(m.get(key,0) or 0)))+
-        '</div></div>'
-        for label,key in cards
-    )
-    rows_html=""
-    for label,key in chart_rows:
-        value=max(0,int(m.get(key,0) or 0))
-        pct=min(100.0,(value/total*100.0) if total else 0.0)
-        rows_html+=(
-            '<div class="row"><div class="row-label">'+label+
-            '</div><div class="track"><div class="fill" style="width:'+
-            f'{pct:.1f}%'+
-            ';"></div></div><div class="row-value">'+str(value)+
-            '/'+str(total)+'</div></div>'
+    total=m["sites"]
+    st.caption("Số liệu đọc lúc "+now().replace("T"," ")[:19]+
+               " (giờ Việt Nam). Nhấn CẬP NHẬT để lấy dữ liệu mới nhất.")
+    st.markdown("#### 1. Tổng quan tiến độ")
+    a1,a2=st.columns(2)
+    a1.metric("Điểm dự án",m["sites"])
+    a2.metric("Đã phân bổ hàng",m["sites_allocated"])
+    b1,b2=st.columns(2)
+    b1.metric("VC giao tận xã đủ",m["sites_delivered"])
+    b2.metric("LĐ đã lắp đủ",m["sites_installed"])
+    h1,h2=st.columns(2)
+    h1.metric("VC bàn giao tập kết đủ",m["sites_vc_hub_done"])
+    h2.metric("KTV nhận tập kết đủ",m["sites_at_hub"])
+    st.caption("Hai số tập kết tính theo SỐ XÃ có đủ SKU; "
+               "một biên bản ký tại một điểm tập kết có thể gồm nhiều xã. "
+               "Không phải số chuyến xe hay số điểm giao tận xã.")
+    st.metric("Đủ hàng, chờ/đang lắp",m["sites_ready_install"])
+    if total:
+        st.write(f"**VC giao TẬN XÃ đủ: {m['sites_delivered']}/{total} điểm** "
+                 f"({m['sites_delivered']/total:.1%})")
+        st.progress(min(1.,m["sites_delivered"]/total))
+        st.write(f"**Lắp đặt đủ: {m['sites_installed']}/{total} điểm** "
+                 f"({m['sites_installed']/total:.1%})")
+        st.progress(min(1.,m["sites_installed"]/total))
+    with st.expander("Chi tiết nhiệm vụ và việc chưa giao đội",expanded=False):
+        st.write(f"VC báo giao tận xã: **{m['vc_tasks_done']}/{m['vc_tasks']}** nhiệm vụ/SKU. "
+                 f"VC bàn giao tập kết đủ: **{m['sites_vc_hub_done']}** địa điểm "
+                 "(xác nhận theo biên bản có mã đội VC).")
+        st.write(f"LĐ báo hoàn thành: **{m['ld_tasks_done']}/{m['ld_tasks']}** nhiệm vụ/SKU.")
+        st.write(f"Nhiệm vụ VC chưa có đội: **{m['vc_unassigned']}**; "
+                 f"LĐ chưa có đội: **{m['ld_unassigned']}**.")
+        st.caption("VC giao tận xã và KTV nhận hàng tập kết là hai chỉ tiêu "
+                   "riêng. Chỉ báo cáo KTV có ảnh/GPS và đủ SL lắp mới tính "
+                   "điểm hoàn thành. Thiếu chứng từ giao hàng sẽ cảnh báo "
+                   "đối soát, không tự xóa số liệu KTV đã báo.")
+
+    if progress["pending_report_count"]:
+        st.warning(f"⚠️ Có {progress['pending_report_count']} báo cáo chưa đồng bộ "
+                   "hoặc cần ADMIN đối soát. Không coi các báo cáo này là nghiệm thu.")
+    if progress["anomalies"]:
+        with st.expander(f"⚠️ Cần kiểm tra dữ liệu ({len(progress['anomalies'])} cảnh báo)"):
+            for issue in progress["anomalies"][:30]:
+                st.write("• "+issue)
+            if len(progress["anomalies"])>30:
+                st.caption("Còn các cảnh báo khác; ADMIN cần kiểm tra Google Sheets.")
+
+    st.markdown("#### 2. Tra cứu tiến độ từng xã/đơn vị")
+    sites=progress["sites"]
+    statuses=["Tất cả"]+sorted({p["status"] for p in sites})
+    f1,f2=st.columns([1,1])
+    status=f1.selectbox("Trạng thái",statuses,key="leadership_status")
+    search=f2.text_input("🔎 Tìm địa điểm",placeholder="Tên xã, đơn vị hoặc mã điểm...",
+                         key="leadership_search")
+    needle=search.casefold().strip()
+    matching=[p for p in sites if
+              (status=="Tất cả" or p["status"]==status)
+              and (not needle or needle in p["name"].casefold()
+                   or needle in p["point_id"].casefold()
+                   or needle in p["project"].casefold())]
+    st.caption(f"Đang hiển thị {len(matching)} / {len(sites)} địa điểm.")
+    if matching:
+        st.dataframe([{
+            "Địa điểm":p["name"],
+            "Dự án":p["project"],
+            "VC đủ SKU":f"{p['vc_done']}/{p['sku_count']}",
+            "LĐ đủ SKU":f"{p['ld_done']}/{p['sku_count']}",
+            "Tình trạng":p["status"]
+        } for p in matching],hide_index=True,use_container_width=True)
+        selected_site=st.selectbox("Xem chi tiết một địa điểm",
+            list(range(len(matching))),
+            format_func=lambda i:(matching[i]["name"]+
+                                  " • "+matching[i]["project"]+
+                                  " • "+matching[i]["status"]),
+            key="leadership_site_detail")
+        site=matching[selected_site]
+        st.write("**"+site["name"]+"** • "+site["point_id"])
+        st.write(f"**VC:** {', '.join(site['vc_teams']) or 'Chưa gán đội'}")
+        st.write(f"**LĐ:** {', '.join(site['ld_teams']) or 'Chưa gán đội'}")
+        if site["skus"]:
+            st.dataframe([{
+                "SKU":item["sku"],"SL phân bổ":display_amount(item["planned"]),
+                "VC giao tận xã":display_amount(item["delivered"]),
+                "KTV nhận tập kết":display_amount(item["hub"]),
+                "LĐ đã báo lắp":display_amount(item["installed"]),
+                "Đã phân bổ chưa lắp":display_amount(
+                    item["planned"]-item["installed"])
+            } for item in site["skus"]],hide_index=True,use_container_width=True)
+        else:
+            st.info("Địa điểm chưa được phân bổ hàng.")
+    else:
+        st.info("Không có địa điểm khớp điều kiện tìm kiếm.")
+
+    st.markdown("#### 3. Nhập kho – Phân bổ – Giao – Lắp theo SKU")
+    st.caption("VC giao tận xã và KTV nhận tập kết được báo riêng. "
+               "'Đã phân bổ chưa lắp' = SL phân bổ trừ SL KTV đã báo lắp "
+               "(kể cả lắp một phần); KHÔNG phải tồn kho vật lý. "
+               "Mỗi SKU giữ nguyên ĐVT của mình.")
+    if progress["skus"]:
+        st.dataframe(progress["skus"],hide_index=True,use_container_width=True)
+    else:
+        st.info("Chưa có dữ liệu nhập kho/phân bổ của dự án.")
+
+    st.markdown("#### 4. Báo cáo hiện trường gần đây")
+    activity=progress["activity"]
+    if activity:
+        st.dataframe([{
+            "Thời gian":str(r.get("Thời gian máy chủ","")).replace("T"," ")[:19],
+            "Dự án":r.get("Mã dự án",""),
+            "Mã điểm":r.get("Mã điểm",""),
+            "Đội":r.get("Mã đội",""),
+            "Nội dung":r.get("Loại báo cáo",""),
+            "Đồng bộ":r.get("Trạng thái đồng bộ","")
+        } for r in activity],hide_index=True,use_container_width=True)
+        st.caption("Bảng tóm tắt 40 báo cáo mới nhất. Bấm chọn "
+                   "một báo cáo dưới đây để xem bằng chứng kèm theo.")
+        index=st.selectbox(
+            "Xem chi tiết một báo cáo hiện trường",
+            list(range(len(activity))),
+            format_func=lambda i:(
+                str(activity[i].get("Thời gian máy chủ",""))[:19].replace("T"," ")
+                +" • "+str(activity[i].get("Loại báo cáo",""))
+                +" • "+str(activity[i].get("Mã báo cáo",""))),
+            key="leadership_report_detail"
         )
-    html=(
-        '<!doctype html><html><head><meta name="viewport" '
-        'content="width=device-width, initial-scale=1">'
-        '<style>'
-        '*{box-sizing:border-box}body{margin:0;padding:2px;background:transparent;'
-        'font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;'
-        'color:#1f2937}.layout{display:grid;grid-template-columns:1.05fr .95fr;'
-        'gap:10px}.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));'
-        'gap:8px}.kpi,.chart{border:1px solid #dbe4ee;border-radius:12px;'
-        'background:#f3f7fb}.kpi{min-height:70px;padding:9px 10px;'
-        'display:flex;flex-direction:column;justify-content:space-between}'
-        '.label{font-size:10px;line-height:1.2;color:#475569;min-height:24px}'
-        '.value{font-size:32px;line-height:1;font-weight:800;color:#111827;letter-spacing:-.02em}'
-        '.chart{padding:10px}.chart-title{font-size:12px;font-weight:700;'
-        'margin:0 0 7px}.row{display:grid;grid-template-columns:108px minmax(35px,1fr) 43px;'
-        'gap:6px;align-items:center;margin:10px 0}.row-label{font-size:10px;'
-        'line-height:1.15;color:#475569}.track{height:9px;border-radius:99px;'
-        'background:#dbe5ef;overflow:hidden}.fill{height:100%;border-radius:99px;'
-        'background:#2878c8}.row-value{font-size:12px;text-align:right;'
-        'font-variant-numeric:tabular-nums;color:#334155}.note{font-size:9px;'
-        'line-height:1.25;color:#64748b;margin-top:8px}'
-        '@media(max-width:620px){.layout{grid-template-columns:1fr;gap:8px}'
-        '.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}'
-        '.kpi{min-height:64px;padding:7px 8px}.label{font-size:9px;min-height:22px}'
-        '.value{font-size:30px}.chart{padding:8px 9px}'
-        '.row{grid-template-columns:102px minmax(35px,1fr) 42px;margin:7px 0}'
-        '.chart-title{margin-bottom:4px}}'
-        '</style></head><body><div class="layout"><div class="kpis">'+card_html+
-        '</div><div class="chart"><div class="chart-title">Tiến độ theo điểm</div>'+
-        rows_html+'<div class="note">Hai số tập kết đếm xã đủ SKU theo biên bản, không phải số chuyến. '
-        'Báo cáo tiến độ chưa thay nghiệm thu/đối soát.</div></div></div></body></html>'
-    )
-    st.components.v1.html(html,height=420,scrolling=False)
+        record=activity[index]
+        with st.container(border=True):
+            st.write("**Báo cáo:** "+str(record.get("Mã báo cáo","")))
+            st.write("**Đội:** "+str(record.get("Mã đội","")))
+            st.write("**Dự án/điểm:** "+str(record.get("Mã dự án",""))+
+                     " / "+str(record.get("Mã điểm","")))
+            st.write("**Nội dung:** "+str(record.get("Loại báo cáo","")))
+            st.write("**SKU và SL thực tế:** "+
+                     str(record.get("Danh sách SKU:SL thực tế") or "Chưa ghi"))
+            st.write("**Kết quả đối soát:** "+
+                     str(record.get("Kết quả đối soát") or "Chưa ghi"))
+            st.write("**Trạng thái đồng bộ:** "+
+                     str(record.get("Trạng thái đồng bộ") or "Chưa ghi"))
+            if record.get("Ghi chú"):
+                st.caption("Ghi chú: "+str(record.get("Ghi chú")))
+            def safe_evidence_url(raw,kind="image"):
+                parsed=urlparse(str(raw).strip())
+                hosts=({"drive.google.com","docs.google.com",
+                         "lh3.googleusercontent.com","storage.googleapis.com"}
+                       if kind=="image" else
+                       {"www.google.com","google.com","maps.google.com"})
+                return str(raw).strip() if (parsed.scheme=="https" and
+                                            parsed.hostname in hosts) else ""
+            photos=str(record.get("Link ảnh") or "").split(",")
+            image_links=[safe_evidence_url(x) for x in photos]
+            image_links=[x for x in image_links if x][:10]
+            if image_links:
+                for i,photo in enumerate(image_links,1):
+                    st.link_button(f"📷 Xem ảnh hiện trường {i}",photo,
+                                   use_container_width=True)
+            else:
+                st.caption("Báo cáo chưa có liên kết ảnh được xác minh.")
+            url=safe_evidence_url(record.get("Link Google Maps"),"map")
+            if url:
+                st.link_button("📍 Xem vị trí báo cáo trên Maps",url,
+                               use_container_width=True)
+            st.caption("Ảnh Drive có thể yêu cầu quyền xem riêng. "
+                       "Không có nút sửa/xóa hoặc duyệt từ màn hình này.")
+    else:
+        st.info("Chưa có báo cáo hiện trường. "
+                "Phân bổ và gán đội không được tính là đã giao/lắp.")
+    st.caption("Báo cáo chỉ đọc. ADMIN xử lý nhập kho, phân bổ, phân công "
+               "và đối soát tại các chức năng riêng; LÃNH ĐẠO không được sửa dữ liệu.")
 
 def main():
     try:
@@ -3906,10 +3307,10 @@ def main():
         if isinstance(e, PreviewSheetReadError):
             st.error(str(e))
         elif isinstance(e, gspread.exceptions.APIError):
-            st.error("Không thể kết nối Google Sheets DỰ ÁN: HTTP " +
+            st.error("Không thể kết nối Google Sheets PREVIEW: HTTP " +
                      str(_google_api_status(e) or "không rõ"))
         else:
-            st.error("Không thể truy cập dữ liệu DỰ ÁN: " + type(e).__name__)
+            st.error("Không thể truy cập dữ liệu Preview: " + type(e).__name__)
         st.caption("Không ghi hoặc xóa dữ liệu khi bước đọc thất bại; kiểm tra mã HTTP nếu còn lỗi.")
 if __name__=="__main__":
     main()

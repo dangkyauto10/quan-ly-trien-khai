@@ -34,13 +34,10 @@ class ResponsiveLayoutTests(unittest.TestCase):
 
     def test_no_changes_to_camera_or_gps_verification_path(self):
         src=self.source()
-        self.assertIn('capture_report_photos(',src)
-        self.assertIn('key=f"report_camera_capture_{photo_key}"',src)
+        self.assertIn('st.camera_input(',src)
+        self.assertIn('key=f"report_camera_{photo_key}"',src)
         self.assertIn('streamlit_geolocation()',src)
         self.assertIn('st.file_uploader(',src)
-        camera=(ROOT/"preview_photo_capture"/"frontend"/"index.html")\
-            .read_text(encoding="utf-8")
-        self.assertIn('capture="environment"',camera)
 
 
 if __name__=="__main__":

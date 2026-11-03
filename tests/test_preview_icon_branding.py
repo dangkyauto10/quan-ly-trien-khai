@@ -31,8 +31,7 @@ class TDVIconTests(unittest.TestCase):
     def test_home_screen_guide_does_not_overpromise_native_icon(self):
         src=(ROOT/"preview_app.py").read_text(encoding="utf-8")
         self.assertIn("Biểu tượng khi ghim lên iPhone/Android vẫn phụ thuộc",src)
-        self.assertIn("xóa lối tắt cũ, mở lại app sau khi PREVIEW cập nhật",src)
-        self.assertIn("rồi ghim lại để kiểm tra",src)
+        self.assertIn("cần xóa lối tắt cũ và tạo lại để kiểm tra",src)
 
 
 if __name__=="__main__":

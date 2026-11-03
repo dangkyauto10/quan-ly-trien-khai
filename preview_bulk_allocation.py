@@ -193,12 +193,10 @@ def atomic_requests(sheet_ids, entries, batch_id, project, inventory, point_name
                                       unit, qty, stamp, "Đã phân bổ", ""])
         records["VAN_CHUYEN"].append([f"VC-{alloc_id}", alloc_id, project, pid,
                                      sku, qty, approved_owners.get(("VAN_CHUYEN", pid), ""),
-                                      "Chưa giao", "", "", "", "", "", "",
-                                      point_names[pid]])
+                                      "Chưa giao", "", "", "", "", "", ""])
         records["LAP_DAT"].append([f"LD-{alloc_id}", alloc_id, project, pid,
                                   sku, qty, approved_owners.get(("LAP_DAT", pid), ""),
-                                   "Chưa lắp", "", "", "", "", "", "",
-                                   point_names[pid]])
+                                   "Chưa lắp", "", "", "", "", "", ""])
     old_progress = {}
     for row in (progress or []):
         if row.get("Mã dự án") != project:
