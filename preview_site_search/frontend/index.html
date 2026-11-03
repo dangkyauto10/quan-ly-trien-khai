@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 4px 0 6px; color: #253247;
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .label { margin: 0 0 7px; font-size: 16px; font-weight: 650; }
+  input {
+    width: 100%; min-height: 48px; padding: 11px 14px;
+    border: 1px solid #cbd2dc; border-radius: 8px;
+    background: #f4f6f9; color: #1f2937; font-size: 16px;
+    outline: none;
+  }
+  input:focus { border: 2px solid #4b73bd; background: #fff; }
+  #selected { margin-top: 8px; color: #334155; font-size: 14px;
+              font-weight: 650; line-height: 1.4; }
+  .hint { margin-top: 5px; color: #64748b; font-size: 13px; }
+</style>
+</head>
+<body>
+  <div class="label">🔎 Tìm điểm được giao</div>
+  <input id="query" type="text" autocomplete="off" autocapitalize="off"
+    placeholder="Gõ tên địa điểm hoặc mã điểm" aria-label="Tìm điểm được giao">
+  <div id="selected" aria-live="polite"></div>
+  <div class="hint">Gợi ý hiện ngay bên dưới; chạm một điểm để mở báo cáo. • LIVE-20261029-C</div>
+<script>
+  let args = {};
+  let query = "";
+  let timer = null;
+  let lastSent = "";
+  let lastSelectedId = null;
+  let lastSelectionToken = null;
+  const input = document.getElementById("query");
+  const selected = document.getElementById("selected");
+
+  function send(type, value) {
+    const message = {isStreamlitMessage: true, type};
+    if (type === "streamlit:componentReady") {
+      message.apiVersion = value && value.apiVersion;
+    } else {
+      message.value = value;
+      if (type === "streamlit:setComponentValue") message.dataType = "json";
+    }
+    window.parent.postMessage(message, "*");
+  }
+
+  function setHeight() {
+    const height = Math.ceil(document.documentElement.scrollHeight + 8);
+    window.parent.postMessage({
+      isStreamlitMessage: true,
+      type: "streamlit:setFrameHeight",
+      height
+    }, "*");
+  }
+
+  function onRender(data) {
+    args = data.args || {};
+    const nextSelectedId = String(args.selectedId || "");
+    const nextSelectionToken = String(args.selectionToken || "");
+    const selectedChanged = lastSelectedId !== null &&
+      nextSelectedId !== lastSelectedId;
+    const selectionEvent = lastSelectionToken !== null &&
+      nextSelectionToken !== lastSelectionToken;
+    if (selectedChanged || selectionEvent) {
+      input.blur();
+      query = "";
+      input.value = "";
+      lastSent = "";
+    }
+    lastSelectedId = nextSelectedId;
+    lastSelectionToken = nextSelectionToken;
+    const nextQuery = String(args.query || "");
+    if (nextQuery !== query && document.activeElement !== input) {
+      query = nextQuery;
+      input.value = nextQuery;
+      lastSent = nextQuery;
+    }
+    selected.textContent = args.selectedLabel
+      ? "Đang chọn: " + args.selectedLabel : "";
+    setHeight();
+  }
+
+  window.addEventListener("message", event => {
+    const data = event.data || {};
+    if (data.type === "streamlit:render") onRender(data);
+  });
+
+  input.addEventListener("input", () => {
+    query = input.value;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (query === lastSent) return;
+      lastSent = query;
+      send("streamlit:setComponentValue", {
+        query,
+        eventId: String(Date.now()) + "-" + Math.random().toString(36).slice(2)
+      });
+    }, 180);
+  });
+
+  window.addEventListener("load", () => {
+    send("streamlit:componentReady", {apiVersion: 1});
+    setHeight();
+  });
+</script>
+</body>
+</html>

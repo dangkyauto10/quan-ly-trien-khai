@@ -68,7 +68,7 @@ class SiteProgressRulesTests(unittest.TestCase):
         fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
                 and n.name=="dashboard")
         snippet=ast.get_source_segment(text,fn)
-        self.assertIn('project=st.selectbox("Dự án cần xem",ids',snippet)
+        self.assertIn('project=st.selectbox("Dự án",ids',snippet)
         self.assertNotIn('options=ids+["Tất cả"]',snippet)
 
 

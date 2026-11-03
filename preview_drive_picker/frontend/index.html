@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://apis.google.com/js/api.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    button { border: 0; border-radius: 8px; padding: 10px 14px; background: #155eef; color: #fff; font-weight: 700; cursor: pointer; }
+    button:disabled { background: #8aa9e8; }
+    #pick { display: none; }
+    #status { margin: 5px 0; color: #334155; }
+    body { min-height: 0; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <button id="pick" disabled>Đang tải Google Picker…</button>
+  <div id="status">Chọn đúng thư mục ảnh PREVIEW để giới hạn quyền ứng dụng.</div>
+  <script>
+    let args = null;
+    let pickerReady = false;
+    let pickerOpened = false;
+    const button = document.getElementById("pick");
+    const status = document.getElementById("status");
+    function send(type, value) {
+      const message = {isStreamlitMessage: true, type};
+      if (type === "streamlit:componentReady") {
+        message.apiVersion = value?.apiVersion;
+      } else {
+        message.value = value;
+      }
+      window.parent.postMessage(message, "*");
+    }
+    function height(requestedHeight) {
+      window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: "streamlit:setFrameHeight",
+        height: requestedHeight || document.documentElement.scrollHeight
+      }, "*");
+    }
+    function maybeReady() {
+      if (args && pickerReady) {
+        button.disabled = false;
+        button.textContent = "Chọn thư mục ảnh trong Google Drive";
+        height(args.openPicker ? 720 : 88);
+        if (args.openPicker && !pickerOpened) {
+          pickerOpened = true;
+          openPickerDialog();
+        } else if (!args.openPicker) {
+          pickerOpened = false;
+        }
+      }
+    }
+    window.addEventListener("message", event => {
+      const data = event.data || {};
+      if (data.type === "streamlit:render") {
+        args = data.args || {};
+        maybeReady();
+      }
+    });
+    window.addEventListener("load", () => {
+      send("streamlit:componentReady", {apiVersion: 1});
+      height(88);
+      if (!window.gapi) {
+        status.textContent = "Không tải được Google Picker. Kiểm tra API Picker/API key.";
+        return;
+      }
+      gapi.load("picker", {
+        callback: () => { pickerReady = true; maybeReady(); },
+        onerror: () => { status.textContent = "Google Picker chưa tải được."; }
+      });
+    });
+    function openPickerDialog() {
+      if (!args || !args.apiKey || !args.accessToken || !window.google?.picker) {
+        status.textContent = "Thiếu API key hoặc quyền OAuth Drive.";
+        return;
+      }
+      // Google Picker renders inside this iframe. Expand it before showing the
+      // dialog so its folder list and selection controls are not clipped.
+      height(720);
+      const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(true)
+        .setMimeTypes("application/vnd.google-apps.folder");
+      const picker = new google.picker.PickerBuilder()
+        .addView(view)
+        .setOAuthToken(args.accessToken)
+        .setDeveloperKey(args.apiKey)
+        .setAppId(String(args.appId || ""))
+        .setTitle("Chọn thư mục ảnh PREVIEW")
+        .setCallback(data => {
+          if (data.action === google.picker.Action.PICKED && data.docs?.length) {
+            const folder = data.docs[0];
+            status.textContent = "Đã chọn: " + (folder.name || folder.id);
+            send("streamlit:setComponentValue", {
+              folderId: folder.id,
+              name: folder.name || "",
+              mimeType: folder.mimeType || ""
+            });
+            window.setTimeout(() => height(88), 180);
+          } else if (data.action === google.picker.Action.CANCEL) {
+            height(88);
+          }
+        })
+        .build();
+      window.setTimeout(() => picker.setVisible(true), 150);
+    }
+    button.addEventListener("click", openPickerDialog);
+  </script>
+</body>
+</html>

@@ -73,7 +73,8 @@ class ReportAtomicTests(unittest.TestCase):
         snippet=ast.get_source_segment(source,report)
         self.assertIn('site_allocations=[row for row in read_sheet("KHO_PHAN_BO")',snippet)
         self.assertIn('item=allocated_report_item(r,site_allocations,mode)',snippet)
-        self.assertIn("st.markdown(f\"**{item['name']}**\")",snippet)
+        self.assertIn('"Thiết bị":item["name"]',snippet)
+        self.assertIn('display_centered_table(\n                sku_display, hide_index=True, use_container_width=True,',snippet)
         self.assertNotIn("st.write(f\"**{r['SKU']}**",snippet)
 
     def test_report_ui_shows_allocated_quantities_without_manual_inputs(self):
@@ -84,7 +85,7 @@ class ReportAtomicTests(unittest.TestCase):
         self.assertIn("increments[r[id_key]]=remaining",snippet)
         self.assertNotIn("st.number_input(",snippet)
         self.assertIn('require_gps = mode!="Đã giao hàng"',snippet)
-        self.assertIn('eligible=bool(photos)',snippet)
+        self.assertIn('eligible=(bool(photos) and len(photos)<=10',snippet)
         self.assertLess(snippet.index('if not eligible:'),
                         snippet.index('if st.button("✅ GỬI BÁO CÁO"'))
 
@@ -94,15 +95,30 @@ class ReportAtomicTests(unittest.TestCase):
                if isinstance(n,ast.FunctionDef)}
         report=ast.get_source_segment(source,funcs["report"])
         save=ast.get_source_segment(source,funcs["images_to_drive"])
-        self.assertIn('st.camera_input(',report)
-        self.assertIn('key=f"report_camera_{photo_key}"',report)
-        self.assertIn('photos=([captured] if captured is not None else [])+list(uploaded or [])',report)
+        self.assertIn('capture_report_photos(',report)
+        self.assertIn('key=f"report_camera_capture_{photo_key}"',report)
+        self.assertIn('photos.extend(list(uploaded or []))',report)
+        component=(Path(__file__).resolve().parents[1]/"preview_photo_capture"/"frontend"/"index.html").read_text(encoding="utf-8")
+        self.assertIn('capture="environment"',component)
+        self.assertIn('Math.min(10,Number(args.maxPhotos??10))',component)
         self.assertIn('submitted_at=now()',report)
         self.assertIn('sheets,rid,submitted_at,',report)
         self.assertIn('urls=images_to_drive(',report)
         for detail in ('safe(project_id)','safe(point_id)','stamp','photo_prefix',
                        'Thời điểm gửi:','Mã báo cáo:','"description":description'):
             self.assertIn(detail,save)
+
+    def test_installation_rechecks_delivery_after_photo_upload(self):
+        source=(Path(__file__).resolve().parents[1]/"preview_app.py").read_text(encoding="utf-8")
+        report=next(node for node in ast.parse(source).body
+                    if isinstance(node,ast.FunctionDef) and node.name=="report")
+        snippet=ast.get_source_segment(source,report)
+        after_upload=snippet.split('phase="đối soát dữ liệu sau tải ảnh"',1)[1]
+        self.assertIn('hub_latest=read_sheet_live("BAN_GIAO_TAP_KET")',after_upload)
+        gate=after_upload.index('if mode=="Đã lắp đặt":')
+        check=after_upload.index('site_may_complete_installation(',gate)
+        write=after_upload.index('atomic_report_requests(',check)
+        self.assertLess(check,write)
 
     def test_partial_transport_is_not_marked_delivered(self):
         requests,states=request(VC,{"VC-A":3})
