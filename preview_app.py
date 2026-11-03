@@ -334,7 +334,8 @@ st.markdown("""
   height: 3.15rem;
   object-fit: contain;
   flex-shrink: 0;
-  border-radius: 0.68rem;
+  background: transparent;
+  border-radius: 0;
 }
 .tdv-hero-subtitle {
   margin-top: 0.18rem;
