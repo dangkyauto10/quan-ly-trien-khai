@@ -489,7 +489,7 @@ st.markdown(f"""
     <img class="tdv-hero-icon" src="data:image/png;base64,{APP_ICON_DATA}" alt="TDV" />
     <span class="tdv-hero-name" lang="vi">QU&#7842;N L&#221; D&#7920; &#193;N</span>
   </div>
-  <div class="tdv-hero-subtitle">Hệ thống điều hành hiện trường</div>
+  <div class="tdv-hero-subtitle">( Hệ thống Điều hành - Triển khai )</div>
 </div>
 """, unsafe_allow_html=True)
 
