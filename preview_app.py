@@ -497,6 +497,8 @@ st.markdown(f"""
 SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive.file"]
 DRIVE_UPLOAD_SCOPE = ["https://www.googleapis.com/auth/drive.file"]
+# PREVIEW deployment photo destination selected by V for this project.
+PREVIEW_PHOTO_FOLDER_ID = "1TcIGZFSR3QZNb4ccAyZ-UVRZpXzCPel6"
 READY = "Đã đồng bộ"
 
 class PreviewSheetReadError(RuntimeError):
@@ -591,9 +593,9 @@ def drive_client():
 
 def verify_configured_photo_folder(credentials=None):
     """Verify the configured folder and report the OAuth identity on failure."""
-    folder = str(st.secrets.get("photos_folder_id", "")).strip()
+    folder = PREVIEW_PHOTO_FOLDER_ID
     if not folder:
-        raise RuntimeError("Thiếu photos_folder_id trong Streamlit Secrets.")
+        raise RuntimeError("Chưa cấu hình thư mục ảnh PREVIEW.")
     if credentials is None and st.session_state.get(
             "_tdv_verified_photo_folder_id") == folder:
         return {"id": folder, "name": folder,
@@ -625,11 +627,11 @@ def verify_configured_photo_folder(credentials=None):
 
 def configure_photo_folder():
     """ADMIN selects and verifies only the configured photo folder."""
-    folder = str(st.secrets.get("photos_folder_id", "")).strip()
+    folder = PREVIEW_PHOTO_FOLDER_ID
     oauth = st.secrets.get("google_drive_oauth", {})
     api_key = str(oauth.get("picker_api_key", "")).strip()
     if not folder:
-        st.error("Thiếu photos_folder_id trong Streamlit Secrets.")
+        st.error("Chưa cấu hình thư mục ảnh PREVIEW.")
         return
     if not api_key:
         st.info("ADMIN cần thêm picker_api_key trong [google_drive_oauth] "
@@ -2966,9 +2968,9 @@ def sync_progress(project_id, point_id):
 
 
 def images_to_drive(files, report_id, project_id="", point_id="", point_name="", recorded_at=""):
-    folder=st.secrets.get("photos_folder_id", "")
+    folder=PREVIEW_PHOTO_FOLDER_ID
     if not folder:
-        raise RuntimeError("Thiếu photos_folder_id.")
+        raise RuntimeError("Chưa cấu hình thư mục ảnh PREVIEW.")
     drive=drive_client()
     # Searchable Drive filename/description; the report Sheet stores the URL.
     if project_id and point_id and recorded_at:
@@ -3589,11 +3591,9 @@ def report():
         lon=gps.get("longitude") if isinstance(gps,dict) else None
         # Never offer an actionable submit if the PREVIEW photo destination
         # is missing; this used to surface only after clicking GỬI BÁO CÁO.
-        if not str(st.secrets.get("photos_folder_id", "")).strip():
-            st.error("⛔ Chưa cấu hình thư mục lưu ảnh DỰ ÁN "
-                     "(photos_folder_id). Chưa thể gửi báo cáo. "
-                     "ADMIN cần bổ sung cấu hình ảnh trên Streamlit Cloud; "
-                     "không bấm gửi lại khi chưa hoàn tất.")
+        if not PREVIEW_PHOTO_FOLDER_ID:
+            st.error("⛔ Chưa cấu hình thư mục lưu ảnh DỰ ÁN trong PREVIEW. "
+                     "Chưa thể gửi báo cáo; ADMIN cần kiểm tra cấu hình ứng dụng.")
             return
         drive_oauth=st.secrets.get("google_drive_oauth", {})
         oauth_ready=all(str(drive_oauth.get(k, "")).strip()
