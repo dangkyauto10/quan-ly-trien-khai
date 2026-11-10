@@ -3379,12 +3379,15 @@ def report():
         if st.session_state.get(selected_key) not in available:
             st.session_state[selected_key]=available[0]
         chosen=st.selectbox(
-            "📍 Chọn điểm được giao",
+            "📍 Chọn điểm được giao (gõ để tìm)",
             options=available,
             format_func=site_option,
             key=selected_key,
-            help="Danh sách chỉ gồm các điểm đã được phân bổ cho đội này. "
-                 "Chạm để chọn điểm cần báo cáo.")
+            filter_mode="fuzzy",
+            accept_new_options=False,
+            help="Chạm vào ô để mở danh sách và bàn phím tìm kiếm. "
+                 "Gõ vài ký tự tên đơn vị hoặc mã điểm; gợi ý gần nhất "
+                 "được lọc ngay trong danh sách. Chỉ chọn được điểm đã phân bổ.")
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
                    and p.get("Mã điểm")==chosen[1]),{})
