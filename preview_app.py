@@ -3377,56 +3377,111 @@ def report():
             suffix=" • "+summary["status"] if summary else ""
             return f"{key[0]} • {name} • {key[1]}{suffix}"
         selected_key=f"report_site_selected_{tid}"
+        search_key=f"report_site_query_{tid}"
         if st.session_state.get(selected_key) not in available:
             st.session_state[selected_key]=available[0]
-        search_key=f"report_site_query_{tid}"
-        search_value=st.text_input(
-            "🔎 Tìm điểm được giao",
-            placeholder="Gõ tên đơn vị hoặc mã điểm",
-            key=search_key,
-            help="Chạm ô để bật bàn phím, gõ vài ký tự rồi nhấn Enter. "
-                 "Gợi ý được lọc theo các điểm đã phân bổ; chạm một gợi ý để chọn.")
-        def normalize_site_query(value):
-            normalized=unicodedata.normalize("NFD",str(value).casefold())
-            return "".join(ch for ch in normalized
-                           if unicodedata.category(ch)!="Mn").replace("đ","d")
-        query_norm=normalize_site_query(search_value.strip())
-        def site_match_rank(point_key):
-            label=normalize_site_query(site_option(point_key))
-            if not query_norm:
-                return (0,0,-len(label))
-            if query_norm in label:
-                return (0,label.find(query_norm),-len(label))
-            word_scores=[difflib.SequenceMatcher(
-                None,query_norm,word).ratio() for word in label.split()]
-            score=max(word_scores,default=0.0)
-            return (1,-score,-len(label))
-        # Keep the full assigned-site list visible when the search is empty.
-        # While searching, rank the closest allocated sites first instead of
-        # hiding the list when there is no exact substring match.
-        filtered=sorted(available,key=site_match_rank)
-        st.markdown(
-            "**"+("GỢI Ý ĐỊA ĐIỂM — chạm một dòng để chọn"
-                  if query_norm else
-                  "CÁC ĐIỂM ĐƯỢC PHÂN BỔ — chạm một dòng để chọn")+"**")
 
-        def select_assigned_site(point_key):
-            st.session_state[selected_key]=point_key
+        # A tapped browser-side suggestion returns its assigned project/site pair
+        # through a one-time query parameter. Reject anything outside "available".
+        picked=st.query_params.get("tdv_site_pick")
+        if picked:
+            try:
+                pair=json.loads(picked)
+                point_key=(str(pair[0]),str(pair[1]))
+                if point_key in available:
+                    st.session_state[selected_key]=point_key
+            except (TypeError, ValueError, IndexError):
+                pass
+            del st.query_params["tdv_site_pick"]
             st.session_state[search_key]=""
 
-        for point_key in filtered:
-            option_id=json.dumps(list(point_key),ensure_ascii=False,
-                                 separators=(",",":"))
-            button_key=hashlib.sha1(option_id.encode("utf-8")).hexdigest()[:12]
-            st.button(
-                "📍 "+site_option(point_key),
-                key=f"report_site_choice_{tid}_{button_key}",
-                use_container_width=True,
-                on_click=select_assigned_site,
-                args=(point_key,))
-        if query_norm:
-            st.caption("Danh sách được sắp theo mức độ khớp; chỉ gồm điểm đã phân bổ.")
         chosen=st.session_state[selected_key]
+        st.caption("Đang chọn: "+site_option(chosen))
+        picker_options=[
+            {"key":[str(k[0]),str(k[1])],"label":site_option(k)}
+            for k in available
+        ]
+        picker_json=json.dumps(
+            picker_options,ensure_ascii=False,separators=(",",":")
+        ).replace("</","<\\/")
+        picker_html="""<!doctype html><html><head><meta name="viewport"
+            content="width=device-width,initial-scale=1">
+            <style>
+            *{box-sizing:border-box}
+            body{margin:0;font-family:Arial,sans-serif;color:#202124}
+            input{width:100%;height:48px;padding:0 14px;border:1px solid #9aa0a6;
+              border-radius:10px;font-size:17px;background:#fff;color:#202124}
+            input:focus{outline:2px solid #1a73e8;border-color:#1a73e8}
+            #hint{font-size:13px;color:#5f6368;margin:8px 2px}
+            #items{display:none;max-height:230px;overflow-y:auto;border:1px solid #dadce0;
+              border-radius:10px;background:#fff;-webkit-overflow-scrolling:touch}
+            .item{display:block;width:100%;text-align:left;border:0;
+              border-bottom:1px solid #eee;background:#fff;padding:13px 12px;
+              font-size:15px;line-height:1.35;color:#202124;cursor:pointer}
+            .item:last-child{border-bottom:0}
+            .item:active{background:#e8f0fe}
+            .empty{padding:14px;color:#5f6368;font-size:14px}
+            </style></head><body>
+            <input id="q" type="search" inputmode="search" autocomplete="off"
+              autocapitalize="off" spellcheck="false"
+              placeholder="Gõ tên đơn vị hoặc mã điểm">
+            <div id="hint">Các điểm đã phân bổ · gõ để lọc ngay</div>
+            <div id="items" role="listbox"></div>
+            <script>
+            const options=__OPTIONS__;
+            const normalize=s=>String(s||"").toLocaleLowerCase()
+              .normalize("NFD").replace(/[\\u0300-\\u036f]/g,"")
+              .replace(/đ/g,"d").trim();
+            function distance(a,b){
+              if(a===b)return 0;if(!a.length)return b.length;if(!b.length)return a.length;
+              let prev=Array.from({length:b.length+1},(_,i)=>i);
+              for(let i=1;i<=a.length;i++){
+                const row=[i];
+                for(let j=1;j<=b.length;j++)row[j]=Math.min(
+                  row[j-1]+1,prev[j]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
+                prev=row;
+              }
+              return prev[b.length];
+            }
+            function rank(item,q){
+              const label=normalize(item.label);
+              if(!q)return [0,0];
+              const at=label.indexOf(q);
+              if(at>=0)return [0,at];
+              const words=label.split(/\\s+/);
+              return [1,Math.min(...words.map(w=>distance(q,w)/Math.max(q.length,w.length,1)))];
+            }
+            function render(open){
+              const q=normalize(document.getElementById("q").value);
+              const sorted=options.slice().sort((a,b)=>{
+                const x=rank(a,q),y=rank(b,q);
+                return x[0]-y[0]||x[1]-y[1]||a.label.localeCompare(b.label,"vi");
+              });
+              const list=document.getElementById("items");
+              list.replaceChildren();
+              document.getElementById("items").style.display=open?"block":"none";
+              document.getElementById("hint").textContent=!open
+                ?"Chạm để tìm trong các điểm đã phân bổ"
+                :q
+                  ?("Gợi ý sát nhất · "+Math.min(sorted.length,8)+"/"+sorted.length+" điểm")
+                  :"8 điểm được phân bổ · gõ để tìm nhanh";
+              for(const item of sorted.slice(0,8)){
+                const button=document.createElement("button");
+                button.className="item";button.type="button";
+                button.setAttribute("role","option");button.textContent="📍 "+item.label;
+                button.addEventListener("click",()=>{
+                  const url=new URL(window.parent.location.href);
+                  url.searchParams.set("tdv_site_pick",JSON.stringify(item.key));
+                  window.parent.location.assign(url.toString());
+                });
+                list.appendChild(button);
+              }
+            }
+            document.getElementById("q").addEventListener("focus",()=>render(true));
+            document.getElementById("q").addEventListener("input",()=>render(true));
+            render(false);
+            </script></body></html>""".replace("__OPTIONS__",picker_json)
+        components.html(picker_html,height=370,scrolling=False)
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
                    and p.get("Mã điểm")==chosen[1]),{})
