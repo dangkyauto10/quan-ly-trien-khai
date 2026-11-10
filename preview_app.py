@@ -3378,46 +3378,13 @@ def report():
         selected_key=f"report_site_selected_{tid}"
         if st.session_state.get(selected_key) not in available:
             st.session_state[selected_key]=available[0]
-        search_key=f"report_site_query_{tid}"
-        selected_point=st.session_state[selected_key]
-        search_value=st.text_input(
-            "🔎 Tìm điểm được giao",
-            placeholder="Gõ tên địa điểm hoặc mã điểm",
-            key=search_key,
-            help="Gõ vài chữ; danh sách điểm phù hợp hiện ngay bên dưới.")
-
-        def normalize_site_query(value):
-            normalized=unicodedata.normalize("NFD",str(value).casefold())
-            return "".join(ch for ch in normalized
-                           if unicodedata.category(ch)!="Mn").replace("đ","d")
-        query_norm=normalize_site_query(search_value.strip())
-        if query_norm:
-            filtered=[point_key for point_key in available
-                      if query_norm in normalize_site_query(site_option(point_key))]
-            if not filtered:
-                st.info("Không tìm thấy điểm khớp. Hãy sửa từ khóa.")
-                return
-            st.markdown("**GỢI Ý ĐỊA ĐIỂM — chạm một dòng để mở báo cáo**")
-
-            def select_assigned_site(point_key):
-                st.session_state[selected_key]=point_key
-                st.session_state[search_key]=""
-
-            for point_key in filtered[:10]:
-                option_id=json.dumps(list(point_key),ensure_ascii=False,
-                                     separators=(",",":"))
-                button_key=hashlib.sha1(option_id.encode("utf-8")).hexdigest()[:12]
-                st.button(
-                    "📍 "+site_option(point_key),
-                    key=f"report_site_choice_{tid}_{button_key}",
-                    use_container_width=True,
-                    on_click=select_assigned_site,
-                    args=(point_key,))
-            if len(filtered)>10:
-                st.caption(f"Có {len(filtered)} kết quả; gõ thêm để thu hẹp.")
-            st.info("Chạm một dòng để mở hàng hóa và phần báo cáo của điểm đó.")
-            return
-        chosen=st.session_state[selected_key]
+        chosen=st.selectbox(
+            "📍 Chọn điểm được giao",
+            options=available,
+            format_func=site_option,
+            key=selected_key,
+            help="Danh sách chỉ gồm các điểm đã được phân bổ cho đội này. "
+                 "Chạm để chọn điểm cần báo cáo.")
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
                    and p.get("Mã điểm")==chosen[1]),{})
