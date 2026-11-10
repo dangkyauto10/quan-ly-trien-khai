@@ -1,6 +1,7 @@
 # QUAN LY DU AN — PREVIEW 2026-10-22
 # Staged only: never deploy to production without user approval.
 import io
+import difflib
 import json
 import base64
 from pathlib import Path
@@ -3378,16 +3379,54 @@ def report():
         selected_key=f"report_site_selected_{tid}"
         if st.session_state.get(selected_key) not in available:
             st.session_state[selected_key]=available[0]
-        chosen=st.selectbox(
-            "📍 Chọn điểm được giao (gõ để tìm)",
-            options=available,
-            format_func=site_option,
-            key=selected_key,
-            filter_mode="fuzzy",
-            accept_new_options=False,
-            help="Chạm vào ô để mở danh sách và bàn phím tìm kiếm. "
-                 "Gõ vài ký tự tên đơn vị hoặc mã điểm; gợi ý gần nhất "
-                 "được lọc ngay trong danh sách. Chỉ chọn được điểm đã phân bổ.")
+        search_key=f"report_site_query_{tid}"
+        search_value=st.text_input(
+            "🔎 Tìm điểm được giao",
+            placeholder="Gõ tên đơn vị hoặc mã điểm",
+            key=search_key,
+            help="Chạm ô để bật bàn phím, gõ vài ký tự rồi nhấn Enter. "
+                 "Gợi ý được lọc theo các điểm đã phân bổ; chạm một gợi ý để chọn.")
+        def normalize_site_query(value):
+            normalized=unicodedata.normalize("NFD",str(value).casefold())
+            return "".join(ch for ch in normalized
+                           if unicodedata.category(ch)!="Mn").replace("đ","d")
+        query_norm=normalize_site_query(search_value.strip())
+        if query_norm:
+            def site_match_rank(point_key):
+                label=normalize_site_query(site_option(point_key))
+                if query_norm in label:
+                    return (0,label.find(query_norm),-len(label))
+                word_scores=[difflib.SequenceMatcher(
+                    None,query_norm,word).ratio() for word in label.split()]
+                score=max(word_scores,default=0.0)
+                return (1,-score,-len(label))
+            ranked=sorted(available,key=site_match_rank)
+            filtered=[point_key for point_key in ranked
+                      if query_norm in normalize_site_query(site_option(point_key))
+                      or -site_match_rank(point_key)[1]>=0.42]
+            if not filtered:
+                st.info("Chưa thấy điểm khớp. Sửa từ khóa rồi nhấn Enter.")
+                return
+            st.markdown("**GỢI Ý ĐỊA ĐIỂM — chạm một dòng để chọn**")
+
+            def select_assigned_site(point_key):
+                st.session_state[selected_key]=point_key
+                st.session_state[search_key]=""
+
+            for point_key in filtered[:10]:
+                option_id=json.dumps(list(point_key),ensure_ascii=False,
+                                     separators=(",",":"))
+                button_key=hashlib.sha1(option_id.encode("utf-8")).hexdigest()[:12]
+                st.button(
+                    "📍 "+site_option(point_key),
+                    key=f"report_site_choice_{tid}_{button_key}",
+                    use_container_width=True,
+                    on_click=select_assigned_site,
+                    args=(point_key,))
+            if len(filtered)>10:
+                st.caption(f"Có {len(filtered)} kết quả; thêm ký tự để thu hẹp.")
+            return
+        chosen=st.session_state[selected_key]
         site=next((p for p in read_sheet("DANH_SACH_DIEM")
                    if p.get("Mã dự án")==chosen[0]
                    and p.get("Mã điểm")==chosen[1]),{})
