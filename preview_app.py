@@ -3239,7 +3239,7 @@ def report():
             st.warning("Quyền địa điểm cần ADMIN đối soát: "+str(exc))
             approved_sites=[]
         if approved_sites:
-            with st.expander("📍 ĐỊA ĐIỂM ADMIN ĐÃ DUYỆT",expanded=True):
+            with st.expander("📍 ĐỊA ĐIỂM ADMIN ĐÃ DUYỆT",expanded=False):
                 display_centered_table([{
                     "Địa điểm":r["site_name"],
                     "Công việc":r["role"],
@@ -3272,7 +3272,7 @@ def report():
                    "giao trực tiếp, không nhầm hai hình thức bàn giao.")
     if handover:
         with st.expander("📦 1. KIỂM TRA HÀNG VC / TẬP KẾT",
-                         expanded=True):
+                         expanded=False):
             st.markdown("#### Hàng VC đã giao tận xã / KTV nhận tập kết")
             st.caption("Chỉ các địa điểm được giao cho đội LĐ này. "
                        "Số liệu VC được đối chiếu theo từng SKU và SL THỰC GIAO; "
