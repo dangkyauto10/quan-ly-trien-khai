@@ -20,6 +20,9 @@ import gspread
 import streamlit as st
 import pandas as pd
 from google.oauth2.service_account import Credentials
+from google.oauth2.credentials import Credentials as OAuthCredentials
+from google.auth.transport.requests import Request
+from preview_drive_picker import pick_folder
 from preview_photo_capture import capture_report_photos
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
@@ -494,7 +497,7 @@ st.markdown(f"""
 
 SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive.file"]
-DRIVE_SERVICE_ACCOUNT_SCOPE = ["https://www.googleapis.com/auth/drive"]
+DRIVE_UPLOAD_SCOPE = ["https://www.googleapis.com/auth/drive.file"]
 # PREVIEW deployment photo destination selected by V for this project.
 PREVIEW_PHOTO_FOLDER_ID = "1TcIGZFSR3QZNb4ccAyZ-UVRZpXzCPel6"
 READY = "Đã đồng bộ"
@@ -561,68 +564,116 @@ def client():
     return sh, cred
 
 
-def drive_service_account_credentials():
-    """Build Drive credentials from the app's existing service account."""
-    if "gcp_service_account_json" in st.secrets:
-        info = json.loads(st.secrets["gcp_service_account_json"])
-    elif "gcp_service_account" in st.secrets:
-        info = dict(st.secrets["gcp_service_account"])
-    else:
-        raise RuntimeError("Thiếu cấu hình tài khoản dịch vụ Google trong Secrets.")
-    return Credentials.from_service_account_info(
-        info, scopes=DRIVE_SERVICE_ACCOUNT_SCOPE)
+def drive_oauth_credentials():
+    """Build the narrowly scoped owner OAuth credentials."""
+    oauth = st.secrets.get("google_drive_oauth", {})
+    required = ("client_id", "client_secret", "refresh_token")
+    missing = [key for key in required if not str(oauth.get(key, "")).strip()]
+    if missing:
+        raise RuntimeError(
+            "Thiếu [google_drive_oauth] client_id, client_secret hoặc "
+            "refresh_token trong Streamlit Secrets.")
+    cred = OAuthCredentials(
+        token=None,
+        refresh_token=str(oauth["refresh_token"]).strip(),
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=str(oauth["client_id"]).strip(),
+        client_secret=str(oauth["client_secret"]).strip(),
+        scopes=DRIVE_UPLOAD_SCOPE,
+    )
+    if not cred.valid:
+        cred.refresh(Request())
+    return cred
 
 
 def drive_client():
-    """Use the app service account, which is an Editor on the fixed photo folder."""
-    cred = drive_service_account_credentials()
+    """Use only the owner's per-file Drive OAuth grant."""
+    cred = drive_oauth_credentials()
     return build("drive", "v3", credentials=cred, cache_discovery=False)
 
 
-def verify_configured_photo_folder():
-    """Verify that the app service account can access the fixed Drive folder."""
+def verify_configured_photo_folder(credentials=None):
+    """Verify the configured folder and report the OAuth identity on failure."""
     folder = PREVIEW_PHOTO_FOLDER_ID
     if not folder:
         raise RuntimeError("Chưa cấu hình thư mục ảnh PREVIEW.")
-    if st.session_state.get("_tdv_verified_photo_folder_id") == folder:
+    if credentials is None and st.session_state.get(
+            "_tdv_verified_photo_folder_id") == folder:
         return {"id": folder, "name": folder,
                 "mimeType": "application/vnd.google-apps.folder"}
-    cred = drive_service_account_credentials()
+    cred = credentials or drive_oauth_credentials()
     drive = build("drive", "v3", credentials=cred, cache_discovery=False)
-    account = str(getattr(cred, "service_account_email", "") or "")
+    oauth_email = ""
+    try:
+        about = drive.about().get(fields="user(emailAddress)").execute()
+        oauth_email = str((about.get("user") or {}).get("emailAddress") or "").strip()
+    except Exception:
+        # Folder access check remains authoritative if profile metadata is unavailable.
+        pass
     try:
         info = drive.files().get(
             fileId=folder, supportsAllDrives=True,
             fields="id,name,mimeType").execute()
     except Exception as exc:
         detail = drive_error_summary(exc)
-        if account:
-            detail += "; tài khoản dịch vụ: " + account
+        if oauth_email:
+            detail += "; tài khoản OAuth đang dùng: " + oauth_email
         raise RuntimeError(detail) from exc
     if info.get("mimeType") != "application/vnd.google-apps.folder":
         raise RuntimeError("Mục đã cấu hình không phải thư mục Google Drive.")
-    info["_serviceAccountEmail"] = account
+    info["_oauthEmail"] = oauth_email
     st.session_state["_tdv_verified_photo_folder_id"] = folder
     return info
 
 
 def configure_photo_folder():
-    """ADMIN checks the fixed photo folder using the app service account."""
+    """ADMIN selects and verifies only the configured photo folder."""
     folder = PREVIEW_PHOTO_FOLDER_ID
-    st.caption("Ảnh DỰ ÁN được lưu vào thư mục đã thống nhất: "
-               "https://drive.google.com/drive/folders/" + folder)
-    st.caption("Dùng tài khoản dịch vụ đã được cấp quyền Editor cho thư mục này; "
-               "không cần OAuth Playground hoặc refresh token.")
-    if st.button("🔎 KIỂM TRA QUYỀN LƯU ẢNH",
-                 key="preview_verify_photo_folder"):
-        try:
-            st.session_state.pop("_tdv_verified_photo_folder_id", None)
-            info = verify_configured_photo_folder()
-            st.success("Đã xác minh quyền lưu ảnh: " +
-                       str(info.get("name") or folder))
-        except Exception as exc:
-            st.error("Chưa xác minh được quyền tài khoản dịch vụ: " +
-                     drive_error_summary(exc))
+    oauth = st.secrets.get("google_drive_oauth", {})
+    api_key = str(oauth.get("picker_api_key", "")).strip()
+    if not folder:
+        st.error("Chưa cấu hình thư mục ảnh PREVIEW.")
+        return
+    if not api_key:
+        st.info("ADMIN cần thêm picker_api_key trong [google_drive_oauth] "
+                "sau khi bật Google Picker API trên project OAuth.")
+        return
+    try:
+        cred = drive_oauth_credentials()
+    except Exception as exc:
+        st.info("Chưa đủ OAuth Drive: " + str(exc))
+        return
+    st.caption("Google chỉ cấp quyền cho thư mục được chọn ở đây "
+               "(phạm vi drive.file).")
+    client_id = str(oauth.get("client_id", "")).strip()
+    app_id = client_id.split("-", 1)[0] if "-" in client_id else ""
+    if not app_id.isdigit():
+        st.error("Client ID OAuth không chứa mã project hợp lệ để mở Picker.")
+        return
+    open_picker = st.button(
+        "📂 MỞ CHỌN THƯ MỤC ẢNH",
+        key="preview_open_photo_folder_picker",
+        help="Mở cửa sổ Google Drive để chọn đúng thư mục ảnh DỰ ÁN."
+    )
+    picked = pick_folder(
+        api_key, cred.token, app_id=app_id,
+        key="preview_photo_folder_picker",
+        open_picker=open_picker
+    )
+    if not picked:
+        return
+    if picked.get("folderId") != folder:
+        st.error("Đã chọn nhầm thư mục. Hãy chọn đúng thư mục ảnh DỰ ÁN "
+                 "đã cấu hình; chưa cấp quyền tải ảnh.")
+        return
+    try:
+        # Verify with the exact OAuth credential/token Picker used.
+        info = verify_configured_photo_folder(cred)
+        st.success("Đã xác minh quyền OAuth trên đúng thư mục ảnh: " +
+                   str(info.get("name") or folder))
+    except Exception as exc:
+        st.error("Google Picker đã chọn thư mục nhưng Drive chưa xác nhận quyền: " +
+                 drive_error_summary(exc))
 
 
 def drive_error_summary(error):
@@ -3608,12 +3659,21 @@ def report():
             st.error("⛔ Chưa cấu hình thư mục lưu ảnh DỰ ÁN trong PREVIEW. "
                      "Chưa thể gửi báo cáo; ADMIN cần kiểm tra cấu hình ứng dụng.")
             return
+        drive_oauth=st.secrets.get("google_drive_oauth", {})
+        oauth_ready=all(str(drive_oauth.get(k, "")).strip()
+                        for k in ("client_id", "client_secret", "refresh_token",
+                                  "picker_api_key"))
+        if not oauth_ready:
+            st.error("⛔ Chưa cấu hình OAuth giới hạn thư mục ảnh. "
+                     "ADMIN cần hoàn tất Kết nối thư mục ảnh DỰ ÁN trước; "
+                     "chưa bật gửi báo cáo để tránh tạo báo cáo lỗi.")
+            return
         try:
             verify_configured_photo_folder()
         except Exception as exc:
             st.error("⛔ Chưa xác minh được quyền thư mục ảnh: " +
                      drive_error_summary(exc) +
-                     ". ADMIN cần kiểm tra quyền tài khoản dịch vụ trong mục "
+                     ". ADMIN cần chọn/xác minh đúng thư mục trong mục "
                      "“Kết nối thư mục ảnh DỰ ÁN” trước khi gửi.")
             return
         eligible=(bool(photos) and len(photos)<=10
