@@ -236,7 +236,7 @@ def approved_team_site_overview(team, registrations, locations, tasksets):
 APP_ICON = Path(__file__).resolve().parent / "assets" / "tdv_icon_144.png"
 # Use the approved TDV square logo for the tab favicon and app masthead.
 st.set_page_config(
-    page_title="DỰ ÁN",
+    page_title="QUẢN LÝ DỰ ÁN",
     page_icon=str(APP_ICON),
     layout="wide"
 )
@@ -275,10 +275,42 @@ components.html("""
     if (!meta) { meta = doc.createElement("meta"); meta.setAttribute(attribute, selector.includes("property=") ? selector.match(/property="([^"]+)"/)[1] : selector.match(/name="([^"]+)"/)[1]); doc.head.appendChild(meta); }
     meta.content = value;
   };
-  setMeta('meta[name="apple-mobile-web-app-title"]', "name", "DỰ ÁN");
-  setMeta('meta[name="application-name"]', "name", "DỰ ÁN");
-  setMeta('meta[property="og:title"]', "property", "DỰ ÁN");
-  doc.title = "DỰ ÁN";
+  setMeta('meta[name="apple-mobile-web-app-title"]', "name", "QUẢN LÝ DỰ ÁN");
+  setMeta('meta[name="application-name"]', "name", "QUẢN LÝ DỰ ÁN");
+  setMeta('meta[property="og:title"]', "property", "QUẢN LÝ DỰ ÁN");
+  doc.title = "QUẢN LÝ DỰ ÁN";
+  const baseTitle = "QUẢN LÝ DỰ ÁN";
+  const selectedProjectCode = () => {
+    const widgets = Array.from(doc.querySelectorAll('[data-testid="stSelectbox"]'));
+    for (const widget of widgets) {
+      const label = widget.querySelector('[data-testid="stWidgetLabel"]')?.innerText || "";
+      if (!/dự án/i.test(label)) continue;
+      const valueNode = widget.querySelector('[data-baseweb="select"] [role="combobox"]')
+        || widget.querySelector('[data-baseweb="select"]');
+      const value = (valueNode?.innerText || "").trim();
+      if (!value || /^(?:—|–)?\s*(?:chọn dự án|tự xác định)/i.test(value)) continue;
+      const code = value.split(/\s+[—–]\s+/)[0].trim();
+      if (code) return code;
+    }
+    return "";
+  };
+  const refreshProjectTitle = () => {
+    const code = selectedProjectCode();
+    const title = baseTitle + (code ? " " + code : "");
+    const brand = doc.querySelector(".tdv-hero-name");
+    if (brand && brand.textContent !== title) brand.textContent = title;
+    if (doc.title !== title) doc.title = title;
+    const og = doc.querySelector('meta[property="og:title"]');
+    if (og && og.content !== title) og.content = title;
+  };
+  refreshProjectTitle();
+  if (doc.body) {
+    new MutationObserver(refreshProjectTitle).observe(doc.body, {
+      childList: true, subtree: true, characterData: true
+    });
+    doc.addEventListener("change", () => setTimeout(refreshProjectTitle, 0), true);
+    doc.addEventListener("click", () => setTimeout(refreshProjectTitle, 80), true);
+  }
 })();
 </script>
 """, width=0, height=0)
