@@ -290,9 +290,9 @@ def project_cleanup_admin(require_role, valid_login, client, read_sheet,
         except Exception as exc:
             read_sheet.clear()
             detail = ""
-            if isinstance(exc, gspread.exceptions.APIError):
-                response = getattr(exc, "response", None)
-                status = getattr(response, "status_code", None)
+            response = getattr(exc, "response", None)
+            status = getattr(response, "status_code", None)
+            if response is not None:
                 try:
                     payload = response.json() if response is not None else {}
                     google_error = payload.get("error", {}) if isinstance(payload, dict) else {}
