@@ -81,7 +81,7 @@ from preview_report_commit import (atomic_report_requests, pending_quantity, num
                                    allocated_report_item)
 from preview_progress_rules import site_progress
 from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label, verify_vc_assignment
-from preview_user_guide import GUIDE_URL, render_guide
+from preview_user_guide import GUIDE_URL, PRIVACY_URL, render_guide, render_privacy_policy
 from preview_project_cleanup import project_cleanup_admin
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
@@ -3940,6 +3940,9 @@ def main():
     try:
         # Public help is a separate bookmarkable page inside the PREVIEW app.
         # It has no backend reads/writes and does not bypass role permissions.
+        if st.query_params.get("privacy") == "1":
+            render_privacy_policy()
+            return
         if st.query_params.get("guide") == "1":
             render_guide()
             return
