@@ -289,7 +289,30 @@ def project_cleanup_admin(require_role, valid_login, client, read_sheet,
             st.rerun()
         except Exception as exc:
             read_sheet.clear()
+            detail = ""
+            if isinstance(exc, gspread.exceptions.APIError):
+                response = getattr(exc, "response", None)
+                status = getattr(response, "status_code", None)
+                try:
+                    payload = response.json() if response is not None else {}
+                    google_error = payload.get("error", {}) if isinstance(payload, dict) else {}
+                    message = str(google_error.get("message") or "").strip()
+                    reasons = [
+                        str(item.get("reason", "")).strip()
+                        for item in google_error.get("errors", [])
+                        if isinstance(item, dict) and item.get("reason")
+                    ]
+                    if message:
+                        detail = " Google Sheets"
+                        if status:
+                            detail += f" HTTP {status}"
+                        detail += ": " + message[:400]
+                        if reasons:
+                            detail += " [" + ", ".join(reasons[:3]) + "]"
+                except Exception:
+                    if status:
+                        detail = f" Google Sheets HTTP {status}."
             st.error("CHƯA XÁC NHẬN ĐƯỢC VIỆC XÓA (" +
-                     type(exc).__name__ + "). KHÔNG BẤM LẠI NGAY. "
-                     "ADMIN cần làm mới và xem trước lần nữa; nếu cần, "
-                     "kiểm tra dữ liệu Google Sheets.")
+                     type(exc).__name__ + ")." + detail +
+                     " KHÔNG BẤM LẠI NGAY. ADMIN cần làm mới và xem trước "
+                     "lần nữa; kiểm tra dữ liệu Google Sheets trước khi thử lại.")
