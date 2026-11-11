@@ -285,9 +285,9 @@ components.html("""
     for (const widget of widgets) {
       const label = widget.querySelector('[data-testid="stWidgetLabel"]')?.innerText || "";
       if (!/dự án/i.test(label)) continue;
-      const valueNode = widget.querySelector('[data-baseweb="select"] [role="combobox"]')
-        || widget.querySelector('[data-baseweb="select"]');
-      const value = (valueNode?.innerText || "").trim();
+      const control = widget.querySelector('[data-baseweb="select"]');
+      const value = (control?.querySelector('[role="combobox"]')?.innerText
+        || control?.innerText || "").trim();
       if (!value || /^(?:—|–)?\s*(?:chọn dự án|tự xác định)/i.test(value)) continue;
       const code = value.split(/\s+[—–]\s+/)[0].trim();
       if (code) return code;
