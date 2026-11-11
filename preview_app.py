@@ -81,7 +81,50 @@ from preview_report_commit import (atomic_report_requests, pending_quantity, num
                                    allocated_report_item)
 from preview_progress_rules import site_progress
 from preview_hub import hub_plan, received_by_site, signed_receipt_lines, qty_label, verify_vc_assignment
-from preview_user_guide import GUIDE_URL, PRIVACY_URL, render_guide, render_privacy_policy
+from preview_user_guide import GUIDE_URL, render_guide
+
+# Keep the public OAuth privacy page self-contained in the app entrypoint.
+PRIVACY_URL = "https://quan-ly-trien-khai-qfzumkrq7escxbxpv9v9tr.streamlit.app/?privacy=1"
+
+
+def render_privacy_policy():
+    """Public privacy notice for Google OAuth branding and project users."""
+    st.markdown(
+        "<div style='max-width:900px;margin:auto;line-height:1.65'>"
+        "<h1>Chính sách bảo mật — Quản lý dự án TDV</h1>"
+        "<p><strong>Cập nhật:</strong> 11/11/2026</p>"
+        "<p>Ứng dụng hỗ trợ quản lý phân bổ, vận chuyển, lắp đặt và đối soát "
+        "trong các dự án. Liên hệ về quyền riêng tư: "
+        "<a href='mailto:dangkyauto10@gmail.com'>dangkyauto10@gmail.com</a>.</p>"
+        "<h2>Dữ liệu ứng dụng xử lý</h2>"
+        "<p>Ứng dụng xử lý thông tin tài khoản/đội, điểm được phân công, "
+        "nhiệm vụ, báo cáo, ảnh hiện trường và tọa độ GPS khi quy trình "
+        "lắp đặt yêu cầu check-in. Đội vận chuyển không bắt buộc GPS.</p>"
+        "<h2>Google Drive</h2>"
+        "<p>Khi quản trị viên kết nối Drive, ứng dụng dùng quyền "
+        "<code>drive.file</code> và Google Picker để xác nhận thư mục ảnh "
+        "dự án. Ứng dụng lưu ảnh báo cáo do người dùng gửi vào thư mục đó; "
+        "không dùng quyền này để quét toàn bộ Drive hoặc quảng cáo.</p>"
+        "<h2>Mục đích, nơi lưu và chia sẻ</h2>"
+        "<p>Dữ liệu chỉ phục vụ điều hành, kiểm tra và đối soát dự án. "
+        "Báo cáo được lưu trong Google Sheet của dự án; ảnh được lưu trong "
+        "thư mục Google Drive do quản trị viên cấu hình. Quyền truy cập "
+        "được giới hạn theo vai trò trong ứng dụng và quyền chia sẻ của "
+        "tài khoản Google. Dữ liệu không được bán.</p>"
+        "<h2>Lưu giữ và yêu cầu hỗ trợ</h2>"
+        "<p>Dữ liệu được giữ trong Sheet/Drive của dự án cho đến khi quản trị "
+        "viên xử lý theo hồ sơ dự án. Để yêu cầu xem, sửa hoặc xóa dữ liệu, "
+        "liên hệ quản trị viên dự án qua email ở trên.</p>"
+        "<p>Việc kết nối Google Drive có thể được thu hồi trong cài đặt "
+        "Tài khoản Google. Sau khi thu hồi, ứng dụng không thể tải ảnh lên "
+        "Drive cho đến khi quản trị viên kết nối lại.</p>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    if st.button("← Về ứng dụng", key="privacy_back_home"):
+        st.query_params.clear()
+        st.rerun()
+
 from preview_project_cleanup import project_cleanup_admin
 from io import BytesIO
 from openpyxl import Workbook as ExcelWorkbook
