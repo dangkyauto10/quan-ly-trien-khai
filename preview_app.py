@@ -3695,13 +3695,14 @@ def report():
         camera_state_key=f"report_camera_saved_{photo_key}"
         camera_widget_key=f"report_camera_capture_{photo_key}"
         capture_result=capture_report_photos(
-            max_photos=max(0,10-len(gallery_before)),
+            max_photos=5,
+            existing_count=len(gallery_before),
             initial_photos=st.session_state.get(camera_state_key,[]),
             key=camera_widget_key)
         if isinstance(capture_result,dict) and isinstance(
                 capture_result.get("photos"),list):
-            st.session_state[camera_state_key]=capture_result["photos"][:10]
-        camera_items=st.session_state.get(camera_state_key,[])
+            st.session_state[camera_state_key]=capture_result["photos"][:5]
+        camera_items=(st.session_state.get(camera_state_key,[]) or [])[:5]
         uploaded=st.file_uploader(
             "🖼️ CHỌN ẢNH TỪ THƯ VIỆN (nếu cần)",
             type=["jpg","jpeg","png"],accept_multiple_files=True,
@@ -3715,9 +3716,9 @@ def report():
             image_file.name=item.get("name") or "anh_hien_truong.jpg"
             photos.append(image_file)
         photos.extend(list(uploaded or []))
-        st.caption(f"Ảnh minh chứng đã chọn: {len(photos)}/10")
-        if len(photos)>10:
-            st.error("Tối đa 10 ảnh cho một báo cáo. Bỏ bớt ảnh thư viện rồi gửi.")
+        st.caption(f"Ảnh minh chứng đã chọn cho điểm này: {len(photos)}/5")
+        if len(photos)>5:
+            st.error("Mỗi điểm chỉ được gửi tối đa 5 ảnh trong một báo cáo. Bỏ bớt ảnh rồi gửi.")
             return
         require_gps = mode!="Đã giao hàng"
         gps=None
